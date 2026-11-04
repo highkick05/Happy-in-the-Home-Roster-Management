@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText, Copy, Radio } from 'lucide-react';
+import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText, Copy, Radio, MapPin, Info, Car } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
 import BroadcastShiftModal from './BroadcastShiftModal';
@@ -21,8 +21,13 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const [showProgressNotePrompt, setShowProgressNotePrompt] = React.useState(false);
   const [progressNoteText, setProgressNoteText] = React.useState('');
   const [isEditingAbt, setIsEditingAbt] = React.useState(false);
-  const [abtInputText, setAbtInputText] = React.useState('');
   const [isSavingAbt, setIsSavingAbt] = React.useState(false);
+  const [didTransport, setDidTransport] = React.useState(false);
+  const [waypoints, setWaypoints] = React.useState<{name: string, placeId?: string, coords?: number[] | string}[]>([]);
+  const [returnedHome, setReturnedHome] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [searchResults, setSearchResults] = React.useState<any[]>([]);
+  const routeLogDetailsRef = React.useRef<HTMLDetailsElement>(null);
   const [cancelReason, setCancelReason] = React.useState('');
   const [clientGaveNotice, setClientGaveNotice] = React.useState(true);
   const [staffAttended, setStaffAttended] = React.useState(false);
@@ -31,28 +36,83 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const [internalHolidays, setInternalHolidays] = React.useState<any[]>([]);
   const [showBroadcastModal, setShowBroadcastModal] = React.useState(false);
 
+  const restoreAbtFromShift = React.useCallback((targetShift: ShiftEvent | null) => {
+    let restoredWaypoints: {name: string, placeId?: string, coords?: number[] | string}[] = [];
+    let restoredReturnedHome = false;
+    let restoredDidTransport = false;
+
+    if (targetShift && targetShift.status === 'COMPLETED' && targetShift.transportRouteLog) {
+      try {
+        const parsedLog = JSON.parse(targetShift.transportRouteLog);
+        const abt = parsedLog?.abt;
+        if (abt && (Number(targetShift.abtKm) > 0 || Number(abt.distance) > 0)) {
+          const legs: any[] = Array.isArray(abt.legs) ? abt.legs : [];
+          const rawWaypoints: any[] = Array.isArray(abt.waypoints) ? abt.waypoints : [];
+          if (legs.length > 0) {
+            const targetStops = legs.map((l: any) => (l.description || '').split(' → ')[1]?.trim()).filter(Boolean);
+            const lastStop = targetStops[targetStops.length - 1] || '';
+            if (lastStop.startsWith('Client Home')) {
+              restoredReturnedHome = true;
+            }
+            const communityStops = restoredReturnedHome ? targetStops.slice(0, -1) : targetStops;
+            restoredWaypoints = communityStops.map((stopStr: string, idx: number) => {
+              const withoutCoords = stopStr.replace(/\s*\[[\d.,\s-]+\]\s*$/, '').trim();
+              let cleanName = withoutCoords;
+              if (withoutCoords.startsWith('Community (') && withoutCoords.endsWith(')')) {
+                cleanName = withoutCoords.slice('Community ('.length, -1).trim();
+              }
+              const savedWp = rawWaypoints[idx + 1];
+              if (savedWp && typeof savedWp === 'object' && !Array.isArray(savedWp) && savedWp.placeId) {
+                return { name: cleanName, placeId: savedWp.placeId };
+              } else if (Array.isArray(savedWp)) {
+                return { name: cleanName, coords: savedWp };
+              }
+              return { name: cleanName };
+            });
+            if (restoredWaypoints.length > 0) {
+              restoredDidTransport = true;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    setDidTransport(restoredDidTransport);
+    setReturnedHome(restoredReturnedHome);
+    setWaypoints(restoredWaypoints);
+    setSearchQuery('');
+    setSearchResults([]);
+  }, []);
+
   React.useEffect(() => {
     if (!isOpen) {
       setShowCancelPrompt(false);
       setShowProgressNotePrompt(false);
       setProgressNoteText('');
       setIsEditingAbt(false);
-      setAbtInputText('');
       setIsSavingAbt(false);
+      setDidTransport(false);
+      setWaypoints([]);
+      setReturnedHome(false);
+      setSearchQuery('');
+      setSearchResults([]);
       setCancelReason('');
       setClientGaveNotice(true);
       setStaffAttended(false);
       setStaffPayHours('2');
       setIsSubmitting(false);
-    } else if (shift?.start && shift?.end) {
-      const scheduledHrs = Math.max(0, (new Date(shift.end).getTime() - new Date(shift.start).getTime()) / 3600000);
-      if (scheduledHrs > 0) {
-        setStaffPayHours(Number(scheduledHrs.toFixed(2)).toString());
-      } else {
-        setStaffPayHours('2');
+    } else if (shift) {
+      restoreAbtFromShift(shift);
+      if (shift.start && shift.end) {
+        const scheduledHrs = Math.max(0, (new Date(shift.end).getTime() - new Date(shift.start).getTime()) / 3600000);
+        if (scheduledHrs > 0) {
+          setStaffPayHours(Number(scheduledHrs.toFixed(2)).toString());
+        } else {
+          setStaffPayHours('2');
+        }
       }
     }
-  }, [isOpen, shift]);
+  }, [isOpen, shift, restoreAbtFromShift]);
 
   React.useEffect(() => {
     if (holidays && holidays.length > 0) {
@@ -396,22 +456,54 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     }
   };
 
+  const searchLocation = async (query: string) => {
+    setSearchQuery(query);
+    if (!query || query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setSearchResults(data.suggestions || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const addWaypoint = (suggestion: any) => {
+    const placeId = suggestion.placePrediction.placeId;
+    const text = suggestion.placePrediction.text.text;
+    setWaypoints([...waypoints, { name: text, placeId }]);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
   const handleSaveAbtKm = async () => {
     if (shift.isRespiteWrapper) return;
-    const parsedKm = abtInputText.trim() === '' ? 0 : Number(abtInputText);
-    if (isNaN(parsedKm) || parsedKm < 0) {
-      alert('Please enter a valid non-negative KM value for Activity Based Transport.');
+    if (didTransport && waypoints.length === 0) {
+      alert("Please add at least 1 destination if you transported the client.");
       return;
     }
     setIsSavingAbt(true);
     try {
+      const resolvedWaypoints = didTransport
+        ? [
+            'CLIENT_HOME',
+            ...waypoints.map(wp => ({ placeId: wp.placeId, coords: wp.coords, address: wp.name })),
+            ...(returnedHome ? ['CLIENT_HOME'] : [])
+          ]
+        : null;
+
       const res = await fetch(`/api/shifts/${shift.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ abtKm: parseFloat(parsedKm.toFixed(2)) })
+        body: JSON.stringify({ abtCoordinates: resolvedWaypoints })
       });
       if (res.ok) {
         setIsEditingAbt(false);
@@ -642,7 +734,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               <p className="text-sm text-zinc-400 mt-0.5">{new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
             
-            {shift.status === 'COMPLETED' && !shift.isRespiteWrapper && (() => {
+            {shift.status === 'COMPLETED' && !shift.isRespiteWrapper && !shift.staffIsExternal && (() => {
               const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
               const shiftServiceItems = Array.isArray(shift.servicesData) ? shift.servicesData : [];
               const resolveSrvName = (sd: any) => {
@@ -667,7 +759,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               const km = hasProviderTravelService
                 ? (isHCP ? Number(shift.homeCareTravelKm || shift.providerTravelKm || 0) : Number(shift.providerTravelKm || 0))
                 : 0;
-              const title = isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)';
+              const title = isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel (To/From Shift)';
               const legMins = isHCP
                 ? (parsedLog?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
                 : (parsedLog?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
@@ -687,230 +779,321 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
 
               return (
               <div className="col-span-1 sm:col-span-2 lg:col-span-4 pt-4 mt-2 border-t border-white/[0.08]/80">
-                 <p className="text-sm md:text-base font-bold text-zinc-300 mb-3">Transport & Travel Details</p>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   {hasProviderTravelService && (
-                     km > 0 ? (
-                       <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
-                         <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">{title}</p>
-                         <div className="flex items-baseline gap-3 flex-wrap">
-                           <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
-                           <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
-                             {Math.round(mins)} mins
-                           </span>
-                         </div>
-                       </div>
-                     ) : (
-                       <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
-                         <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">{isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel'}</p>
-                         <div className="flex items-baseline gap-3 flex-wrap">
-                           <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
-                           <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
-                             {Math.round(mins)} mins
-                           </span>
-                         </div>
-                       </div>
-                     )
-                   )}
-                   {hasABTService && (
-                     <div className={`${abtKmVal > 0 ? 'bg-brand-green/10 border-brand-green/20' : 'bg-zinc-800/50 border-white/[0.08]/80'} p-4 rounded-xl border shadow-sm flex flex-col justify-center`}>
-                       <div className="flex items-center justify-between gap-2 mb-1">
-                         <p className={`text-xs font-medium ${abtKmVal > 0 ? 'text-brand-green/80' : 'text-zinc-400'} uppercase tracking-wider`}>
-                           Activity Based Transport (ABT)
-                         </p>
-                         {isAdmin && !isEditingAbt && (
-                           <button
-                             type="button"
-                             onClick={() => {
-                               setAbtInputText(abtKmVal > 0 ? abtKmVal.toFixed(2) : '');
-                               setIsEditingAbt(true);
-                             }}
-                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-brand-green/20 hover:bg-brand-green/30 text-brand-green border border-brand-green/30 transition-colors"
-                           >
-                             <Edit className="w-3 h-3" />
-                             {abtKmVal > 0 ? 'Edit ABT' : '+ Add ABT'}
-                           </button>
-                         )}
-                       </div>
-                       {isEditingAbt ? (
-                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                           <div className="flex items-center gap-1.5">
-                             <input
-                               type="number"
-                               min="0"
-                               step="0.01"
-                               autoFocus
-                               value={abtInputText}
-                               onChange={(e) => setAbtInputText(e.target.value)}
-                               placeholder="0.00"
-                               className="w-28 bg-[#09090b] border border-brand-green/50 rounded-lg px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand-green"
-                             />
-                             <span className="text-xs font-semibold text-zinc-400">km</span>
-                           </div>
-                           <div className="flex items-center gap-1.5 ml-auto">
-                             <button
-                               type="button"
-                               onClick={() => setIsEditingAbt(false)}
-                               disabled={isSavingAbt}
-                               className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 transition-colors"
-                             >
-                               Cancel
-                             </button>
-                             <button
-                               type="button"
-                               onClick={handleSaveAbtKm}
-                               disabled={isSavingAbt}
-                               className="px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-green hover:bg-brand-green/90 text-white shadow-sm transition-colors disabled:opacity-50"
-                             >
-                               {isSavingAbt ? 'Saving...' : 'Save'}
-                             </button>
+                 <div className="bg-indigo-900/20 rounded-xl p-3.5 shadow-sm border border-indigo-500/20">
+                   <div className="flex items-center justify-between mb-2.5">
+                     <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center">
+                       <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
+                     </h4>
+                     {isAdmin && hasABTService && (
+                       <button
+                         type="button"
+                         onClick={() => {
+                           const nextEditing = !isEditingAbt;
+                           if (nextEditing) {
+                             restoreAbtFromShift(shift);
+                           }
+                           setIsEditingAbt(nextEditing);
+                           if (routeLogDetailsRef.current) {
+                             routeLogDetailsRef.current.open = false;
+                           }
+                         }}
+                         className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
+                           isEditingAbt
+                             ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
+                             : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
+                         }`}
+                         title="Edit Client Transport"
+                       >
+                         <Edit className="w-3.5 h-3.5" />
+                         <span>{isEditingAbt ? 'Editing' : 'Edit'}</span>
+                       </button>
+                     )}
+                   </div>
+
+                   <div className="space-y-3 mb-2">
+                     <div className={`grid grid-cols-1 ${hasProviderTravelService && hasABTService ? 'sm:grid-cols-2' : ''} gap-2.5`}>
+                       {hasProviderTravelService && (
+                         <div className={`p-3 rounded-xl border flex flex-col justify-center ${km > 0 ? 'bg-indigo-950/40 border-brand-teal/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
+                           <p className="text-[11px] font-bold text-brand-teal/90 uppercase tracking-wider mb-1">
+                             {title}
+                           </p>
+                           <div className="flex items-baseline gap-2.5 flex-wrap">
+                             <span className="text-lg font-extrabold text-white">
+                               {km.toFixed(2)} <span className="text-xs font-medium text-brand-teal">km</span>
+                             </span>
+                             <span className="text-xs font-bold text-brand-teal bg-brand-teal/15 px-2 py-0.5 rounded-md border border-brand-teal/30">
+                               {Math.round(mins)} mins
+                             </span>
                            </div>
                          </div>
-                       ) : (
-                         <p className={`text-xl ${abtKmVal > 0 ? 'text-white' : 'text-zinc-300'} font-extrabold`}>
-                           {abtKmVal.toFixed(2)} <span className={`text-sm font-medium ${abtKmVal > 0 ? 'text-brand-green/80' : 'text-zinc-500'}`}>km</span>
-                         </p>
+                       )}
+                       {hasABTService && (
+                         <div className={`p-3 rounded-xl border flex flex-col justify-center ${abtKmVal > 0 ? 'bg-brand-green/10 border-brand-green/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
+                           <p className="text-[11px] font-bold text-brand-green/90 uppercase tracking-wider mb-1">
+                             Activity Based Transport (Client Travel)
+                           </p>
+                           <div className="flex items-baseline gap-2.5 flex-wrap">
+                             <span className="text-lg font-extrabold text-white">
+                               {abtKmVal.toFixed(2)} <span className="text-xs font-medium text-brand-green">km</span>
+                             </span>
+                           </div>
+                         </div>
                        )}
                      </div>
-                   )}
-                   {(shift.travelBreakdown || shift.transportRouteLog) && (() => {
-                     let log: any = null;
-                     if (shift.transportRouteLog) {
-                       try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
-                     }
-                     
-                     let breakdownArr: string[] = [];
-                     if (shift.travelBreakdown) {
-                       try { breakdownArr = JSON.parse(shift.travelBreakdown); } catch(e) {}
-                     }
 
-                     if (!log && breakdownArr.length === 0) return null;
+                     {(() => {
+                       let log: any = null;
+                       if (shift.transportRouteLog) {
+                         try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
+                       }
+                       
+                       let breakdownArr: string[] = [];
+                       if (shift.travelBreakdown) {
+                         try { breakdownArr = JSON.parse(shift.travelBreakdown); } catch(e) {}
+                       }
 
-                     return (
-                     <div className="col-span-1 sm:col-span-2 bg-[#09090b]/80 p-4 rounded-xl border border-white/[0.08] shadow-inner mt-2">
-                       <details className="group">
-                          <summary className="text-sm md:text-base font-medium text-zinc-300 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none">
-                            <span className="flex-1">View Transport Route Log</span>
-                            <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
-                              <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
-                            </div>
-                          </summary>
-                          <div className="mt-4 space-y-4 pt-4 border-t border-white/[0.08]/80">
-                            {breakdownArr && breakdownArr.length > 0 && (
-                              <div className="flex items-start gap-3">
-                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
-                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Calculated Travel Journey:</span>
-                                  <div className="space-y-3">
-                                    {breakdownArr.map((item, idx) => {
-                                      const isZero = item.includes('0km') || item.includes('Ignored');
-                                      return (
-                                        <div key={idx} className={`text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
-                                          {item}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                       const hasProviderLegs = hasProviderTravelService && log?.providerTravel?.legs && log.providerTravel.legs.length > 0 && !isHCP;
+                       const hasHomeCareLegs = hasProviderTravelService && log?.homeCareTravel?.legs && log.homeCareTravel.legs.length > 0;
+                       const hasAbtLog = hasABTService && !!log?.abt;
+                       const hasAnyLogContent = (hasProviderTravelService && breakdownArr.length > 0) || hasProviderLegs || hasHomeCareLegs || hasAbtLog;
+
+                       return (
+                         <div className="w-full bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
+                           <details ref={routeLogDetailsRef} className="group">
+                              <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
+                                <span className="flex-1">View Transport Route Log</span>
+                                <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
+                                  <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
                                 </div>
-                              </div>
-                            )}
-                            {log && log.providerTravel && log.providerTravel.legs && log.providerTravel.legs.length > 0 && !(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
-                              <div className="flex items-start gap-3">
-                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
-                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
-                                  <div className="space-y-6">
-                                    {log.providerTravel.legs.map((leg: any, i: number) => (
-                                      <div key={i} className="mb-2">
-                                        {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
-                                    <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto">
-                                      {shift.providerTravelKm != null ? shift.providerTravelKm.toFixed(2) : log.providerTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
-                                    </span>
-                                    {log.providerTravel.calculatedAt && (
-                                      <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {log && log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (() => {
-                              const hcTotalMins = Number(shift.providerTravelMinutes) || Number(log.homeCareTravel.minutes) || log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (Number(leg.durationMins) || 0), 0);
-                              return (
-                              <div className="flex items-start gap-3 pt-2">
-                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
-                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Home Care Travel Route:</span>
-                                  <div className="space-y-6">
-                                    {log.homeCareTravel.legs.map((leg: any, i: number) => {
-                                      if (leg.distance === 0 && leg.description.includes('Private Commute')) {
+                              </summary>
+                              <div className="mt-3 space-y-3 pt-3 border-t border-white/[0.08]">
+                                {hasProviderTravelService && breakdownArr && breakdownArr.length > 0 && (
+                                  <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                    <span className="text-[11px] font-bold text-brand-teal/80 mb-2.5 uppercase tracking-wider block">Calculated Travel Journey:</span>
+                                    <div className="space-y-2">
+                                      {breakdownArr.map((item, idx) => {
+                                        const isZero = item.includes('0km') || item.includes('Ignored');
                                         return (
-                                          <div key={i} className="mb-2 text-zinc-400 italic">
-                                            {leg.description}
+                                          <div key={idx} className={`text-xs sm:text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
+                                            {item}
                                           </div>
                                         );
-                                      }
-                                      if (leg.distance === 0) return null;
-                                      return (
-                                        <div key={i} className="mb-2">
-                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || hcTotalMins)}
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {hasProviderLegs && (
+                                  <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                    <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
+                                    <div className="space-y-4">
+                                      {log.providerTravel.legs.map((leg: any, i: number) => (
+                                        <div key={i}>
+                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
                                         </div>
-                                      );
-                                    })}
-                                  </div>
-                                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
-                                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                                      <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors justify-center">
-                                        {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
+                                      ))}
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                      <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md w-max">
+                                        {shift.providerTravelKm != null ? shift.providerTravelKm.toFixed(2) : log.providerTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
                                       </span>
-                                      {hcTotalMins > 0 && (
-                                        <span className="flex items-center px-3 py-2 bg-zinc-800/80 text-brand-teal border border-brand-teal/30 text-[13px] font-bold rounded-md justify-center">
-                                          Time Travelled Between Shifts: {Math.round(hcTotalMins)} mins
-                                        </span>
+                                      {log.providerTravel.calculatedAt && (
+                                        <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
                                       )}
                                     </div>
-                                    {log.homeCareTravel.calculatedAt && (
-                                      <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
-                                    )}
                                   </div>
-                                </div>
-                              </div>
-                              );
-                            })()}
+                                )}
 
-
-                            {log && log.abt && (
-                              <div className="flex items-start gap-3 pt-2">
-                                  <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
-                                    <span className="text-xs font-bold text-brand-green/80 mb-5 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
-                                    {log.abt.legs && log.abt.legs.length > 0 ? (
-                                      <div className="space-y-6">
-                                        {log.abt.legs.map((leg: any, i: number) => (
-                                          <div key={i} className="mb-2">
-                                            {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                {hasHomeCareLegs && (() => {
+                                  const hcTotalMins = Number(shift.providerTravelMinutes) || Number(log.homeCareTravel.minutes) || log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (Number(leg.durationMins) || 0), 0);
+                                  return (
+                                  <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                    <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Home Care Travel Route:</span>
+                                    <div className="space-y-4">
+                                      {log.homeCareTravel.legs.map((leg: any, i: number) => {
+                                        if (leg.distance === 0 && leg.description && leg.description.includes('Private Commute')) {
+                                          return (
+                                            <div key={i} className="text-xs sm:text-sm text-zinc-400 italic">
+                                              {leg.description}
+                                            </div>
+                                          );
+                                        }
+                                        if (leg.distance === 0) return null;
+                                        return (
+                                          <div key={i}>
+                                            {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || hcTotalMins)}
                                           </div>
-                                        ))}
+                                        );
+                                      })}
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
+                                          {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
+                                        </span>
+                                        {hcTotalMins > 0 && (
+                                          <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
+                                            {Math.round(hcTotalMins)} mins
+                                          </span>
+                                        )}
                                       </div>
-                                    ) : (
-                                      <div className="mb-1">{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
-                                    )}
-                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
-                                      <span className="flex items-center px-4 py-2 bg-brand-green/20 text-brand-green text-[13px] font-black rounded-md border border-brand-green/30 w-full justify-center md:w-auto">
-                                        {log.abt.distance != null ? log.abt.distance.toFixed(2) : 0} km
-                                      </span>
-                                      {log.abt.calculatedAt && (
-                                        <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.abt.calculatedAt).toLocaleString()}</span>
+                                      {log.homeCareTravel.calculatedAt && (
+                                        <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
                                       )}
                                     </div>
                                   </div>
+                                  );
+                                })()}
+
+                                {hasABTService && (
+                                  hasAbtLog ? (
+                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                      <span className="text-[11px] font-bold text-brand-green/80 mb-3 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
+                                      {log.abt.legs && log.abt.legs.length > 0 ? (
+                                        <div className="space-y-4">
+                                          {log.abt.legs.map((leg: any, i: number) => (
+                                            <div key={i}>
+                                              {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div>{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
+                                      )}
+                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                        <span className="inline-flex items-center px-3 py-1.5 bg-brand-green/20 text-brand-green text-xs font-black rounded-md border border-brand-green/30 w-max">
+                                          {log.abt.distance != null ? Number(log.abt.distance).toFixed(2) : Number(abtKmVal).toFixed(2)} km
+                                        </span>
+                                        {log.abt.calculatedAt && (
+                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.abt.calculatedAt).toLocaleString()}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="bg-[#121214] p-3 rounded-xl border border-white/[0.08] text-xs text-zinc-400 italic">
+                                      No client transport (Activity Based Transport) recorded for this shift.
+                                    </div>
+                                  )
+                                )}
+
+                                {!hasAnyLogContent && !hasABTService && (
+                                  <div className="text-xs text-zinc-400 italic">
+                                    No billable travel route log recorded for this shift.
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                       </details>
+                           </details>
+                         </div>
+                       );
+                     })()}
+                   </div>
+
+                   {hasABTService && isEditingAbt && (
+                     <div className="pt-3 mt-3 border-t border-indigo-500/30 animate-in fade-in">
+                       <div className="flex justify-between items-center">
+                         <div className="flex flex-col pr-4">
+                           <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you perform any travel for the client?</label>
+                           <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
+                         </div>
+                         <button 
+                           type="button"
+                           onClick={() => setDidTransport(!didTransport)}
+                           className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${didTransport ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                         >
+                           <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${didTransport ? 'translate-x-5' : 'translate-x-0'}`} />
+                         </button>
+                       </div>
+
+                       {didTransport && (
+                         <div className="space-y-3 pt-3 mt-3 border-t border-brand-teal/20">
+                           <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-lg p-2.5">
+                             <Info className="w-4 h-4 text-brand-teal flex-shrink-0 mt-0.5 mr-2" />
+                             <p className="text-[11px] md:text-xs text-indigo-200 leading-snug font-medium">
+                               Client's Home is automatically your starting point. Add destinations below.
+                             </p>
+                           </div>
+                           <div className="relative">
+                             <div className="flex items-center space-x-3 bg-[#09090b] border border-white/[0.12]/80 rounded-xl px-3 focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal transition-shadow shadow-inner">
+                               <MapPin className="text-brand-teal w-5 h-5 flex-shrink-0" />
+                               <input 
+                                 type="text" 
+                                 placeholder="Search destination address..." 
+                                 className="w-full bg-transparent border-none py-3 text-sm md:text-base text-white focus:outline-none focus:ring-0"
+                                 value={searchQuery}
+                                 onChange={e => searchLocation(e.target.value)}
+                               />
+                             </div>
+                             
+                             {searchResults.length > 0 && (
+                               <ul className="absolute z-20 w-full mt-2 bg-zinc-800 border border-white/[0.12] rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-zinc-700/50 font-medium">
+                                 {searchResults.map((res: any, idx: number) => (
+                                   <li 
+                                     key={idx} 
+                                     className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base transition-colors text-zinc-200 hover:text-white"
+                                     onClick={() => addWaypoint(res)}
+                                   >
+                                     <div className="flex flex-col">
+                                       <span className="truncate">{res.placePrediction.text.text}</span>
+                                     </div>
+                                   </li>
+                                 ))}
+                               </ul>
+                             )}
+                           </div>
+
+                           <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                             {waypoints.map((wp: any, idx: number) => (
+                               <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 flex items-center justify-between">
+                                 <span className="text-sm md:text-base truncate mr-3 text-zinc-300 font-medium flex items-center min-w-0">
+                                    <span className="flex-shrink-0 w-6 h-6 bg-indigo-500/20 text-brand-teal rounded-full flex items-center justify-center text-xs mr-3 font-bold">{idx + 1}</span>
+                                    <span className="truncate">{wp.name}</span>
+                                 </span>
+                                 <button
+                                   type="button"
+                                   onClick={() => setWaypoints(waypoints.filter((_: any, i: number) => i !== idx))}
+                                   className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0"
+                                 >
+                                   <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
+                                 </button>
+                               </div>
+                             ))}
+                           </div>
+                           
+                           <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
+                             <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
+                             <button 
+                               type="button"
+                               onClick={() => setReturnedHome(!returnedHome)}
+                               className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                             >
+                               <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${returnedHome ? 'translate-x-5' : 'translate-x-0'}`} />
+                             </button>
+                           </div>
+                         </div>
+                       )}
+
+                       <div className="flex justify-end items-center gap-2.5 pt-3 mt-3 border-t border-indigo-500/20">
+                         <button
+                           type="button"
+                           onClick={() => {
+                             restoreAbtFromShift(shift);
+                             setIsEditingAbt(false);
+                           }}
+                           disabled={isSavingAbt}
+                           className="px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 transition-colors"
+                         >
+                           Cancel
+                         </button>
+                         <button
+                           type="button"
+                           onClick={handleSaveAbtKm}
+                           disabled={isSavingAbt}
+                           className="px-5 py-2 rounded-lg text-xs sm:text-sm font-bold bg-brand-green hover:bg-brand-green/90 text-white shadow-sm transition-colors disabled:opacity-50"
+                         >
+                           {isSavingAbt ? 'Saving...' : 'Save Transport'}
+                         </button>
+                       </div>
                      </div>
-                     );
-                   })()}
+                   )}
                  </div>
               </div>
               );

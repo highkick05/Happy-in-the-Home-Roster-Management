@@ -17662,6 +17662,7 @@ app.get("/api/health", (req, res) => {
         servicesData,
         providerTravelKm,
         abtKm,
+        abtCoordinates,
         ignoreConflicts,
         is_historical,
         progress_note,
@@ -17880,15 +17881,40 @@ app.get("/api/health", (req, res) => {
         const isExtStaffUpdate = Number(targetStaffRow?.is_external) === 1;
 
         let finalAbtKm = isExtStaffUpdate ? 0 : Number(existing.abt_km) || 0;
+        let calculatedAbtTravel: {
+          distance: number;
+          cost: number;
+          minutes?: number;
+          routeLogs: any;
+        } | null = null;
+
+        if (!isExtStaffUpdate && abtCoordinates !== undefined) {
+          if (Array.isArray(abtCoordinates) && abtCoordinates.length > 0) {
+            calculatedAbtTravel = await calculateAbtTravel(
+              {
+                ...existing,
+                client_id: clientId !== undefined ? clientId : existing.client_id,
+              },
+              abtCoordinates,
+            );
+            finalAbtKm = Math.max(0, Number(calculatedAbtTravel.distance) || 0);
+          } else {
+            finalAbtKm = 0;
+          }
+        }
+
         const abtExplicitlyUpdated =
+          abtCoordinates !== undefined ||
           (abtKm !== undefined && abtKm !== null && abtKm !== "") ||
           abtFromServices !== null;
 
         if (!isExtStaffUpdate) {
-          if (abtKm !== undefined && abtKm !== null && abtKm !== "") {
-            finalAbtKm = Math.max(0, Number(abtKm) || 0);
-          } else if (abtFromServices !== null) {
-            finalAbtKm = abtFromServices;
+          if (abtCoordinates === undefined) {
+            if (abtKm !== undefined && abtKm !== null && abtKm !== "") {
+              finalAbtKm = Math.max(0, Number(abtKm) || 0);
+            } else if (abtFromServices !== null) {
+              finalAbtKm = abtFromServices;
+            }
           }
         } else {
           finalAbtKm = 0;
@@ -18091,7 +18117,19 @@ app.get("/api/health", (req, res) => {
                 routeLogObj = {};
               }
             }
-            if (finalAbtKm > 0 || abtExplicitlyUpdated) {
+            if (calculatedAbtTravel && finalAbtKm > 0) {
+              routeLogObj.abt = {
+                description: (calculatedAbtTravel.routeLogs as any)?.description,
+                waypoints: (calculatedAbtTravel.routeLogs as any)?.waypoints,
+                distance: parseFloat(finalAbtKm.toFixed(2)),
+                minutes: (calculatedAbtTravel as any)?.minutes,
+                cost: finalAbtCost,
+                calculatedAt: new Date().toISOString(),
+                legs: (calculatedAbtTravel.routeLogs as any)?.legs || [],
+              };
+            } else if (abtCoordinates !== undefined && finalAbtKm === 0) {
+              delete routeLogObj.abt;
+            } else if (finalAbtKm > 0 || abtExplicitlyUpdated) {
               const existingLegs = Array.isArray(routeLogObj.abt?.legs)
                 ? routeLogObj.abt.legs
                 : [];
@@ -18102,7 +18140,7 @@ app.get("/api/health", (req, res) => {
                 calculatedAt: new Date().toISOString(),
                 description:
                   finalAbtKm > 0
-                    ? `Activity Based Transport (During Shift): ${finalAbtKm.toFixed(2)} km`
+                    ? routeLogObj.abt?.description || `Activity Based Transport (During Shift): ${finalAbtKm.toFixed(2)} km`
                     : "No Activity Based Transport recorded",
                 legs:
                   existingLegs.length > 0 &&
@@ -18156,6 +18194,7 @@ app.get("/api/health", (req, res) => {
             servicesJson !== existing.services_json ||
             providerTravelKm !== undefined ||
             abtKm !== undefined ||
+            abtCoordinates !== undefined ||
             abtFromServices !== null)
         ) {
           generateInvoiceForShift(id);
