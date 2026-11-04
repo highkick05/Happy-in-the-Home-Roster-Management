@@ -121,11 +121,12 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
           }
         }
 
-        // Filter strictly to active staff members (excluding suspended, inactive, and admin accounts) who have valid email addresses
+        // Filter strictly to active internal staff members (excluding external workers, suspended, inactive, and admin accounts) who have valid email addresses
         const allEligibleActiveStaff = (Array.isArray(data) ? data : [])
           .filter((s: StaffMember) => {
             const staffStatus = (s.status || 'ACTIVE').toUpperCase().trim();
             return (
+              !Boolean((s as any).is_external) &&
               staffStatus !== 'INACTIVE' &&
               staffStatus !== 'SUSPENDED' &&
               s.role !== 'ADMIN' &&

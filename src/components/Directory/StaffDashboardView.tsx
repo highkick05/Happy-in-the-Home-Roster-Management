@@ -817,9 +817,33 @@ export default function StaffDashboardView() {
                               </button>
                             ))}
                           </div>
-                          <p className="text-[11px] text-amber-200/80 leading-relaxed pt-1">
-                            Roster-Only Mode: Appears on Roster, Client Invoices (both NDIS &amp; Home Care / Trilogy Care), and Trilogy Care Planning. Excluded from automatic Travel Calculations and Xero Pay Runs.
-                          </p>
+                          <div className="text-[11px] text-amber-200/90 leading-relaxed pt-1.5 space-y-2.5">
+                            <div className="p-2 rounded bg-black/30 border border-amber-500/20 text-amber-100/90">
+                              <strong className="text-amber-300">Invoice Privacy Guarantee:</strong> Only the worker&apos;s <strong>First &amp; Last Name</strong> appear on generated Client Invoices. The External Platform / Agency name ({formData.externalProvider || 'Mable'}) is never shown on invoices.
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div className="p-2 rounded bg-emerald-500/[0.07] border border-emerald-500/20 space-y-1">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">✓ Included In</div>
+                                <ul className="space-y-0.5 text-[10.5px] text-zinc-200/90 list-disc list-inside leading-snug">
+                                  <li>Roster (NDIS, Home Care, STA &amp; Templates)</li>
+                                  <li>Client Invoicing &amp; Merged Invoices (name only)</li>
+                                  <li>Progress Notes &amp; Clinical Charts (Admin entry)</li>
+                                  <li>Client Budgets &amp; Trilogy Care Planning</li>
+                                  <li>Staff Directory, Staff Activity &amp; Audit Matrix</li>
+                                </ul>
+                              </div>
+                              <div className="p-2 rounded bg-rose-500/[0.07] border border-rose-500/20 space-y-1">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300">✕ Not Included In</div>
+                                <ul className="space-y-0.5 text-[10.5px] text-zinc-200/90 list-disc list-inside leading-snug">
+                                  <li>Portal Login &amp; Admin Access</li>
+                                  <li>Xero Payroll, SCHADS Rates &amp; Pay Runs</li>
+                                  <li>All Travel &amp; ABT Calculations ($0 / 0 km)</li>
+                                  <li>Live Chat &amp; Open Shift Broadcasts</li>
+                                  <li>Onboarding Hub, Compliance Alerts &amp; Vehicles</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
 

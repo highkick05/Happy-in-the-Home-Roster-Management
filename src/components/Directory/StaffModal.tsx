@@ -554,8 +554,44 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                     </div>
 
                     {formData.isExternal && (
-                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[12px] text-amber-200/90 leading-relaxed">
-                        <strong>Roster-Only External Worker:</strong> Only First Name &amp; Last Name are required. Shifts assigned to this worker will still generate client invoices for both <strong>NDIS</strong> and <strong>Home Care (Trilogy Care)</strong>, while automatically excluding Xero Payroll and all Travel calculations.
+                      <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[12px] text-amber-200/90 leading-relaxed space-y-3">
+                        <div>
+                          <strong className="text-amber-200">Roster-Only External Worker:</strong> Only First Name &amp; Last Name are required.
+                        </div>
+
+                        <div className="p-2.5 rounded-md bg-black/30 border border-amber-500/20 text-[11.5px] text-amber-100/90">
+                          <span className="font-semibold text-amber-300">Invoice Privacy Guarantee:</span> When client invoices are generated for completed shifts, <strong>only the staff member&apos;s First &amp; Last Name</strong> appear on the invoice (e.g. <em>&ldquo;Provided by First Last&rdquo;</em>). The <strong>External Platform / Agency</strong> name ({formData.externalProvider || 'Mable'}) is strictly for internal portal reference and is <strong>never</strong> shown on client invoices.
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div className="p-2.5 rounded-md bg-emerald-500/[0.07] border border-emerald-500/20 space-y-1.5">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                              <span>✓ Included In</span>
+                            </div>
+                            <ul className="space-y-1 text-[11px] text-zinc-200/90 list-disc list-inside leading-snug">
+                              <li><strong className="text-white">Roster Management:</strong> NDIS, Home Care (Trilogy Care), Respite/STA, Historical shifts &amp; Roster Templates</li>
+                              <li><strong className="text-white">Client Invoicing:</strong> Generates NDIS &amp; Home Care invoices and supports merged invoices (staff name only)</li>
+                              <li><strong className="text-white">Progress Notes &amp; Charts:</strong> Admins can log/edit clinical notes on their shifts</li>
+                              <li><strong className="text-white">Budgets &amp; Trilogy Planning:</strong> Counts toward NDIS &amp; Home Care budget utilization</li>
+                              <li><strong className="text-white">Staff Directory &amp; Activity:</strong> Listed with platform badge &amp; trackable in Staff Activity hours</li>
+                              <li><strong className="text-white">Compliance Matrix:</strong> Completed shifts included in NDIA/Home Care audit exports</li>
+                            </ul>
+                          </div>
+
+                          <div className="p-2.5 rounded-md bg-rose-500/[0.07] border border-rose-500/20 space-y-1.5">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+                              <span>✕ Not Included In (Excluded)</span>
+                            </div>
+                            <ul className="space-y-1 text-[11px] text-zinc-200/90 list-disc list-inside leading-snug">
+                              <li><strong className="text-white">Portal Login &amp; Admin Access:</strong> Roster-only profile (no password or portal sign-in)</li>
+                              <li><strong className="text-white">Xero Payroll &amp; Pay Runs:</strong> Excluded from Xero employee linking, SCHADS pay rates &amp; timesheets</li>
+                              <li><strong className="text-white">All Travel Calculations:</strong> Excluded from Provider Travel, Home Care Travel (Client Gap), ABT &amp; route cascades ($0 / 0 km)</li>
+                              <li><strong className="text-white">Live Chat &amp; Shift Broadcasts:</strong> Hidden from Live Chat &amp; excluded from Open Shift Broadcasts</li>
+                              <li><strong className="text-white">Onboarding Hub &amp; Checks:</strong> Excluded from internal onboarding checklists &amp; expiry alerts</li>
+                              <li><strong className="text-white">Vehicles &amp; Travel Logs:</strong> Excluded from company vehicle assignments &amp; odometer logs</li>
+                            </ul>
+                          </div>
+                        </div>
                       </div>
                     )}
 
