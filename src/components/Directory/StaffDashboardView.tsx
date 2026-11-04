@@ -825,7 +825,7 @@ export default function StaffDashboardView() {
                               <div className="p-2 rounded bg-emerald-500/[0.07] border border-emerald-500/20 space-y-1">
                                 <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">✓ Included In</div>
                                 <ul className="space-y-0.5 text-[10.5px] text-zinc-200/90 list-disc list-inside leading-snug">
-                                  <li>Roster (NDIS, Home Care, STA &amp; Templates)</li>
+                                  <li>Roster (NDIS, Home Care &amp; Templates)</li>
                                   <li>Client Invoicing &amp; Merged Invoices (name only)</li>
                                   <li>Progress Notes &amp; Clinical Charts (Admin entry)</li>
                                   <li>Client Budgets &amp; Trilogy Care Planning</li>

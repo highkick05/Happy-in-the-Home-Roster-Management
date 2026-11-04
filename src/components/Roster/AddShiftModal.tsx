@@ -14,7 +14,6 @@ interface AddShiftModalProps {
   servicesList: any[];
   initialData?: any;
   holidays?: any[];
-  onToggleHistorical?: () => void;
 }
 
 interface ServiceFormEntry {
@@ -25,7 +24,7 @@ interface ServiceFormEntry {
   customName?: string;
 }
 
-export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [], onToggleHistorical }: AddShiftModalProps) {
+export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [] }: AddShiftModalProps) {
   const { token, settings } = useAuth();
   
   const [staffId, setStaffId] = useState('');
@@ -693,27 +692,6 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                   return acc + (effectiveQty * effectiveRate);
                 }, 0).toFixed(2)}</span>
               </div>
-              {onToggleHistorical && (
-                <label className="flex items-center cursor-pointer group">
-                  <div className="relative flex items-center">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only" 
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          onToggleHistorical();
-                        }
-                      }} 
-                      checked={false} 
-                    />
-                    <div className="block bg-zinc-800 w-10 h-6 rounded-full border border-white/10 group-hover:border-white/20 transition-colors"></div>
-                    <div className="dot absolute left-1 top-1 bg-zinc-400 w-4 h-4 rounded-full transition transform translate-x-0 group-hover:bg-white"></div>
-                  </div>
-                  <div className="ml-3 text-[13px] font-medium text-zinc-400 group-hover:text-white transition-colors">
-                    Historical Shift
-                  </div>
-                </label>
-              )}
             </div>
             <div className="flex space-x-2 shrink-0">
               <button

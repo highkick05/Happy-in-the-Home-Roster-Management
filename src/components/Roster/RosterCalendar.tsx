@@ -13,8 +13,6 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity, GraduationCap, Users2, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
-import AddHistoricalShiftModal from './AddHistoricalShiftModal';
-import AddRespiteBookingModal from './AddRespiteBookingModal';
 import ShiftDetailsModal from './ShiftDetailsModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import ActiveShiftModal from './ActiveShiftModal';
@@ -145,8 +143,6 @@ export default function RosterCalendar() {
   const [coordinatorList, setCoordinatorList] = useState<any[]>([]);
   
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
-  const [isHistShiftModalOpen, setIsHistShiftModalOpen] = useState(false);
-  const [isRespiteModalOpen, setIsRespiteModalOpen] = useState(false);
   const [initialShiftData, setInitialShiftData] = useState<any>(null);
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [copiedShift, setCopiedShift] = useState<ShiftEvent | null>(null);
@@ -287,22 +283,17 @@ export default function RosterCalendar() {
       const startIso = startBound.toISOString();
       const endIso = endBound.toISOString();
 
-      const [shiftsRes, respiteRes, staffRes, clientsRes, servicesRes] = await Promise.all([
+      const [shiftsRes, staffRes, clientsRes, servicesRes] = await Promise.all([
         fetch(`/api/shifts?start=${startIso}&end=${endIso}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
-        fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
         fetch(`/api/staff`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/clients`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/services`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      if (shiftsRes.ok && respiteRes.ok) {
+      if (shiftsRes.ok) {
         const shiftsData = await shiftsRes.json();
-        const respiteData = await respiteRes.json();
-        
-        // Filter out shifts that are part of a respite booking
-        const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
 
-        const mappedShifts = individualShifts.map((d: any) => ({
+        const mappedShifts = shiftsData.map((d: any) => ({
           id: d.id,
           title: `${d.client_first_name} ${d.client_last_name} (${d.staff_first_name || 'Unassigned'})`,
           start: new Date(d.start_time),
@@ -347,67 +338,8 @@ export default function RosterCalendar() {
           vehicleId: d.vehicle_id,
           vehicle_id: d.vehicle_id,
         }));
-        
-        const mappedRespites: any[] = [];
-        const childShifts: any[] = [];
 
-        respiteData.forEach((d: any) => {
-          // Push the wrapper
-          mappedRespites.push({
-            id: `rb_${d.id}`,
-            title: `${d.client_first_name} ${d.client_last_name} (STA / Respite)`,
-            start: new Date(d.start_time),
-            end: new Date(d.end_time),
-            clientId: d.client_id,
-            clientName: `${d.client_first_name} ${d.client_last_name}`,
-            status: d.status,
-            isRespiteWrapper: true,
-            respiteData: d
-          });
-
-          // Extract child shifts
-          if (Array.isArray(d.shifts)) {
-            d.shifts.forEach((s: any) => {
-              childShifts.push({
-                id: s.id,
-                title: `${d.client_first_name} ${d.client_last_name} (${s.staff_first_name || 'Unassigned'})`,
-                start: new Date(s.start_time),
-                end: new Date(s.end_time),
-                staffId: s.staff_id,
-                resourceId: s.staff_id,
-                staffName: s.staff_id ? `${s.staff_first_name} ${s.staff_last_name}` : 'Unassigned',
-                clientId: d.client_id,
-                clientName: `${d.client_first_name} ${d.client_last_name}`,
-                status: s.status,
-                serviceId: s.service_id,
-                serviceName: s.service_name,
-                serviceCode: s.service_code,
-                serviceRate: s.service_rate,
-                serviceUnit: s.service_unit,
-                serviceRatesJson: s.service_rates_json,
-                serviceType: s.service_type,
-                fundingType: s.funding_type || 'NDIS',
-                notes: s.notes,
-                servicesData: s.services_json ? JSON.parse(s.services_json) : [],
-                providerTravelKm: s.provider_travel_km,
-                providerTravelMinutes: s.provider_travel_minutes,
-                providerTravelCost: s.provider_travel_cost,
-                homeCareTravelKm: s.home_care_travel_km,
-                homeCareTravelTotal: s.home_care_travel_total,
-                abtKm: s.abt_km,
-                abtCost: s.abt_cost,
-                transportRouteLog: s.transport_route_log,
-                actualStartTime: s.actual_start_time,
-                actualFinishTime: s.actual_finish_time,
-                isRespiteChild: true,
-                respiteBookingId: d.id,
-                respiteData: d
-              });
-            });
-          }
-        });
-
-        let allEvents = [...mappedShifts, ...mappedRespites, ...childShifts];
+        let allEvents = [...mappedShifts];
         
         try {
            const pendingStr = localStorage.getItem('pending_shifts');
@@ -679,8 +611,6 @@ export default function RosterCalendar() {
     }
   };
 
-  const [initialRespiteData, setInitialRespiteData] = useState<any>(null);
-
   const onSelectEvent = async (event: ShiftEvent) => {
     if (Date.now() - longPressHandledRef.current < 600) return; // Prevent click immediately after long press
     if (multiSelectMode && activeView !== Views.AGENDA) {
@@ -783,11 +713,7 @@ export default function RosterCalendar() {
           isHistorical: copiedShift.isHistorical,
        };
        setInitialShiftData(pasteInitialData);
-       if (copiedShift.isHistorical) {
-          setIsHistShiftModalOpen(true);
-       } else {
-          setIsShiftModalOpen(true);
-       }
+       setIsShiftModalOpen(true);
        return;
     }
     
@@ -809,19 +735,9 @@ export default function RosterCalendar() {
     setIsShiftModalOpen(true);
   };
 
-  const handleAddHistShift = () => {
-    setInitialShiftData(null);
-    setIsHistShiftModalOpen(true);
-  };
-
   const handleAddShift = () => {
     setInitialShiftData(null);
     setIsShiftModalOpen(true);
-  };
-
-  const handleAddRespiteBooking = () => {
-    setInitialRespiteData(null);
-    setIsRespiteModalOpen(true);
   };
 
   const activeFilterDescription = React.useMemo(() => {
@@ -850,18 +766,13 @@ export default function RosterCalendar() {
       const startIso = rangeStart.toISOString();
       const endIso = rangeEnd.toISOString();
       
-      const [shiftsRes, respiteRes] = await Promise.all([
-        fetch(`/api/shifts?start=${startIso}&end=${endIso}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
-        fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
-      ]);
+      const shiftsRes = await fetch(`/api/shifts?start=${startIso}&end=${endIso}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
       
       let inRangeShifts: any[] = [];
-      if (shiftsRes.ok && respiteRes.ok) {
+      if (shiftsRes.ok) {
         const shiftsData = await shiftsRes.json();
-        const respiteData = await respiteRes.json();
         
-        const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
-        const mappedIndividual = individualShifts.map((d: any) => {
+        const mappedIndividual = shiftsData.map((d: any) => {
           let sName = d.service_name;
           if (!sName) {
             if (d.servicesData && d.servicesData.length > 0) {
@@ -893,22 +804,7 @@ export default function RosterCalendar() {
           };
         });
         
-        const mappedRespite = respiteData.map((d: any) => ({
-          id: 'respite-' + d.id,
-          title: 'Respite: ' + d.client_first_name + ' ' + d.client_last_name,
-          start: new Date(d.start_date),
-          end: new Date(d.end_date),
-          staffId: d.staff_id,
-          staffName: d.staff_id ? d.staff_first_name + ' ' + d.staff_last_name : 'Unassigned',
-          clientId: d.client_id,
-          clientName: d.client_first_name + ' ' + d.client_last_name,
-          status: d.status,
-          isRespiteWrapper: true,
-          respiteData: d,
-          serviceName: 'Respite / STA'
-        }));
-        
-        inRangeShifts = [...mappedIndividual, ...mappedRespite].filter(shift => {
+        inRangeShifts = mappedIndividual.filter((shift: any) => {
           const sDate = new Date(shift.start);
           const eDate = new Date(shift.end);
           if (sDate > rangeEnd || eDate < rangeStart) return false;
@@ -1930,20 +1826,6 @@ export default function RosterCalendar() {
                         <Plus className="w-4 h-4 mr-1.5" />
                         Add Shift
                       </button>
-                      <button 
-                        onClick={handleAddRespiteBooking}
-                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[11px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
-                      >
-                        <Bed className="w-4 h-4 mr-1.5" />
-                        Add Respite / STA
-                      </button>
-                      <button 
-                        onClick={handleAddHistShift}
-                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[11px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
-                      >
-                        <Plus className="w-4 h-4 mr-1.5" />
-                        Add Historical Shift
-                      </button>
                     </div>
                   </>
                 )}
@@ -2036,20 +1918,6 @@ export default function RosterCalendar() {
         )}
       </div>
 
-      <AddHistoricalShiftModal 
-        isOpen={isHistShiftModalOpen}
-        onClose={() => setIsHistShiftModalOpen(false)}
-        initialData={initialShiftData}
-        onSave={fetchData}
-        staffList={staffList}
-        clientList={clientList}
-        servicesList={servicesList}
-        holidays={holidays}
-        onToggleStandard={() => {
-          setIsHistShiftModalOpen(false);
-          setIsShiftModalOpen(true);
-        }}
-      />
       <AddShiftModal 
         isOpen={isShiftModalOpen}
         onClose={() => setIsShiftModalOpen(false)}
@@ -2059,20 +1927,6 @@ export default function RosterCalendar() {
         servicesList={servicesList}
         initialData={initialShiftData}
         holidays={holidays}
-        onToggleHistorical={() => {
-          setIsShiftModalOpen(false);
-          setIsHistShiftModalOpen(true);
-        }}
-      />
-
-      <AddRespiteBookingModal
-        isOpen={isRespiteModalOpen}
-        onClose={() => setIsRespiteModalOpen(false)}
-        onSave={fetchData}
-        staffList={staffList}
-        clientList={clientList}
-        servicesList={servicesList}
-        initialData={initialRespiteData}
       />
 
       <ShiftDetailsModal
@@ -2084,31 +1938,26 @@ export default function RosterCalendar() {
         holidays={holidays}
         onCopy={(shift) => setCopiedShift(shift)}
         onEdit={(shift) => {
-          if (shift.isRespiteWrapper) {
-            setInitialRespiteData(shift.respiteData);
-            setIsRespiteModalOpen(true);
-          } else {
-            setInitialShiftData({
-              id: shift.id,
-              staffId: shift.staffId?.toString(),
-              clientId: shift.clientId?.toString(),
-              serviceId: shift.serviceId?.toString(),
-              startDate: new Date(shift.start).toLocaleDateString('en-CA'),
-              endDate: new Date(shift.end).toLocaleDateString('en-CA'),
-              date: new Date(shift.start).toLocaleDateString('en-CA'),
-              startTime: new Date(shift.start).toTimeString().slice(0, 5),
-              endTime: new Date(shift.end).toTimeString().slice(0, 5),
-              servicesData: shift.servicesData,
-              status: shift.status,
-              notes: shift.notes,
-              progressNote: shift.progressNote,
-              abtKm: shift.abtKm,
-              startOdometer: shift.startOdometer,
-              endOdometer: shift.endOdometer,
-              isHistorical: shift.isHistorical,
-            });
-            setIsShiftModalOpen(true);
-          }
+          setInitialShiftData({
+            id: shift.id,
+            staffId: shift.staffId?.toString(),
+            clientId: shift.clientId?.toString(),
+            serviceId: shift.serviceId?.toString(),
+            startDate: new Date(shift.start).toLocaleDateString('en-CA'),
+            endDate: new Date(shift.end).toLocaleDateString('en-CA'),
+            date: new Date(shift.start).toLocaleDateString('en-CA'),
+            startTime: new Date(shift.start).toTimeString().slice(0, 5),
+            endTime: new Date(shift.end).toTimeString().slice(0, 5),
+            servicesData: shift.servicesData,
+            status: shift.status,
+            notes: shift.notes,
+            progressNote: shift.progressNote,
+            abtKm: shift.abtKm,
+            startOdometer: shift.startOdometer,
+            endOdometer: shift.endOdometer,
+            isHistorical: shift.isHistorical,
+          });
+          setIsShiftModalOpen(true);
         }}
       />
 

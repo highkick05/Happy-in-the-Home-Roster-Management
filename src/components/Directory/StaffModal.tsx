@@ -569,7 +569,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                               <span>✓ Included In</span>
                             </div>
                             <ul className="space-y-1 text-[11px] text-zinc-200/90 list-disc list-inside leading-snug">
-                              <li><strong className="text-white">Roster Management:</strong> NDIS, Home Care (Trilogy Care), Respite/STA, Historical shifts &amp; Roster Templates</li>
+                              <li><strong className="text-white">Roster Management:</strong> NDIS, Home Care (Trilogy Care) &amp; Roster Templates</li>
                               <li><strong className="text-white">Client Invoicing:</strong> Generates NDIS &amp; Home Care invoices and supports merged invoices (staff name only)</li>
                               <li><strong className="text-white">Progress Notes &amp; Charts:</strong> Admins can log/edit clinical notes on their shifts</li>
                               <li><strong className="text-white">Budgets &amp; Trilogy Planning:</strong> Counts toward NDIS &amp; Home Care budget utilization</li>
