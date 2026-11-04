@@ -574,7 +574,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                               <li><strong className="text-white">Progress Notes &amp; Charts:</strong> Admins can log/edit clinical notes on their shifts</li>
                               <li><strong className="text-white">Budgets &amp; Trilogy Planning:</strong> Counts toward NDIS &amp; Home Care budget utilization</li>
                               <li><strong className="text-white">Staff Directory &amp; Activity:</strong> Listed with platform badge &amp; trackable in Staff Activity hours</li>
-                              <li><strong className="text-white">Compliance Matrix:</strong> Completed shifts included in NDIA/Home Care audit exports</li>
+                              <li><strong className="text-white">Compliance &amp; Audit:</strong> Included in Client Evidence Pack, Workforce Compliance, and Immutable System Logs</li>
                             </ul>
                           </div>
 
@@ -587,7 +587,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                               <li><strong className="text-white">Xero Payroll &amp; Pay Runs:</strong> Excluded from Xero employee linking, SCHADS pay rates &amp; timesheets</li>
                               <li><strong className="text-white">All Travel Calculations:</strong> Excluded from Provider Travel, Home Care Travel (Client Gap), ABT &amp; route cascades ($0 / 0 km)</li>
                               <li><strong className="text-white">Live Chat &amp; Shift Broadcasts:</strong> Hidden from Live Chat &amp; excluded from Open Shift Broadcasts</li>
-                              <li><strong className="text-white">Onboarding Hub &amp; Checks:</strong> Excluded from internal onboarding checklists &amp; expiry alerts</li>
+                              <li><strong className="text-white">Onboarding Hub &amp; Mandatory Documents:</strong> Excluded from Mandatory Documents compliance tab, internal onboarding checklists &amp; expiry alerts</li>
                               <li><strong className="text-white">Vehicles &amp; Travel Logs:</strong> Excluded from company vehicle assignments &amp; odometer logs</li>
                             </ul>
                           </div>
