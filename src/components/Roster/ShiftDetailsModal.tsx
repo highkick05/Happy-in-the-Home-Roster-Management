@@ -1135,9 +1135,17 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               <p className="text-sm md:text-base font-bold text-zinc-300 mb-4">Billing Information</p>
               
               {(() => {
-                const sData = (shift.servicesData && shift.servicesData.length > 0) 
+                const isHCPBilling = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
+                const rawSData = (shift.servicesData && shift.servicesData.length > 0) 
                   ? shift.servicesData 
                   : [{ serviceId: shift.serviceId }];
+                const sData = isHCPBilling
+                  ? rawSData.filter((sd: any) => {
+                      const srv = servicesList.find(s => String(s.id) === String(sd?.serviceId));
+                      const n = String(srv?.name || sd?.serviceName || sd?.customName || sd?.name || '').toLowerCase();
+                      return !n.includes('activity based transport') && !n.includes('activity-based transport') && !n.includes('provider travel') && !n.includes('travel - provider');
+                    })
+                  : rawSData;
 
                 let grandTotal = 0;
 

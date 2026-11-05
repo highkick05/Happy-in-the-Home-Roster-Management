@@ -3157,6 +3157,17 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
             .get(sd.serviceId) as any;
         }
         if (srv) {
+          const lowerSrvName = String(
+            srv.name || sd.serviceName || sd.customName || sd.name || "",
+          ).toLowerCase();
+          const isHcTravelOrAbt =
+            lowerSrvName.includes("activity based transport") ||
+            lowerSrvName.includes("activity-based transport") ||
+            lowerSrvName.includes("provider travel") ||
+            lowerSrvName.includes("travel - provider");
+          if (isHomeCare && isHcTravelOrAbt) {
+            return;
+          }
           let qty =
             sd.qtyOverride !== undefined && sd.qtyOverride !== ""
               ? Number(sd.qtyOverride)
@@ -3302,7 +3313,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
         gst: itemGst,
       });
 
-      if (shift.provider_travel_km > 0) {
+      if (!isHomeCare && shift.provider_travel_km > 0) {
         const travelCost = shift.provider_travel_cost || (shift.provider_travel_km * 1.00);
         const travelRate =
           shift.provider_travel_km > 0
@@ -3326,7 +3337,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           gst: travelGst,
         });
       }
-      if (shift.abt_km > 0) {
+      if (!isHomeCare && shift.abt_km > 0) {
         const abtCost = shift.abt_cost || (shift.abt_km * 1.00);
         const abtRate = shift.abt_km > 0 ? abtCost / shift.abt_km : 1.0;
         subtotal += abtCost;
@@ -3882,6 +3893,56 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           console.error(`Failed to update respite invoice ${inv.id}:`, err);
         }
       });
+    }
+
+    // Clean up any Home Care shifts where Activity Based Transport was accidentally pushed into services_json
+    const hcShiftsWithAbtInServices = db
+      .prepare(
+        `SELECT s.id, s.services_json
+         FROM shifts s
+         LEFT JOIN clients c ON s.client_id = c.id
+         WHERE (s.funding_type IN ('HCP', 'Home Care', 'HOME_CARE') OR c.funding_type IN ('HCP', 'Home Care', 'HOME_CARE'))
+           AND s.services_json IS NOT NULL
+           AND (LOWER(s.services_json) LIKE '%activity based transport%' OR LOWER(s.services_json) LIKE '%activity-based transport%')`,
+      )
+      .all() as any[];
+
+    if (hcShiftsWithAbtInServices.length > 0) {
+      for (const hcShift of hcShiftsWithAbtInServices) {
+        try {
+          const parsed = JSON.parse(hcShift.services_json);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((sd: any) => {
+              const srv =
+                sd?.serviceId && sd.serviceId !== "custom" && sd.serviceId !== "orientation"
+                  ? (db.prepare("SELECT name FROM services WHERE id = ?").get(sd.serviceId) as any)
+                  : null;
+              const n = String(srv?.name || sd?.serviceName || sd?.customName || sd?.name || "").toLowerCase();
+              return !n.includes("activity based transport") && !n.includes("activity-based transport");
+            });
+            if (filtered.length !== parsed.length) {
+              db.prepare("UPDATE shifts SET services_json = ? WHERE id = ?").run(
+                JSON.stringify(filtered),
+                hcShift.id,
+              );
+              const inv = db
+                .prepare("SELECT id, status FROM invoices WHERE shift_id = ? AND status != 'PAID'")
+                .get(hcShift.id) as any;
+              if (inv) {
+                const updatedData = getInvoiceDataForShift(hcShift.id);
+                if (updatedData && updatedData.totalAmount !== undefined) {
+                  db.prepare("UPDATE invoices SET amount = ? WHERE id = ?").run(
+                    updatedData.totalAmount,
+                    inv.id,
+                  );
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to clean ABT from Home Care shift ${hcShift.id}:`, err);
+        }
+      }
     }
   } catch (e) {
     console.warn("Invoices backfill failed:", e);
@@ -17954,7 +18015,21 @@ app.get("/api/health", (req, res) => {
           isAbtApproved = false;
         }
 
-        if (abtEntryIndex !== -1) {
+        if (isHCShift) {
+          // For Home Care shifts, Activity Based Transport is strictly for Staff Activity travel allowances and must never be added to shift billing/invoices
+          if (abtEntryIndex !== -1) {
+            processedServicesData = processedServicesData.filter((sd: any) => {
+              const srv =
+                sd.serviceId && sd.serviceId !== "custom" && sd.serviceId !== "orientation"
+                  ? (db.prepare("SELECT name FROM services WHERE id = ?").get(sd.serviceId) as any)
+                  : null;
+              const n = String(srv?.name || sd.serviceName || sd.customName || sd.name || "").toLowerCase();
+              return !n.includes("activity based transport") && !n.includes("activity-based transport");
+            });
+            abtEntryIndex = -1;
+          }
+          isAbtApproved = finalAbtKm > 0;
+        } else if (abtEntryIndex !== -1) {
           if (isExtStaffUpdate) {
             processedServicesData[abtEntryIndex].qtyOverride = 0;
             isAbtApproved = false;
@@ -17976,16 +18051,15 @@ app.get("/api/health", (req, res) => {
             isAbtApproved = true;
           }
         } else if (finalAbtKm > 0 && !isExtStaffUpdate) {
-          const targetSrvType = isHCShift ? "HOME_CARE" : "NDIS";
           const abtSrv = db
             .prepare(
               `SELECT id, name, code, rate, unit, type FROM services
                WHERE (LOWER(name) LIKE '%activity based transport%' OR LOWER(name) LIKE '%activity-based transport%')
                  AND (status IS NULL OR status != 'ARCHIVED')
-               ORDER BY CASE WHEN UPPER(type) = UPPER(?) THEN 0 ELSE 1 END, id DESC
+               ORDER BY CASE WHEN UPPER(type) = 'NDIS' THEN 0 ELSE 1 END, id DESC
                LIMIT 1`,
             )
-            .get(targetSrvType) as any;
+            .get() as any;
 
           processedServicesData.push({
             serviceId: abtSrv ? abtSrv.id : "custom",
@@ -18225,10 +18299,11 @@ app.get("/api/health", (req, res) => {
           (status === "COMPLETED" || existing.status === "COMPLETED") &&
           (existing.status !== status ||
             servicesJson !== existing.services_json ||
-            providerTravelKm !== undefined ||
-            abtKm !== undefined ||
-            abtCoordinates !== undefined ||
-            abtFromServices !== null)
+            (!isHCShift &&
+              (providerTravelKm !== undefined ||
+                abtKm !== undefined ||
+                abtCoordinates !== undefined ||
+                abtFromServices !== null)))
         ) {
           generateInvoiceForShift(id);
         }
