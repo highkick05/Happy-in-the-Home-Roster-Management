@@ -73,7 +73,21 @@ export default function StaffActivityReport() {
       });
       if (res.ok) {
         const data = await res.json();
-        setStaffList(data.filter((user: any) => user.role !== 'ADMIN'));
+        const activeNonAdminStaff = data
+          .filter((user: any) => {
+            const status = String(user.status || 'ACTIVE').toUpperCase();
+            return user.role !== 'ADMIN' && status !== 'SUSPENDED' && status !== 'INACTIVE';
+          })
+          .sort((a: any, b: any) => {
+            const lastA = String(a.last_name || '').trim();
+            const lastB = String(b.last_name || '').trim();
+            const lastCmp = lastA.localeCompare(lastB, undefined, { sensitivity: 'base' });
+            if (lastCmp !== 0) return lastCmp;
+            const firstA = String(a.first_name || '').trim();
+            const firstB = String(b.first_name || '').trim();
+            return firstA.localeCompare(firstB, undefined, { sensitivity: 'base' });
+          });
+        setStaffList(activeNonAdminStaff);
       }
     } catch (e) {
       console.error(e);
