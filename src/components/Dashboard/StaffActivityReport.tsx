@@ -124,20 +124,20 @@ export default function StaffActivityReport() {
 
   return (
     <div className="flex flex-col h-full space-y-2 min-h-[calc(100vh-120px)]">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
-        <div>
-          <h2 className="text-base font-sans font-semibold text-[#E6EDF3] flex items-center">
-            <Activity className="w-4 h-4 mr-2 text-brand-teal" />
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 shrink-0">
+        <div className="shrink-0">
+          <h2 className="text-base font-sans font-semibold text-[#E6EDF3] flex items-center whitespace-nowrap">
+            <Activity className="w-4 h-4 mr-2 text-brand-teal shrink-0" />
             Staff Activity & Service Breakdown
           </h2>
-          <p className="text-[#8B949E] text-xs mt-0">Monitor staff hours, services provided, and travel distances</p>
+          <p className="text-[#8B949E] text-xs mt-0 whitespace-nowrap">Monitor staff hours, services provided, and travel distances</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center bg-brand-navy border border-border-subtle rounded-md p-0.5 text-xs">
+        <div className="flex flex-wrap xl:flex-nowrap items-center gap-2">
+          <div className="inline-flex items-center bg-brand-navy border border-border-subtle rounded-md p-0.5 text-xs shrink-0">
             {[
               { id: 'INTERNAL', label: 'Internal Staff' },
-              { id: 'EXTERNAL', label: 'External (Mable)' },
+              { id: 'EXTERNAL', label: 'External' },
               { id: 'ALL', label: 'All' },
             ].map((tab) => (
               <button
@@ -147,7 +147,7 @@ export default function StaffActivityReport() {
                   setStaffTypeFilter(tab.id as 'INTERNAL' | 'EXTERNAL' | 'ALL');
                   setStaffFilter('');
                 }}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                   staffTypeFilter === tab.id
                     ? tab.id === 'EXTERNAL'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -163,7 +163,7 @@ export default function StaffActivityReport() {
           <select 
             value={staffFilter} 
             onChange={(e) => setStaffFilter(e.target.value)}
-            className="bg-brand-navy border border-border-subtle text-[#E6EDF3] text-xs rounded-md px-2 py-1 focus:outline-none focus:border-brand-teal transition-colors max-w-[200px]"
+            className="bg-brand-navy border border-border-subtle text-[#E6EDF3] text-xs rounded-md px-2 py-1 focus:outline-none focus:border-brand-teal transition-colors max-w-[165px] shrink-0"
           >
             <option value="">
               {staffTypeFilter === 'INTERNAL'
@@ -194,31 +194,33 @@ export default function StaffActivityReport() {
             autoSelectCurrent={true}
             onSelect={(s, e) => setDateRange({ start: s, end: e })} 
           />
-          <div className="flex items-center space-x-2 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 focus-within:border-brand-teal transition-colors">
-            <Calendar className="w-4 h-4 text-[#8B949E]" />
+          <div className="flex items-center space-x-1 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 focus-within:border-brand-teal transition-colors shrink-0">
+            <Calendar className="w-3.5 h-3.5 text-[#8B949E] shrink-0" />
             <CustomDatePicker
               position="bottom"
               value={dateRange.start}
               onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              containerClassName="w-[90px]"
               className="bg-transparent border-none outline-none text-[#E6EDF3] text-xs"
             />
-            <span className="text-[#8B949E]">-</span>
+            <span className="text-[#8B949E] text-xs">-</span>
             <CustomDatePicker
               position="bottom"
               value={dateRange.end}
               onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              containerClassName="w-[90px]"
               className="bg-transparent border-none outline-none text-[#E6EDF3] text-xs"
             />
           </div>
 
-          <div className="relative">
+          <div className="relative shrink-0">
             <button 
               id="btn_toggle_columns"
               onClick={() => setShowColumnDropdown(!showColumnDropdown)}
-              className="flex items-center gap-1 px-2 py-1 bg-brand-navy hover:bg-[#1f262e] text-[#E6EDF3] rounded-md text-xs transition-colors border border-border-subtle"
+              className="flex items-center gap-1 px-2 py-1 bg-brand-navy hover:bg-[#1f262e] text-[#E6EDF3] rounded-md text-xs transition-colors border border-border-subtle whitespace-nowrap"
               title="Toggle Columns"
             >
-              <SlidersHorizontal className="w-4 h-4 text-[#8B949E]" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[#8B949E]" />
               <span>Columns</span>
             </button>
             {showColumnDropdown && (
@@ -260,16 +262,16 @@ export default function StaffActivityReport() {
           <button 
             onClick={fetchReport}
             disabled={loading}
-            className="flex items-center px-3 py-2 bg-brand-navy hover:bg-[#1f262e] text-[#E6EDF3] rounded-md text-xs transition-colors border border-border-subtle"
+            className="flex items-center px-2.5 py-1.5 bg-brand-navy hover:bg-[#1f262e] text-[#E6EDF3] rounded-md text-xs transition-colors border border-border-subtle shrink-0"
             title="Refresh report data"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
           {/* Send to Xero Pay Run Button */}
           <button
             onClick={() => setIsPayRunModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold rounded-md text-xs transition-colors shadow-sm cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold rounded-md text-xs transition-colors shadow-sm cursor-pointer shrink-0 whitespace-nowrap"
             title="Send employees pay run info to Xero to create a Draft Pay Run"
           >
             <Send className="w-3.5 h-3.5" />
