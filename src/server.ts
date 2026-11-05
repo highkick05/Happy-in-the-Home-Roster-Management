@@ -58,6 +58,7 @@ import {
   reconcilePaidInvoicesWithXero,
   runXeroTabFailsafe,
   bulkVoidAwaitingPaymentInvoicesInXero,
+  getProfitAndLossReport,
 } from "./services/xeroService";
 import {
   initAwardRatesTable,
@@ -6606,6 +6607,19 @@ function getUnreadChatCount(db: any, userId: number): number {
     }
   });
 
+  app.get("/api/xero/reports/profit-and-loss", authenticateTokenOrWallboard, async (req: any, res: any) => {
+    try {
+      const forceRefresh = req.query.refresh === 'true' || req.query.force === 'true';
+      const report = await getProfitAndLossReport(db, { forceRefresh });
+      res.json(report);
+    } catch (e: any) {
+      res.status(500).json({
+        success: false,
+        error: e.message || "Failed to fetch Xero Profit and Loss report.",
+      });
+    }
+  });
+
   app.post("/api/xero/disconnect", authenticateToken, requireAdmin, (req, res) => {
     try {
       saveXeroSetting(db, "xero_access_token", "");
@@ -6639,6 +6653,7 @@ function getUnreadChatCount(db: any, userId: number): number {
       // - 'accounting.invoices' replaces deprecated 'accounting.transactions'
       // - 'accounting.contacts' for managing invoice contacts
       // - 'accounting.settings.read' for reading organization info and chart of accounts
+      // - 'accounting.reports.read' for reading Profit and Loss financial reports
       // - 'accounting.attachments' for uploading PDF invoice copies
       // - 'payroll.settings' and 'payroll.settings.read' for reading & syncing payroll pay items and earnings rates
       // - 'payroll.employees' and 'payroll.employees.read' for viewing and mapping staff to Xero employees
@@ -6647,7 +6662,7 @@ function getUnreadChatCount(db: any, userId: number): number {
       // - 'payroll.payslip' and 'payroll.payslip.read' for populating award earnings and travel into employee payslips
       // - 'offline_access' for receiving refresh tokens
       const requestedScope = (req.query.scope as string) ||
-        'openid profile email accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read offline_access';
+        'openid profile email accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.reports.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read offline_access';
 
       const params = new URLSearchParams({
         response_type: 'code',

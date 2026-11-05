@@ -146,7 +146,9 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     // In Xero Custom Connections, omitting the scope parameter automatically requests all scopes approved for the connection in developer.xero.com.
     const scopesToTry = [
       '', // Omitting scope gets all approved scopes configured on the Custom Connection
+      'accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.reports.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
       'accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
+      'accounting.invoices accounting.invoices.read accounting.payments accounting.contacts accounting.settings.read accounting.reports.read accounting.attachments',
       'accounting.invoices accounting.invoices.read accounting.payments accounting.contacts accounting.settings.read accounting.attachments',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payslip',
@@ -3973,4 +3975,317 @@ export async function bulkVoidAwaitingPaymentInvoicesInXero(db: any): Promise<{
     };
   }
 }
+
+export interface XeroPnLRowItem {
+  label: string;
+  accountId?: string;
+  isSummary: boolean;
+  values: number[];
+  ytdValue: number | null;
+}
+
+export interface XeroPnLSection {
+  title: string;
+  rows: XeroPnLRowItem[];
+}
+
+export interface XeroProfitAndLossResponse {
+  success: boolean;
+  reportTitle: string;
+  organisationName: string;
+  periodSubtitle: string;
+  monthHeaders: string[];
+  hasYtd: boolean;
+  sections: XeroPnLSection[];
+  updatedAt: string;
+  fromCache?: boolean;
+  needsReauth?: boolean;
+  error?: string;
+}
+
+let inMemoryPnLCache: {
+  monthKey: string;
+  timestamp: number;
+  data: XeroProfitAndLossResponse;
+} | null = null;
+
+const PNL_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function parseXeroReportNum(val: any): number {
+  if (val === undefined || val === null || val === '' || val === '-') return 0;
+  const cleaned = String(val).replace(/,/g, '').trim();
+  const num = Number(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Fetches the Profit and Loss Report from Xero for the Current Month + Previous 2 Months (3 monthly columns)
+ * plus Year to Date (Australian Financial Year starting 1 July).
+ * Uses a 15-minute cache to protect Xero API rate limits when displayed on the Wallboard.
+ */
+export async function getProfitAndLossReport(
+  db: any,
+  options?: { forceRefresh?: boolean }
+): Promise<XeroProfitAndLossResponse> {
+  try {
+    // Resolve business timezone
+    let timezone = 'Australia/Perth';
+    try {
+      const tzRow = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+      if (tzRow?.value) {
+        try {
+          timezone = JSON.parse(tzRow.value);
+        } catch {
+          timezone = String(tzRow.value).replace(/['"]+/g, '');
+        }
+      }
+    } catch {}
+
+    const nowLocalYmd = formatInTimeZone(new Date(), timezone || 'Australia/Perth', 'yyyy-MM-dd');
+    const [yyyyStr, mmStr] = nowLocalYmd.split('-');
+    const year = Number(yyyyStr);
+    const month = Number(mmStr); // 1..12
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+
+    const nowMs = Date.now();
+
+    // 1. Check in-memory cache first
+    if (
+      !options?.forceRefresh &&
+      inMemoryPnLCache &&
+      inMemoryPnLCache.monthKey === monthKey &&
+      nowMs - inMemoryPnLCache.timestamp < PNL_CACHE_TTL_MS
+    ) {
+      return { ...inMemoryPnLCache.data, fromCache: true };
+    }
+
+    // 2. Check SQLite settings cache fallback
+    if (!options?.forceRefresh) {
+      try {
+        const cacheRow = db.prepare("SELECT value FROM settings WHERE key = 'xero_pnl_cache_v1'").get() as any;
+        if (cacheRow?.value) {
+          const parsedCache = JSON.parse(cacheRow.value);
+          if (
+            parsedCache &&
+            parsedCache.monthKey === monthKey &&
+            parsedCache.timestamp &&
+            nowMs - Number(parsedCache.timestamp) < PNL_CACHE_TTL_MS &&
+            parsedCache.data?.success
+          ) {
+            inMemoryPnLCache = {
+              monthKey,
+              timestamp: Number(parsedCache.timestamp),
+              data: parsedCache.data,
+            };
+            return { ...parsedCache.data, fromCache: true };
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Calculate dates for Current Month + Previous 2 Months (periods=2, timeframe=MONTH)
+    const fromDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    const toDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
+
+    // Australian Financial Year starts 1 July
+    const fyStartYear = month >= 7 ? year : year - 1;
+    const fyStartDate = `${fyStartYear}-07-01`;
+
+    const { accessToken, tenantId, tenantName, settings } = await getValidAccessToken(db);
+
+    const monthlyUrl = `https://api.xero.com/api.xro/2.0/Reports/ProfitAndLoss?fromDate=${fromDate}&toDate=${toDate}&periods=2&timeframe=MONTH`;
+    const ytdUrl = `https://api.xero.com/api.xro/2.0/Reports/ProfitAndLoss?fromDate=${fyStartDate}&toDate=${toDate}`;
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    };
+    if (tenantId) {
+      headers['Xero-Tenant-Id'] = tenantId;
+    }
+
+    const [monthlyRes, ytdRes] = await Promise.all([
+      fetch(monthlyUrl, { headers }),
+      fetch(ytdUrl, { headers }).catch(() => null),
+    ]);
+
+    if (!monthlyRes.ok) {
+      const errBody = await monthlyRes.text().catch(() => '');
+      const isForbiddenOrUnauthorized = monthlyRes.status === 401 || monthlyRes.status === 403;
+      if (isForbiddenOrUnauthorized) {
+        return {
+          success: false,
+          reportTitle: 'Profit and Loss',
+          organisationName: tenantName || settings.xero_tenant_name || 'Happy in the HOME',
+          periodSubtitle: '',
+          monthHeaders: [],
+          hasYtd: false,
+          sections: [],
+          updatedAt: new Date().toISOString(),
+          needsReauth: true,
+          error:
+            "Xero permission 'accounting.reports.read' is required to view the Profit and Loss report. Please ensure 'accounting.reports.read' is enabled in developer.xero.com and click 'Re-authorize with Xero' in Settings > Xero Integration.",
+        };
+      }
+      throw new Error(`Xero Profit & Loss API returned HTTP ${monthlyRes.status}: ${errBody.slice(0, 200)}`);
+    }
+
+    const monthlyData = await monthlyRes.json().catch(() => ({}));
+    const report = monthlyData?.Reports?.[0];
+    if (!report || !Array.isArray(report.Rows)) {
+      throw new Error('Unexpected Xero Profit and Loss report format.');
+    }
+
+    // Parse optional YTD report into a lookup map by sectionTitle::rowLabel and accountId
+    const ytdByAccountId = new Map<string, number>();
+    const ytdBySectionAndLabel = new Map<string, number>();
+    let hasYtd = false;
+
+    if (ytdRes && ytdRes.ok) {
+      try {
+        const ytdData = await ytdRes.json();
+        const ytdReport = ytdData?.Reports?.[0];
+        if (ytdReport && Array.isArray(ytdReport.Rows)) {
+          hasYtd = true;
+          for (const topRow of ytdReport.Rows) {
+            if (topRow.RowType === 'Section') {
+              const secTitle = String(topRow.Title || '').trim();
+              const subRows = Array.isArray(topRow.Rows) ? topRow.Rows : [];
+              for (const r of subRows) {
+                if (r.RowType === 'Row' || r.RowType === 'SummaryRow') {
+                  const cells = Array.isArray(r.Cells) ? r.Cells : [];
+                  const label = String(cells[0]?.Value || '').trim();
+                  const val = parseXeroReportNum(cells[1]?.Value);
+                  const accAttr = Array.isArray(cells[0]?.Attributes)
+                    ? cells[0].Attributes.find((a: any) => a.Id === 'account')?.Value
+                    : undefined;
+                  if (accAttr) {
+                    ytdByAccountId.set(String(accAttr), val);
+                  }
+                  if (label) {
+                    ytdBySectionAndLabel.set(`${secTitle}::${label}`, val);
+                    if (!ytdBySectionAndLabel.has(`*::${label}`)) {
+                      ytdBySectionAndLabel.set(`*::${label}`, val);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (ytdErr) {
+        console.warn('[XERO P&L] Could not parse YTD comparison report:', ytdErr);
+      }
+    }
+
+    const titles: string[] = Array.isArray(report.ReportTitles) ? report.ReportTitles : [];
+    const reportTitle = titles[0] || report.ReportName || 'Profit and Loss';
+    const organisationName = titles[1] || tenantName || settings.xero_tenant_name || 'Happy in the HOME';
+    const periodSubtitle = titles[2] || `For the period ended ${toDate}`;
+
+    let monthHeaders: string[] = [];
+    const sections: XeroPnLSection[] = [];
+
+    for (const topRow of report.Rows) {
+      if (topRow.RowType === 'Header' && Array.isArray(topRow.Cells)) {
+        monthHeaders = topRow.Cells.slice(1)
+          .map((c: any) => String(c?.Value || '').trim())
+          .filter(Boolean);
+      } else if (topRow.RowType === 'Section') {
+        const secTitle = String(topRow.Title || '').trim();
+        const rawSubRows = Array.isArray(topRow.Rows) ? topRow.Rows : [];
+        const parsedRows: XeroPnLRowItem[] = [];
+
+        for (const r of rawSubRows) {
+          if (r.RowType !== 'Row' && r.RowType !== 'SummaryRow') continue;
+          const cells = Array.isArray(r.Cells) ? r.Cells : [];
+          const label = String(cells[0]?.Value || '').trim();
+          if (!label) continue;
+
+          const isSummary = r.RowType === 'SummaryRow';
+          const accountId = Array.isArray(cells[0]?.Attributes)
+            ? cells[0].Attributes.find((a: any) => a.Id === 'account')?.Value
+            : undefined;
+
+          const numMonths = monthHeaders.length || Math.max(0, cells.length - 1);
+          const values: number[] = [];
+          for (let i = 0; i < numMonths; i++) {
+            values.push(parseXeroReportNum(cells[i + 1]?.Value));
+          }
+
+          let ytdValue: number | null = null;
+          if (hasYtd) {
+            if (accountId && ytdByAccountId.has(String(accountId))) {
+              ytdValue = ytdByAccountId.get(String(accountId))!;
+            } else if (ytdBySectionAndLabel.has(`${secTitle}::${label}`)) {
+              ytdValue = ytdBySectionAndLabel.get(`${secTitle}::${label}`)!;
+            } else if (ytdBySectionAndLabel.has(`*::${label}`)) {
+              ytdValue = ytdBySectionAndLabel.get(`*::${label}`)!;
+            } else {
+              ytdValue = 0;
+            }
+          }
+
+          parsedRows.push({
+            label,
+            accountId,
+            isSummary,
+            values,
+            ytdValue,
+          });
+        }
+
+        if (parsedRows.length > 0) {
+          sections.push({
+            title: secTitle,
+            rows: parsedRows,
+          });
+        }
+      }
+    }
+
+    const result: XeroProfitAndLossResponse = {
+      success: true,
+      reportTitle,
+      organisationName,
+      periodSubtitle,
+      monthHeaders,
+      hasYtd,
+      sections,
+      updatedAt: new Date().toISOString(),
+      fromCache: false,
+    };
+
+    inMemoryPnLCache = {
+      monthKey,
+      timestamp: nowMs,
+      data: result,
+    };
+
+    try {
+      saveXeroSetting(db, 'xero_pnl_cache_v1', {
+        monthKey,
+        timestamp: nowMs,
+        data: result,
+      });
+    } catch {}
+
+    return result;
+  } catch (e: any) {
+    console.error('[XERO P&L] Error fetching Profit and Loss report:', e);
+    return {
+      success: false,
+      reportTitle: 'Profit and Loss',
+      organisationName: 'Happy in the HOME',
+      periodSubtitle: '',
+      monthHeaders: [],
+      hasYtd: false,
+      sections: [],
+      updatedAt: new Date().toISOString(),
+      error: e.message || 'Failed to fetch Profit and Loss report from Xero.',
+    };
+  }
+}
+
 

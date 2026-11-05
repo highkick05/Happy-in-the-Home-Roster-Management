@@ -7,8 +7,38 @@ import { addDays } from 'date-fns/addDays';
 import { compareAsc } from 'date-fns/compareAsc';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
-import { ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw, BarChart3, CalendarClock, RefreshCw, Lock, Unlock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+interface XeroPnLRowItem {
+  label: string;
+  accountId?: string;
+  isSummary: boolean;
+  values: number[];
+  ytdValue: number | null;
+}
+
+interface XeroPnLSection {
+  title: string;
+  rows: XeroPnLRowItem[];
+}
+
+interface XeroProfitAndLossData {
+  success: boolean;
+  reportTitle: string;
+  organisationName: string;
+  periodSubtitle: string;
+  monthHeaders: string[];
+  hasYtd: boolean;
+  sections: XeroPnLSection[];
+  updatedAt: string;
+  fromCache?: boolean;
+  needsReauth?: boolean;
+  error?: string;
+}
+
+const SHIFTS_DISPLAY_DURATION_MS = 10 * 60 * 1000; // 10 minutes on Live Shift Tracker
+const PNL_DISPLAY_DURATION_MS = 2 * 60 * 1000;     // 2 minutes on Xero Profit & Loss
 
 
 export interface ShiftEvent {
@@ -52,6 +82,13 @@ export default function WallboardView() {
 
   const [publicLogo, setPublicLogo] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Alternating Wallboard View state: 'SHIFTS' (10 mins) <-> 'PNL' (2 mins)
+  const [activeSlide, setActiveSlide] = useState<'SHIFTS' | 'PNL'>('SHIFTS');
+  const [isRotationLocked, setIsRotationLocked] = useState(false);
+  const [pnlData, setPnlData] = useState<XeroProfitAndLossData | null>(null);
+  const [pnlLoading, setPnlLoading] = useState(false);
+  const [compactView, setCompactView] = useState(true);
 
   useEffect(() => {
     const fn = async () => {
@@ -200,6 +237,62 @@ export default function WallboardView() {
     const interval = setInterval(() => fetchQuote(), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchPnLReport = async (forceRefresh = false) => {
+    try {
+      setPnlLoading(true);
+      const fetchOptions: RequestInit = token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : {};
+      const res = await fetch(
+        `/api/xero/reports/profit-and-loss?wallboard=true${forceRefresh ? '&refresh=true' : ''}&_t=${Date.now()}`,
+        fetchOptions
+      );
+      if (res.ok) {
+        const data: XeroProfitAndLossData = await res.json();
+        setPnlData(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch Xero Profit & Loss for Wallboard:', e);
+    } finally {
+      setPnlLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPnLReport(false);
+    // Refresh P&L data in background every 10 minutes
+    const pnlInterval = setInterval(() => fetchPnLReport(false), 10 * 60 * 1000);
+    return () => clearInterval(pnlInterval);
+  }, [token]);
+
+  // Asymmetric rotation timer: 10 minutes on SHIFTS, 2 minutes on PNL
+  useEffect(() => {
+    if (isRotationLocked) return;
+    const duration = activeSlide === 'SHIFTS' ? SHIFTS_DISPLAY_DURATION_MS : PNL_DISPLAY_DURATION_MS;
+    const timer = setTimeout(() => {
+      setActiveSlide((prev) => {
+        const next = prev === 'SHIFTS' ? 'PNL' : 'SHIFTS';
+        if (next === 'PNL') {
+          fetchPnLReport(false);
+        }
+        return next;
+      });
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [activeSlide, isRotationLocked]);
+
+  const formatPnLAmount = (val: number | null | undefined) => {
+    if (val === null || val === undefined || Math.abs(val) < 0.005) {
+      return '-';
+    }
+    const isNeg = val < 0;
+    const formatted = Math.abs(val).toLocaleString('en-AU', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return isNeg ? `(${formatted})` : formatted;
+  };
 
   const fetchData = async () => {
     if (isFetchingRef.current) return;
@@ -463,7 +556,16 @@ export default function WallboardView() {
 
         <div className="flex-1 w-full flex flex-col p-4 md:p-8 overflow-auto">
           <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8 pb-32">
-            <div className="w-full flex flex-col gap-8">
+            <AnimatePresence mode="wait">
+              {activeSlide === 'SHIFTS' ? (
+                <motion.div
+                  key="wallboard-shifts"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.45, ease: 'easeOut' }}
+                  className="w-full flex flex-col gap-8"
+                >
                   {fetchError && groupedEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 text-amber-400 font-medium text-lg gap-2">
                       <span>Connection interrupted ({fetchError}). Automatically reconnecting...</span>
@@ -564,7 +666,201 @@ export default function WallboardView() {
                       </div>
                     ))
                   )}
-                </div>          </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="wallboard-pnl"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.45, ease: 'easeOut' }}
+                  className="w-full"
+                >
+                  <div className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 md:p-8 shadow-2xl">
+                    {/* Xero Report Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 mb-6 border-b border-zinc-800">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                            {pnlData?.reportTitle || 'Profit and Loss'}
+                          </h2>
+                          <span className="px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                            Xero Live
+                          </span>
+                        </div>
+                        <p className="text-sm md:text-base text-zinc-300 font-medium mt-1">
+                          {pnlData?.organisationName || 'Happy in the HOME'}
+                        </p>
+                        {pnlData?.periodSubtitle && (
+                          <p className="text-xs md:text-sm text-zinc-400 mt-0.5">
+                            {pnlData.periodSubtitle}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3 self-start">
+                        <label className="inline-flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none bg-zinc-950/70 px-3 py-1.5 rounded-lg border border-zinc-800">
+                          <input
+                            type="checkbox"
+                            checked={compactView}
+                            onChange={(e) => setCompactView(e.target.checked)}
+                            className="rounded border-zinc-700 bg-zinc-900 text-brand-teal focus:ring-brand-teal"
+                          />
+                          <span>Compact view</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => fetchPnLReport(true)}
+                          disabled={pnlLoading}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-950/70 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
+                          title="Refresh from Xero"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${pnlLoading ? 'animate-spin text-brand-teal' : ''}`} />
+                          <span>Refresh</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Report Body */}
+                    {pnlLoading && !pnlData ? (
+                      <div className="py-16 flex flex-col items-center justify-center gap-3 text-zinc-400">
+                        <RefreshCw className="w-7 h-7 animate-spin text-brand-teal" />
+                        <span className="text-sm font-medium">Loading Xero Profit and Loss report...</span>
+                      </div>
+                    ) : !pnlData || !pnlData.success ? (
+                      <div className="py-12 px-6 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center max-w-2xl mx-auto my-4">
+                        <p className="text-base font-bold text-amber-300 mb-2">
+                          Unable to Load Xero Profit &amp; Loss Report
+                        </p>
+                        <p className="text-xs md:text-sm text-amber-100/90 leading-relaxed">
+                          {pnlData?.error || 'Please ensure Xero is connected in Settings > Xero Integration and that the accounting.reports.read permission is authorized.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left">
+                          <thead>
+                            <tr className="border-b border-zinc-700/80 text-xs md:text-sm font-semibold text-zinc-400">
+                              <th className="py-3 pr-4 w-[40%]"></th>
+                              {pnlData.monthHeaders.map((header, idx) => (
+                                <th
+                                  key={header + idx}
+                                  className={`py-3 px-4 text-right whitespace-nowrap ${
+                                    idx === 0 ? 'text-brand-teal font-bold' : 'text-zinc-300'
+                                  }`}
+                                >
+                                  {header}
+                                  {idx === 0 && (
+                                    <span className="block text-[10px] font-normal text-brand-teal/80 uppercase tracking-wider">
+                                      Current (MTD)
+                                    </span>
+                                  )}
+                                </th>
+                              ))}
+                              {pnlData.hasYtd && (
+                                <th className="py-3 pl-4 text-right whitespace-nowrap text-zinc-200 font-bold">
+                                  Year to date
+                                </th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="text-sm md:text-base">
+                            {pnlData.sections.map((section, sIdx) => {
+                              const visibleRows = section.rows.filter((row) => {
+                                if (!compactView || row.isSummary) return true;
+                                const hasNonZeroMonth = row.values.some((v) => Math.abs(v) >= 0.005);
+                                const hasNonZeroYtd = row.ytdValue !== null && Math.abs(row.ytdValue) >= 0.005;
+                                return hasNonZeroMonth || hasNonZeroYtd;
+                              });
+
+                              if (visibleRows.length === 0) return null;
+
+                              return (
+                                <React.Fragment key={(section.title || 'sec') + sIdx}>
+                                  {section.title && (
+                                    <tr className="border-b border-zinc-800/90">
+                                      <td
+                                        colSpan={1 + pnlData.monthHeaders.length + (pnlData.hasYtd ? 1 : 0)}
+                                        className="pt-6 pb-2 font-bold text-white text-base md:text-lg tracking-tight"
+                                      >
+                                        {section.title}
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {visibleRows.map((row, rIdx) => {
+                                    const isMajorSummary =
+                                      row.isSummary &&
+                                      (row.label.toLowerCase().includes('gross profit') ||
+                                        row.label.toLowerCase().includes('net profit'));
+
+                                    return (
+                                      <tr
+                                        key={row.label + rIdx}
+                                        className={
+                                          isMajorSummary
+                                            ? 'border-t-2 border-b-2 border-zinc-600 bg-zinc-800/40 font-extrabold text-white'
+                                            : row.isSummary
+                                              ? 'border-t border-b border-zinc-700 font-bold text-zinc-100 bg-zinc-900/40'
+                                              : 'border-b border-zinc-800/60 hover:bg-white/[0.02] text-zinc-300'
+                                        }
+                                      >
+                                        <td className={`py-2.5 pr-4 ${row.isSummary ? 'font-bold text-white' : 'pl-2 text-zinc-200'}`}>
+                                          {row.label}
+                                        </td>
+                                        {row.values.map((val, vIdx) => {
+                                          const formatted = formatPnLAmount(val);
+                                          const isZero = formatted === '-';
+                                          return (
+                                            <td
+                                              key={vIdx}
+                                              className={`py-2.5 px-4 text-right font-mono tabular-nums whitespace-nowrap ${
+                                                row.isSummary
+                                                  ? isMajorSummary
+                                                    ? val < 0
+                                                      ? 'text-rose-400 font-extrabold'
+                                                    : 'text-emerald-300 font-extrabold'
+                                                    : 'text-white font-bold'
+                                                  : isZero
+                                                    ? 'text-zinc-600'
+                                                    : 'text-sky-400'
+                                              }`}
+                                            >
+                                              {formatted}
+                                            </td>
+                                          );
+                                        })}
+                                        {pnlData.hasYtd && (
+                                          <td
+                                            className={`py-2.5 pl-4 text-right font-mono tabular-nums whitespace-nowrap ${
+                                              row.isSummary
+                                                ? isMajorSummary
+                                                  ? (row.ytdValue || 0) < 0
+                                                    ? 'text-rose-400 font-extrabold'
+                                                    : 'text-emerald-300 font-extrabold'
+                                                  : 'text-white font-bold'
+                                                : formatPnLAmount(row.ytdValue) === '-'
+                                                  ? 'text-zinc-600'
+                                                  : 'text-sky-300'
+                                            }`}
+                                          >
+                                            {formatPnLAmount(row.ytdValue)}
+                                          </td>
+                                        )}
+                                      </tr>
+                                    );
+                                  })}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Footer with Quote */}
@@ -612,6 +908,28 @@ export default function WallboardView() {
         </div>
 
         <div className={`fixed bottom-24 right-6 transition-all duration-1000 flex flex-col items-end gap-2 z-50 ${isToolbarVisible ? 'opacity-30 hover:opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-12 pointer-events-none'}`}>
+          <button
+            onClick={() => {
+              const nextSlide = activeSlide === 'SHIFTS' ? 'PNL' : 'SHIFTS';
+              setActiveSlide(nextSlide);
+              if (nextSlide === 'PNL') fetchPnLReport(false);
+            }}
+            className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-300 hover:text-brand-teal transition-colors"
+            title={activeSlide === 'SHIFTS' ? 'Switch to Xero Profit & Loss' : 'Switch to Live Shift Tracker'}
+          >
+            {activeSlide === 'SHIFTS' ? <BarChart3 className="w-5 h-5" /> : <CalendarClock className="w-5 h-5" />}
+          </button>
+
+          <button
+            onClick={() => setIsRotationLocked((prev) => !prev)}
+            className={`p-3 bg-zinc-900 border rounded-full shadow-lg transition-colors ${
+              isRotationLocked ? 'border-amber-500/60 text-amber-400' : 'border-zinc-700 text-zinc-400 hover:text-white'
+            }`}
+            title={isRotationLocked ? 'Auto-Rotation Locked (Click to Resume 10m/2m Cycle)' : 'Auto-Rotating (10m Shifts / 2m P&L) — Click to Lock Current View'}
+          >
+            {isRotationLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+          </button>
+
           <div className="flex flex-col items-center justify-center bg-zinc-900 border border-zinc-700 rounded-full shadow-lg p-1">
             <button 
               onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.5))}
