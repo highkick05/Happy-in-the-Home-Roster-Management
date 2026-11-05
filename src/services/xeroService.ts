@@ -146,9 +146,9 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     // In Xero Custom Connections, omitting the scope parameter automatically requests all scopes approved for the connection in developer.xero.com.
     const scopesToTry = [
       '', // Omitting scope gets all approved scopes configured on the Custom Connection
-      'accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.reports.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
+      'accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.reports.profitandloss.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
       'accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
-      'accounting.invoices accounting.invoices.read accounting.payments accounting.contacts accounting.settings.read accounting.reports.read accounting.attachments',
+      'accounting.invoices accounting.invoices.read accounting.payments accounting.contacts accounting.settings.read accounting.reports.profitandloss.read accounting.attachments',
       'accounting.invoices accounting.invoices.read accounting.payments accounting.contacts accounting.settings.read accounting.attachments',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payslip',
@@ -4125,7 +4125,7 @@ export async function getProfitAndLossReport(
           updatedAt: new Date().toISOString(),
           needsReauth: true,
           error:
-            "Xero permission 'accounting.reports.read' is required to view the Profit and Loss report. Please ensure 'accounting.reports.read' is enabled in developer.xero.com and click 'Re-authorize with Xero' in Settings > Xero Integration.",
+            "Xero permission 'accounting.reports.profitandloss.read' is required to view the Profit and Loss report. Please ensure 'accounting.reports.profitandloss.read' is enabled in developer.xero.com and click 'Re-authorize with Xero' in Settings > Xero Integration.",
         };
       }
       throw new Error(`Xero Profit & Loss API returned HTTP ${monthlyRes.status}: ${errBody.slice(0, 200)}`);

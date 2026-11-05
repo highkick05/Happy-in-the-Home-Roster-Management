@@ -492,7 +492,7 @@ export default function XeroSettings() {
                     <span>Linked to Xero organisation: <strong>{statusData.organisation?.name || statusData.tenantName || 'Happy in the Home'}</strong></span>
                   </div>
                   <div className="p-2 bg-sky-500/10 border border-sky-500/20 rounded-lg text-sky-200 text-[11px] flex items-center justify-between gap-2">
-                    <span>💡 <strong>Payroll &amp; Wallboard Profit &amp; Loss:</strong> To sync employees/award rates and display the live Xero Profit &amp; Loss report on the Wallboard, ensure <code>accounting.reports.read</code> is enabled in developer.xero.com and click <strong>"Re-authorize with Xero"</strong> above.</span>
+                    <span>💡 <strong>Payroll &amp; Wallboard Profit &amp; Loss:</strong> To sync employees/award rates and display the live Xero Profit &amp; Loss report on the Wallboard, ensure <code>accounting.reports.profitandloss.read</code> is enabled in developer.xero.com and click <strong>"Re-authorize with Xero"</strong> above.</span>
                   </div>
                 </div>
               )}

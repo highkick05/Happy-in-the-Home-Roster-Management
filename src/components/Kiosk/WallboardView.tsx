@@ -733,7 +733,7 @@ export default function WallboardView() {
                           Unable to Load Xero Profit &amp; Loss Report
                         </p>
                         <p className="text-xs md:text-sm text-amber-100/90 leading-relaxed">
-                          {pnlData?.error || 'Please ensure Xero is connected in Settings > Xero Integration and that the accounting.reports.read permission is authorized.'}
+                          {pnlData?.error || 'Please ensure Xero is connected in Settings > Xero Integration and that the accounting.reports.profitandloss.read permission is authorized.'}
                         </p>
                       </div>
                     ) : (
