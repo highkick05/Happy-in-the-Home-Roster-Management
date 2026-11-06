@@ -330,13 +330,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       const isRespite = shift.isRespiteWrapper;
       const isUncancellingShift = !isRespite && shift.status === 'CANCELLED' && status === 'PUBLISHED';
       const isUncompletingShift = !isRespite && shift.status === 'COMPLETED' && status === 'PUBLISHED';
+      const isUndoingStartShift = !isRespite && shift.status === 'IN_PROGRESS' && status === 'PUBLISHED';
       const endpoint = isRespite 
         ? `/api/respite-bookings/${shift.respiteData?.id}/status` 
         : isUncancellingShift
           ? `/api/shifts/${shift.id}/uncancel`
           : isUncompletingShift
             ? `/api/shifts/${shift.id}/uncomplete`
-            : `/api/shifts/${shift.id}`;
+            : isUndoingStartShift
+              ? `/api/shifts/${shift.id}/undo-start`
+              : `/api/shifts/${shift.id}`;
 
       const payload: Record<string, any> = { status };
       if (isUncancellingShift) {
@@ -347,7 +350,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       }
 
       const res = await fetch(endpoint, {
-        method: (isUncancellingShift || isUncompletingShift) ? 'POST' : 'PUT',
+        method: (isUncancellingShift || isUncompletingShift || isUndoingStartShift) ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -1412,6 +1415,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 >
                   <Undo2 className="w-5 h-5 mr-2 shrink-0" />
                   {shift.isRespiteWrapper ? "Unpublish Booking" : "Unpublish Shift"}
+                </button>
+              )}
+
+              {isAdmin && shift.status === 'IN_PROGRESS' && (
+                <button 
+                  onClick={() => handleUpdateStatus('PUBLISHED')}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                >
+                  <Undo2 className="w-5 h-5 mr-2 shrink-0" />
+                  Unmark In Progress
                 </button>
               )}
 
