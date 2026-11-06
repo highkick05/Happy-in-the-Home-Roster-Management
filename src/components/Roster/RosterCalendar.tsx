@@ -911,23 +911,51 @@ export default function RosterCalendar() {
   };
 
   const CLIENT_BORDER_PALETTE = [
-    '#f43f5e', // Rose
-    '#f59e0b', // Amber Gold
-    '#a855f7', // Purple
-    '#fde047', // Bright Yellow
-    '#ec4899', // Hot Pink
-    '#10b981', // Emerald
-    '#f97316', // Vibrant Orange
-    '#e879f9', // Fuchsia
-    '#6366f1', // Indigo
-    '#2dd4bf', // Bright Teal
-    '#fb7185', // Coral
-    '#c084fc', // Violet
+    '#dc2626', // Crimson Red
+    '#1e3a8a', // Deep Navy Blue
+    '#facc15', // Bright Lemon Gold
+    '#6b21a8', // Deep Royal Purple
+    '#ffffff', // Pure White
+    '#064e3b', // Deep Forest Green
+    '#db2777', // Hot Magenta
+    '#c2410c', // Burnt Rust Orange
+    '#18181b', // Obsidian Black
+    '#00f5d4', // Electric Aqua
+    '#78350f', // Rich Espresso Brown
+    '#c4b5fd', // Soft Lavender
+    '#881337', // Deep Burgundy Wine
+    '#fda4af', // Salmon Peach
+    '#3f6212', // Olive Moss
+    '#38bdf8', // Ice Sky Blue
+    '#a21caf', // Deep Fuchsia Plum
+    '#94a3b8', // Cool Steel Slate
   ];
+
+  const clientColorMap = React.useMemo(() => {
+    const map = new Map<number, string>();
+    const uniqueIds = new Set<number>();
+    clientList.forEach((c: any) => {
+      if (c?.id != null && !isNaN(Number(c.id))) {
+        uniqueIds.add(Number(c.id));
+      }
+    });
+    events.forEach((e: ShiftEvent) => {
+      if (e?.clientId != null && !isNaN(Number(e.clientId))) {
+        uniqueIds.add(Number(e.clientId));
+      }
+    });
+    const sortedIds = Array.from(uniqueIds).sort((a, b) => a - b);
+    sortedIds.forEach((id, index) => {
+      map.set(id, CLIENT_BORDER_PALETTE[index % CLIENT_BORDER_PALETTE.length]);
+    });
+    return map;
+  }, [clientList, events]);
 
   const getClientBorderColor = (event: ShiftEvent): string => {
     if (event.clientId != null && !isNaN(Number(event.clientId))) {
-      const idx = Math.abs(Number(event.clientId) * 7) % CLIENT_BORDER_PALETTE.length;
+      const mapped = clientColorMap.get(Number(event.clientId));
+      if (mapped) return mapped;
+      const idx = Math.abs(Number(event.clientId)) % CLIENT_BORDER_PALETTE.length;
       return CLIENT_BORDER_PALETTE[idx];
     }
     const nameStr = String(event.clientName || event.title || '');
