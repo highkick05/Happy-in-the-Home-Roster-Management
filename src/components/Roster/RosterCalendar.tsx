@@ -75,6 +75,32 @@ const AnimatedNurseIcon = ({ className = "w-3.5 h-3.5 text-rose-400" }: { classN
   </svg>
 );
 
+const AnimatedBroomIcon = ({ className = "w-3.5 h-3.5 text-amber-300" }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`shrink-0 ${className}`}
+  >
+    <g className="animate-broom-sweep">
+      {/* Broom Handle */}
+      <path d="M20 3 12.5 10.5" strokeWidth="2.2" />
+      {/* Broom Collar & Flared Bristle Head */}
+      <path d="m9.5 8.5 6 6-5 6.5c-2.5-1-6.5-5-7.5-7.5Z" fill="currentColor" fillOpacity="0.2" />
+      {/* Bristle Slits */}
+      <path d="m6.5 16 3-3" strokeWidth="1.75" />
+      <path d="m8.5 18 3-3" strokeWidth="1.75" />
+    </g>
+    {/* Swept Dust Particles */}
+    <path d="M3 20h.01" className="animate-broom-dust-1" strokeWidth="2.5" />
+    <path d="M6 21.5h.01" className="animate-broom-dust-2" strokeWidth="2.5" />
+  </svg>
+);
+
 export default function RosterCalendar() {
   const { token, user, settings } = useAuth();
 
@@ -1239,7 +1265,7 @@ export default function RosterCalendar() {
       // Domestic Assistance / Cleaning / Household / Laundry / Chores
       if (s.includes('domestic') || s.includes('clean') || s.includes('cleaning') || s.includes('household') || s.includes('laundry') || s.includes('chore')) {
         return {
-          icon: <Sparkles className="w-3 h-3 text-yellow-300 shrink-0 animate-service-twinkle" />,
+          icon: <AnimatedBroomIcon className="w-3.5 h-3.5 text-amber-300" />,
           badgeStyle: 'bg-yellow-500/10 border border-yellow-500/25 text-yellow-300'
         };
       }

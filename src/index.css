@@ -431,6 +431,32 @@ input:-webkit-autofill:active {
   display: inline-block;
 }
 
+/* Animated Sweeping Broom */
+@keyframes broom-sweep {
+  0%, 100% { transform: rotate(-14deg) translateX(-0.5px); }
+  50% { transform: rotate(16deg) translateX(1px); }
+}
+
+@keyframes broom-dust {
+  0%, 40% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  65% { opacity: 1; transform: translate(-1.5px, -1.5px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-3px, -2.5px) scale(0.4); }
+}
+
+.animate-broom-sweep {
+  animation: broom-sweep 1.2s ease-in-out infinite;
+  transform-origin: 75% 20%;
+  display: inline-block;
+}
+
+.animate-broom-dust-1 {
+  animation: broom-dust 1.2s ease-out infinite;
+}
+
+.animate-broom-dust-2 {
+  animation: broom-dust 1.2s ease-out 0.35s infinite;
+}
+
 /* Custom override for tailwind-datepicker-react hardcoded internal w-64 class */
 .custom-datepicker-popup .w-64 {
   width: 100% !important;
