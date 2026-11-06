@@ -151,7 +151,6 @@ export default function RosterCalendar() {
 
   // Filters and Grouping
   const [coordinatorFilter, setCoordinatorFilter] = useState<string>('');
-  const hasInitializedCoordinatorDefaultRef = React.useRef<number | null>(null);
   const [clientFilter, setClientFilter] = useLocalStorage<string>('roster_client_filter', '');
   const [staffFilter, setStaffFilter] = useLocalStorage<string>('roster_staff_filter', '');
   const [groupBy, setGroupBy] = useLocalStorage<'STAFF' | 'CLIENT'>('roster_group_by', 'STAFF');
@@ -375,14 +374,6 @@ export default function RosterCalendar() {
           .filter(isUserCareCoordinator)
           .sort(sortByName);
         setCoordinatorList(sortedCoordinators);
-
-        if (user?.id && hasInitializedCoordinatorDefaultRef.current !== Number(user.id)) {
-          hasInitializedCoordinatorDefaultRef.current = Number(user.id);
-          const matchedCoord = findMatchingCareCoordinator(sortedCoordinators, user);
-          if (matchedCoord) {
-            setCoordinatorFilter(String(matchedCoord.id));
-          }
-        }
       }
       if (clientsRes.ok) {
         const clientsData = await clientsRes.json();
@@ -919,6 +910,34 @@ export default function RosterCalendar() {
     }
   };
 
+  const CLIENT_BORDER_PALETTE = [
+    '#f43f5e', // Rose
+    '#f59e0b', // Amber Gold
+    '#a855f7', // Purple
+    '#fde047', // Bright Yellow
+    '#ec4899', // Hot Pink
+    '#10b981', // Emerald
+    '#f97316', // Vibrant Orange
+    '#e879f9', // Fuchsia
+    '#6366f1', // Indigo
+    '#2dd4bf', // Bright Teal
+    '#fb7185', // Coral
+    '#c084fc', // Violet
+  ];
+
+  const getClientBorderColor = (event: ShiftEvent): string => {
+    if (event.clientId != null && !isNaN(Number(event.clientId))) {
+      const idx = Math.abs(Number(event.clientId) * 7) % CLIENT_BORDER_PALETTE.length;
+      return CLIENT_BORDER_PALETTE[idx];
+    }
+    const nameStr = String(event.clientName || event.title || '');
+    let hash = 0;
+    for (let i = 0; i < nameStr.length; i++) {
+      hash = (hash * 31 + nameStr.charCodeAt(i)) | 0;
+    }
+    return CLIENT_BORDER_PALETTE[Math.abs(hash) % CLIENT_BORDER_PALETTE.length];
+  };
+
   const eventStyleGetter = (event: ShiftEvent) => {
     if (view === Views.AGENDA) {
       return {
@@ -935,31 +954,31 @@ export default function RosterCalendar() {
     const isSelected = multiSelectMode && selectedEventIds.has(event.id);
     const isInProgress = event.status === 'IN_PROGRESS';
     const isUnassigned = !event.staffId && !event.isRespiteWrapper;
+    const clientBorderColor = getClientBorderColor(event);
 
     let backgroundColor: string | undefined = '#0ea5e9'; // brand-blue
-    let border = isSelected ? '2px solid white' : 'none';
-    let backgroundImage = 'none';
+    let outerBorder = isSelected ? '2px solid white' : '1.5px solid #0B0E14';
 
     if (event.status === 'DRAFT') {
       backgroundColor = '#52525b'; // zinc-600
-      border = isSelected ? '2px solid white' : '1px dashed #a1a1aa'; // zinc-400
+      outerBorder = isSelected ? '2px solid white' : '1px dashed #a1a1aa'; // zinc-400
     }
     if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
     if (isInProgress) {
       backgroundColor = '#f59e0b'; // warm golden amber
-      border = isSelected ? '2px solid white' : '1.5px solid #d97706';
+      outerBorder = isSelected ? '2px solid white' : '1.5px solid #d97706';
     }
     if (event.status === 'PENDING_SYNC') backgroundColor = '#f97316'; // orange-500
     if (event.status === 'CANCELLED') backgroundColor = '#ef4444'; // red-500
     
     if (event.isRespiteWrapper) {
       backgroundColor = '#8b5cf6'; // violet-500
-      border = isSelected ? '2px solid white' : '1px inset #7c3aed';
+      outerBorder = isSelected ? '2px solid white' : '1.5px solid #0B0E14';
     }
 
     if (isUnassigned && event.status !== 'CANCELLED' && event.status !== 'COMPLETED') {
       backgroundColor = event.status === 'DRAFT' ? '#9d174d' : '#db2777'; // vibrant magenta-pink for unassigned shifts
-      border = isSelected
+      outerBorder = isSelected
         ? '2px solid white'
         : (event.status === 'DRAFT' ? '1.5px dashed #f472b6' : '1.5px solid #f9a8d4');
     }
@@ -983,15 +1002,20 @@ export default function RosterCalendar() {
         borderRadius: '6px',
         opacity: 1,
         color: textColor,
-        border,
+        borderTop: outerBorder,
+        borderRight: outerBorder,
+        borderBottom: outerBorder,
+        borderLeft: isSelected ? '4px solid #ffffff' : `4px solid ${clientBorderColor}`,
         display: 'block',
         fontSize: '12px',
         fontWeight: 600,
         boxShadow: isSelected
-          ? '0 0 0 2px rgba(14, 165, 233, 0.5)'
+          ? '0 0 0 2px rgba(14, 165, 233, 0.65), 0 6px 14px rgba(0, 0, 0, 0.6)'
           : (isInProgress
-              ? '0 0 10px rgba(245, 158, 11, 0.45)'
-              : (isUnassigned ? '0 0 10px rgba(236, 72, 153, 0.45)' : undefined)),
+              ? '0 4px 12px rgba(0, 0, 0, 0.55), 0 0 10px rgba(245, 158, 11, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3)'
+              : (isUnassigned
+                  ? '0 4px 12px rgba(0, 0, 0, 0.55), 0 0 10px rgba(236, 72, 153, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)'
+                  : '0 4px 10px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25)')),
       },
     };
   };
