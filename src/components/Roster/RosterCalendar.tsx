@@ -17,6 +17,7 @@ import ShiftDetailsModal from './ShiftDetailsModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import ActiveShiftModal from './ActiveShiftModal';
 import PrintRosterModal from './PrintRosterModal';
+import { buildClientColorMap, getClientColor } from '../../utils/clientColors';
 
 const locales = {
   'en-US': enUS,
@@ -910,60 +911,13 @@ export default function RosterCalendar() {
     }
   };
 
-  const CLIENT_BORDER_PALETTE = [
-    '#dc2626', // Crimson Red
-    '#1e3a8a', // Deep Navy Blue
-    '#facc15', // Bright Lemon Gold
-    '#6b21a8', // Deep Royal Purple
-    '#ffffff', // Pure White
-    '#064e3b', // Deep Forest Green
-    '#db2777', // Hot Magenta
-    '#c2410c', // Burnt Rust Orange
-    '#18181b', // Obsidian Black
-    '#00f5d4', // Electric Aqua
-    '#78350f', // Rich Espresso Brown
-    '#c4b5fd', // Soft Lavender
-    '#881337', // Deep Burgundy Wine
-    '#fda4af', // Salmon Peach
-    '#3f6212', // Olive Moss
-    '#38bdf8', // Ice Sky Blue
-    '#a21caf', // Deep Fuchsia Plum
-    '#94a3b8', // Cool Steel Slate
-  ];
-
-  const clientColorMap = React.useMemo(() => {
-    const map = new Map<number, string>();
-    const uniqueIds = new Set<number>();
-    clientList.forEach((c: any) => {
-      if (c?.id != null && !isNaN(Number(c.id))) {
-        uniqueIds.add(Number(c.id));
-      }
-    });
-    events.forEach((e: ShiftEvent) => {
-      if (e?.clientId != null && !isNaN(Number(e.clientId))) {
-        uniqueIds.add(Number(e.clientId));
-      }
-    });
-    const sortedIds = Array.from(uniqueIds).sort((a, b) => a - b);
-    sortedIds.forEach((id, index) => {
-      map.set(id, CLIENT_BORDER_PALETTE[index % CLIENT_BORDER_PALETTE.length]);
-    });
-    return map;
-  }, [clientList, events]);
+  const clientColorMap = React.useMemo(
+    () => buildClientColorMap(clientList, events.map((e: ShiftEvent) => e.clientId)),
+    [clientList, events]
+  );
 
   const getClientBorderColor = (event: ShiftEvent): string => {
-    if (event.clientId != null && !isNaN(Number(event.clientId))) {
-      const mapped = clientColorMap.get(Number(event.clientId));
-      if (mapped) return mapped;
-      const idx = Math.abs(Number(event.clientId)) % CLIENT_BORDER_PALETTE.length;
-      return CLIENT_BORDER_PALETTE[idx];
-    }
-    const nameStr = String(event.clientName || event.title || '');
-    let hash = 0;
-    for (let i = 0; i < nameStr.length; i++) {
-      hash = (hash * 31 + nameStr.charCodeAt(i)) | 0;
-    }
-    return CLIENT_BORDER_PALETTE[Math.abs(hash) % CLIENT_BORDER_PALETTE.length];
+    return getClientColor(event.clientId, event.clientName || event.title, clientColorMap);
   };
 
   const eventStyleGetter = (event: ShiftEvent) => {

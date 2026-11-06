@@ -12,6 +12,7 @@ import ContractorModal from './ContractorModal';
 import EmploymentContractModal from './EmploymentContractModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { getAvatarUrl } from '../../utils/avatar';
+import { buildClientColorMap, getClientColor } from '../../utils/clientColors';
 
 
 const ServiceIcon = ({ type }: { type: string }) => {
@@ -470,6 +471,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     return String(c.care_coordinator_id || '') === String(coordinatorFilter);
   };
 
+  const clientColorMap = buildClientColorMap(clients);
   const filteredClientsPool = clients.filter(matchesCoordinatorFilter);
   const activeClients = filteredClientsPool.filter(c => c.status !== 'SUSPENDED');
   const suspendedClients = filteredClientsPool.filter(c => c.status === 'SUSPENDED').sort(sortClients);
@@ -791,9 +793,10 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               
               {activeTab === 'CLIENTS' && displayClients.map(c => {
                 const initials = `${(c.first_name || '').charAt(0)}${(c.last_name || '').charAt(0)}`.toUpperCase();
+                const clientBorderColor = getClientColor(c.id, `${c.first_name || ''} ${c.last_name || ''}`.trim(), clientColorMap);
                 return (
                   <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`, { replace: true })} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2" style={{ borderLeft: `6px solid ${clientBorderColor}` }}>
                       <div className="flex items-center gap-3">
                         {c.avatar_url ? (
                           <img src={getAvatarUrl(c.avatar_url)} alt={`${c.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
