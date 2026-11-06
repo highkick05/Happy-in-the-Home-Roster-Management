@@ -1005,7 +1005,7 @@ export default function RosterCalendar() {
         borderTop: outerBorder,
         borderRight: outerBorder,
         borderBottom: outerBorder,
-        borderLeft: isSelected ? '8px solid #ffffff' : `8px solid ${clientBorderColor}`,
+        borderLeft: isSelected ? '6px solid #ffffff' : `6px solid ${clientBorderColor}`,
         display: 'block',
         fontSize: '12px',
         fontWeight: 600,
