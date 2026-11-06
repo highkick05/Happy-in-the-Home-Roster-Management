@@ -14512,13 +14512,53 @@ app.get("/api/health", (req, res) => {
               .all(bookingId)
               .map((s: any) => s.id);
           }
+          const isUncompleting =
+            existing &&
+            existing.status === "COMPLETED" &&
+            status !== "COMPLETED";
           db.prepare("UPDATE respite_bookings SET status = ? WHERE id = ?").run(
             status,
             bookingId,
           );
-          db.prepare(
-            "UPDATE shifts SET status = ? WHERE respite_booking_id = ?",
-          ).run(status, bookingId);
+          if (isUncompleting) {
+            db.prepare(
+              `UPDATE shifts SET
+                status = ?,
+                actual_start_time = NULL,
+                actual_finish_time = NULL,
+                odometer_start_reading = NULL,
+                odometer_start_photo = NULL,
+                odometer_end_reading = NULL,
+                odometer_end_photo = NULL,
+                provider_travel_km = 0,
+                provider_travel_minutes = 0,
+                provider_travel_cost = 0,
+                home_care_travel_km = 0,
+                home_care_travel_total = 0,
+                abt_km = 0,
+                abt_cost = 0,
+                transport_route_log = NULL,
+                travel_breakdown = NULL,
+                progress_note_status = NULL
+              WHERE respite_booking_id = ?`,
+            ).run(status, bookingId);
+            const respiteInvoices = db
+              .prepare("SELECT id, file_path FROM invoices WHERE respite_booking_id = ? AND status != 'PAID'")
+              .all(bookingId) as any[];
+            respiteInvoices.forEach((inv: any) => {
+              if (inv.file_path) {
+                const filePath = path.join(process.cwd(), "data", "invoices", inv.file_path);
+                if (fs.existsSync(filePath)) {
+                  try { fs.unlinkSync(filePath); } catch (e) {}
+                }
+              }
+            });
+            db.prepare("DELETE FROM invoices WHERE respite_booking_id = ? AND status != 'PAID'").run(bookingId);
+          } else {
+            db.prepare(
+              "UPDATE shifts SET status = ? WHERE respite_booking_id = ?",
+            ).run(status, bookingId);
+          }
         })();
 
         if (status === "COMPLETED") {
@@ -17871,7 +17911,9 @@ app.get("/api/health", (req, res) => {
 
         const isHistoricalMode =
           is_historical ||
-          (is_historical === undefined && existing.status === "COMPLETED");
+          (is_historical === undefined &&
+            existing.status === "COMPLETED" &&
+            (status === undefined || status === "COMPLETED"));
         const finalStatus = isHistoricalMode
           ? "COMPLETED"
           : status !== undefined
@@ -18482,6 +18524,137 @@ app.get("/api/health", (req, res) => {
         db.prepare(
           `UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`,
         ).run(id);
+
+        if (shift.staff_id && shift.start_time) {
+          await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
+        }
+
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/shifts/:id/uncomplete",
+    authenticateToken,
+    async (req: any, res: any) => {
+      const { id } = req.params;
+      try {
+        const shift = db
+          .prepare("SELECT * FROM shifts WHERE id = ?")
+          .get(id) as any;
+        if (!shift) return res.status(404).json({ error: "Shift not found" });
+        if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id)
+          return res.status(403).json({ error: "Forbidden" });
+
+        const oldValue = JSON.stringify(shift);
+
+        let cleanedServicesJson = shift.services_json;
+        if (cleanedServicesJson) {
+          try {
+            const parsedServices = JSON.parse(cleanedServicesJson);
+            if (Array.isArray(parsedServices)) {
+              let changed = false;
+              for (const sData of parsedServices) {
+                const srv =
+                  sData.serviceId &&
+                  sData.serviceId !== "custom" &&
+                  sData.serviceId !== "orientation"
+                    ? (db
+                        .prepare("SELECT name FROM services WHERE id = ?")
+                        .get(sData.serviceId) as any)
+                    : null;
+                const resolvedName = String(
+                  srv?.name ||
+                    sData.serviceName ||
+                    sData.customName ||
+                    sData.name ||
+                    "",
+                ).toLowerCase();
+                if (
+                  resolvedName.includes("activity based transport") ||
+                  resolvedName.includes("activity-based transport") ||
+                  resolvedName.includes("provider travel") ||
+                  resolvedName.includes("travel - provider")
+                ) {
+                  sData.qtyOverride = 0;
+                  changed = true;
+                }
+              }
+              if (changed) {
+                cleanedServicesJson = JSON.stringify(parsedServices);
+              }
+            }
+          } catch (e) {}
+        }
+
+        db.prepare(
+          `UPDATE shifts SET
+            status = 'PUBLISHED',
+            actual_start_time = NULL,
+            actual_finish_time = NULL,
+            odometer_start_reading = NULL,
+            odometer_start_photo = NULL,
+            odometer_end_reading = NULL,
+            odometer_end_photo = NULL,
+            provider_travel_km = 0,
+            provider_travel_minutes = 0,
+            provider_travel_cost = 0,
+            home_care_travel_km = 0,
+            home_care_travel_total = 0,
+            abt_km = 0,
+            abt_cost = 0,
+            transport_route_log = NULL,
+            travel_breakdown = NULL,
+            progress_note_status = NULL,
+            services_json = ?
+          WHERE id = ?`,
+        ).run(cleanedServicesJson, id);
+
+        const invoices = db
+          .prepare(
+            "SELECT id, file_path FROM invoices WHERE shift_id = ? AND status != 'PAID'",
+          )
+          .all(id) as any[];
+        invoices.forEach((inv: any) => {
+          if (inv.file_path) {
+            const filePath = path.join(
+              process.cwd(),
+              "data",
+              "invoices",
+              inv.file_path,
+            );
+            if (fs.existsSync(filePath)) {
+              try {
+                fs.unlinkSync(filePath);
+              } catch (e) {
+                logger.warn("Failed to delete file", e);
+              }
+            }
+          }
+        });
+        db.prepare(
+          "DELETE FROM invoices WHERE shift_id = ? AND status != 'PAID'",
+        ).run(id);
+        db.prepare(
+          `UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`,
+        ).run(id);
+
+        if (shift.respite_booking_id) {
+          db.prepare(
+            "UPDATE respite_bookings SET status = 'PUBLISHED' WHERE id = ? AND status = 'COMPLETED'",
+          ).run(shift.respite_booking_id);
+        }
+
+        const newRecord = db
+          .prepare("SELECT * FROM shifts WHERE id = ?")
+          .get(id) as any;
+        db.prepare(
+          "INSERT INTO audit_logs (entity_type, entity_id, old_value, new_value, changed_by_user_id) VALUES (?, ?, ?, ?, ?)",
+        ).run("shift", id, oldValue, JSON.stringify(newRecord), req.user.id);
 
         if (shift.staff_id && shift.start_time) {
           await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
