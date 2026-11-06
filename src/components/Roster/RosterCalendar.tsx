@@ -1016,6 +1016,8 @@ export default function RosterCalendar() {
         borderBottom: outerBorder,
         borderLeft: isSelected ? '6px solid #ffffff' : `6px solid ${clientBorderColor}`,
         display: 'block',
+        isolation: 'isolate' as any,
+        overflow: 'hidden',
         fontSize: '12px',
         fontWeight: 600,
         boxShadow: isSelected
@@ -1103,7 +1105,7 @@ export default function RosterCalendar() {
 
       return (
         <div 
-          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1 relative"
+          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1 relative isolate"
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
@@ -1111,12 +1113,12 @@ export default function RosterCalendar() {
           onTouchEnd={handleMouseUp}
         >
           {event.isRespiteWrapper && (
-            <div className="flex items-center gap-1 shrink-0 mr-1 relative z-10">
+            <div className="flex items-center gap-1 shrink-0 mr-1 relative z-1">
               <Bed className="w-3.5 h-3.5 text-violet-100 drop-shadow-sm" />
             </div>
           )}
           {event.status === 'IN_PROGRESS' && (
-            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-black/25 border border-black/20 shadow-xs relative z-10 select-none shrink-0">
+            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-black/25 border border-black/20 shadow-xs relative z-1 select-none shrink-0">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-600 opacity-90"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600"></span>
@@ -1124,7 +1126,7 @@ export default function RosterCalendar() {
               <span className="text-[9px] font-black tracking-wider text-slate-950 uppercase leading-none">LIVE</span>
             </span>
           )}
-          <div className="inline-flex items-center min-w-0 max-w-full relative z-10">
+          <div className="inline-flex items-center min-w-0 max-w-full relative z-1">
             {clientAvatarUrl ? (
               <img
                 src={clientAvatarUrl}
@@ -1148,7 +1150,7 @@ export default function RosterCalendar() {
           </div>
 
           {event.isRespiteWrapper && (
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
               {Array.from({ length: 25 }).map((_, i) => {
                 const seedId = typeof event.id === 'string' ? event.id.charCodeAt(0) : (Number(event.id) || 123);
                 // better deterministic spreading

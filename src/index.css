@@ -816,10 +816,15 @@ it might be cut off if padding is not sufficient */
   font-size: 10px !important;
   font-weight: 600 !important;
   letter-spacing: 0.025em !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
 }
 
 .rbc-time-view .rbc-event,
 .rbc-month-view .rbc-event {
+  z-index: 1;
+  isolation: isolate !important;
+  overflow: hidden !important;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
