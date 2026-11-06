@@ -18,6 +18,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import ActiveShiftModal from './ActiveShiftModal';
 import PrintRosterModal from './PrintRosterModal';
 import { buildClientColorMap, getClientColor } from '../../utils/clientColors';
+import { getAvatarUrl } from '../../utils/avatar';
 
 const locales = {
   'en-US': enUS,
@@ -1030,6 +1031,50 @@ export default function RosterCalendar() {
         }
       };
 
+      const clientObj = clientList.find(
+        (c: any) => c.id === event.clientId || String(c.id) === String(event.clientId)
+      );
+      const clientAvatarUrl = clientObj?.avatar_url ? getAvatarUrl(clientObj.avatar_url) : '';
+      const clientInitials = (() => {
+        const first = clientObj?.first_name || (event.clientName || '').split(' ')[0] || '';
+        const last = clientObj?.last_name || (event.clientName || '').split(' ').slice(1).join(' ') || '';
+        return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '?';
+      })();
+
+      const resolvedServiceName = (() => {
+        if (event.isRespiteWrapper) return 'Respite';
+        if (Array.isArray(event.servicesData) && event.servicesData.length > 0) {
+          const resolveSdName = (sd: any) => {
+            const srv = servicesList.find((s: any) => String(s.id) === String(sd?.serviceId));
+            let name = srv ? srv.name : (sd?.serviceName || sd?.customName || sd?.name || '');
+            if (!name || name === 'Unknown Service') {
+              if (String(sd?.serviceId).toLowerCase().includes('orientation')) {
+                name = 'Orientation';
+              } else if (String(sd?.serviceId).toLowerCase().includes('custom')) {
+                name = sd?.serviceName || sd?.customName || 'Custom Service';
+              }
+            }
+            return String(name || '');
+          };
+          const nonTravelItem = event.servicesData.find((sd: any) => {
+            const lower = resolveSdName(sd).toLowerCase();
+            return (
+              lower &&
+              !lower.includes('provider travel') &&
+              !lower.includes('travel - provider') &&
+              !lower.includes('activity based transport') &&
+              !lower.includes('activity-based transport')
+            );
+          });
+          const chosenSd = nonTravelItem || event.servicesData[0];
+          const chosenName = resolveSdName(chosenSd);
+          if (chosenName) return chosenName;
+        }
+        return String(event.serviceName || '');
+      })();
+
+      const serviceBadge = resolvedServiceName ? getServiceBadge(resolvedServiceName) : null;
+
       return (
         <div 
           className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1 relative"
@@ -1053,7 +1098,28 @@ export default function RosterCalendar() {
               <span className="text-[9px] font-black tracking-wider text-slate-950 uppercase leading-none">LIVE</span>
             </span>
           )}
-          <span className="truncate relative z-10">{title}</span>
+          <div className="inline-flex items-center min-w-0 max-w-full relative z-10">
+            {clientAvatarUrl ? (
+              <img
+                src={clientAvatarUrl}
+                alt=""
+                className="w-4 h-4 rounded-full object-cover shrink-0 mr-1.5 border border-black/30 bg-[#151515] shadow-xs"
+              />
+            ) : (
+              <span className="w-4 h-4 rounded-full bg-slate-950/75 text-white border border-white/25 flex items-center justify-center text-[8px] font-bold shrink-0 mr-1.5 shadow-xs">
+                {clientInitials}
+              </span>
+            )}
+            <span className="truncate">{title}</span>
+            {serviceBadge && (
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-950/75 border border-white/20 ml-1.5 shrink-0 shadow-xs"
+                title={resolvedServiceName}
+              >
+                {serviceBadge.icon}
+              </span>
+            )}
+          </div>
 
           {event.isRespiteWrapper && (
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
