@@ -188,7 +188,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   };
   
   const getNavClasses = ({ isActive }: { isActive: boolean }) => {
-    return `flex items-center px-3 py-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg ${
+    return `flex items-center px-2.5 py-1 text-xs font-semibold tracking-wide whitespace-nowrap transition-all duration-200 rounded-lg ${
       isActive 
         ? "bg-brand-green/10 text-white [&>svg]:text-brand-green shadow-[inset_2px_0_0_0_var(--color-brand-green)]"
         : "text-[#8B949E] hover:text-white hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-brand-teal"
@@ -327,7 +327,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-14' : 'w-56 md:w-52'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
+      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-14' : 'w-44 md:w-44'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
         
         {/* Collapse Toggle */}
         <button 
@@ -351,37 +351,37 @@ function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         
-        <nav className="flex-1 px-3 mt-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] z-10 relative flex flex-col">
+        <nav className="flex-1 px-2 mt-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] z-10 relative flex flex-col">
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
           <div className="space-y-0.5 mb-2">
             {user?.role === 'ADMIN' && (
               <NavLink replace={true} to="/email" className={getNavClasses} title="Email">
-                <Mail className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Email' : ''}
+                <Mail className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Email' : ''}
               </NavLink>
             )}
             <NavLink replace={true} to="/chat" className={getNavClasses} title="Live Chat">
-              <MessageSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
+              <MessageSquare className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
             </NavLink>
           </div>
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Operations</div>
           <div className="space-y-0.5">
             <NavLink replace={true} to="/roster" className={getNavClasses} title="Roster">
-              <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Roster' : ''}
+              <Calendar className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Roster' : ''}
             </NavLink>
             <NavLink replace={true} to="/progress-notes" className={getNavClasses} title="Progress Notes">
-              <ClipboardEdit className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
+              <ClipboardEdit className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
             </NavLink>
           </div>
 
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Logistics</div>
           <div className="space-y-0.5">
             <NavLink replace={true} to="/travel-logs" className={getNavClasses} title="Travel Logs">
-              <Map className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Travel Logs' : ''}
+              <Map className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Travel Logs' : ''}
             </NavLink>
             <NavLink replace={true} to="/vehicles" className={getNavClasses} title="Vehicles">
-              <Car className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Vehicles' : ''}
+              <Car className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Vehicles' : ''}
             </NavLink>
           </div>
 
@@ -390,16 +390,16 @@ function Layout({ children }: { children: React.ReactNode }) {
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Directory</div>
               <div className="space-y-0.5">
                 <NavLink replace={true} to="/clients" className={getNavClasses} title="Clients">
-                  <Heart className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
+                  <Heart className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
                 </NavLink>
                 <NavLink replace={true} to="/staff" className={getNavClasses} title="Staff">
-                  <Users className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff' : ''}
+                  <Users className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff' : ''}
                 </NavLink>
                 <NavLink replace={true} to="/providers" className={getNavClasses} title="Providers">
-                  <Building className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
+                  <Building className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
                 </NavLink>
                 <NavLink replace={true} to="/services" className={getNavClasses} title="Services">
-                  <Briefcase className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Services' : ''}
+                  <Briefcase className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Services' : ''}
                 </NavLink>
               </div>
 
@@ -407,25 +407,25 @@ function Layout({ children }: { children: React.ReactNode }) {
               <div className="space-y-0.5">
             {user?.role === 'ADMIN' && (
               <NavLink replace={true} to="/activity" className={getNavClasses} title="Staff Activity">
-                <Activity className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff Activity' : ''}
+                <Activity className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff Activity' : ''}
               </NavLink>
             )}
                 <NavLink replace={true} to="/invoices" className={getNavClasses} title="Invoicing">
-                  <FileText className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
+                  <FileText className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
                 </NavLink>
                 {user?.role === 'ADMIN' && (
               <NavLink replace={true} to="/admin-onboarding" className={getNavClasses} title="Admin Onboarding">
-                <UserCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
+                <UserCheck className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
             <NavLink replace={true} to="/compliance" className={getNavClasses} title="Compliance">
-                  <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Compliance' : ''}
+                  <FileCheck className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Compliance' : ''}
                 </NavLink>
               </div>
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Trilogy Care</div>
               <div className="space-y-0.5">
                 <NavLink replace={true} to="/trilogy/planning" className={getNavClasses} title="Trilogy Planning">
-                  <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Trilogy Planning' : ''}
+                  <Calendar className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Trilogy Planning' : ''}
                 </NavLink>
               </div>
             </>
@@ -435,14 +435,14 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className="space-y-0.5">
             {user?.role === 'STAFF' && (
               <NavLink replace={true} to="/onboarding" className={getNavClasses} title="Onboarding Hub">
-                <UserCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
+                <UserCheck className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
             <NavLink replace={true} to="/training" className={getNavClasses} title="Training">
-              <GraduationCap className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Training' : ''}
+              <GraduationCap className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Training' : ''}
             </NavLink>
             <NavLink replace={true} to="/files" className={getNavClasses} title="Files">
-              <FolderOpen className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
+              <FolderOpen className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
             </NavLink>
           </div>
 
@@ -451,7 +451,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>System</div>
               <div className="space-y-0.5">
                 <NavLink replace={true} to="/settings" className={getNavClasses} title="Settings">
-                  <Settings className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Settings' : ''}
+                  <Settings className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Settings' : ''}
                 </NavLink>
               </div>
             </>
@@ -463,7 +463,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {(!isDesktopSidebarCollapsed || isMobileMenuOpen) && (
           <div 
-            className="px-5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide select-none cursor-pointer hover:text-white transition-colors"
+            className="px-3.5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide whitespace-nowrap select-none cursor-pointer hover:text-white transition-colors"
             onClick={async () => {
               if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
@@ -481,11 +481,11 @@ function Layout({ children }: { children: React.ReactNode }) {
             }}
             title="Click to force update the app"
           >
-            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-Update Active ✅)
+            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-update)
           </div>
         )}
 
-        <div className={`p-3 border-t border-border-subtle space-y-1 shrink-0 z-10 relative bg-brand-navy ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '!px-2' : ''}`}>
+        <div className={`p-2 border-t border-border-subtle space-y-1 shrink-0 z-10 relative bg-brand-navy ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '!px-2' : ''}`}>
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
             <div className="mb-2 px-2 flex items-center gap-2 text-[11px] text-brand-teal font-medium tracking-wide truncate">
               {user?.avatarUrl ? (
@@ -495,27 +495,27 @@ function Layout({ children }: { children: React.ReactNode }) {
                   {user?.firstName?.charAt(0) || '?'}
                 </div>
               )}
-              <span>{user?.firstName} {user?.lastName}</span>
+              <span className="truncate">{user?.firstName} {user?.lastName}</span>
             </div>
           ) : null}
           {user?.canSwitchAdmin && (
-            <div className="flex px-2 pb-1">
+            <div className="flex px-1 pb-1">
               <button 
                 onClick={() => switchRole(user.role === 'ADMIN' ? 'STAFF' : 'ADMIN')}
-                className="w-full flex items-center justify-center px-3 py-1 text-[11px] font-semibold tracking-wide bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/30 rounded-md transition-colors"
+                className="w-full flex items-center justify-center px-2 py-1 text-[11px] font-semibold tracking-wide whitespace-nowrap bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/30 rounded-md transition-colors"
               >
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> 
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5 shrink-0" /> 
                 {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (user.role === 'ADMIN' ? 'Switch to Staff' : 'Switch to Admin') : ''}
               </button>
             </div>
           )}
           <div className={isDesktopSidebarCollapsed && !isMobileMenuOpen ? "flex flex-col space-y-1" : "flex items-center space-x-1"}>
             <NavLink replace={true} to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-full' : 'flex-1'}`} title="Profile">
-              <User className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}
+              <User className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}
             </NavLink>
           </div>
-          <button onClick={logout} className={`flex items-center px-3 py-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-white w-full ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`} title="Sign Out">
-            <LogOut className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Sign Out' : ''}
+          <button onClick={logout} className={`flex items-center px-2.5 py-1 text-xs font-semibold tracking-wide whitespace-nowrap transition-all duration-200 rounded-lg text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-white w-full ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`} title="Sign Out">
+            <LogOut className={`w-5 h-5 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2.5'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Sign Out' : ''}
           </button>
         </div>
       </div>
