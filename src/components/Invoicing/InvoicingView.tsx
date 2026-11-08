@@ -834,6 +834,8 @@ export default function InvoicingView() {
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
+  const [suspendedClientNames, setSuspendedClientNames] = useState<string[]>([]);
+  const [suspendedStaffNames, setSuspendedStaffNames] = useState<string[]>([]);
 
   useEffect(() => {
     fetchInvoices();
@@ -849,6 +851,8 @@ export default function InvoicingView() {
           const data = await res.json();
           setAllDbClients(data.clients || []);
           setAllDbStaff(data.staff || []);
+          setSuspendedClientNames(data.suspendedClientNames || []);
+          setSuspendedStaffNames(data.suspendedStaffNames || []);
         }
       } catch (e) {
         console.error('Failed to fetch dropdown options:', e);
@@ -859,15 +863,101 @@ export default function InvoicingView() {
     }
   }, [token]);
 
-  const clientsList = Array.from(new Set([
-    ...allDbClients.map(c => `${c.first_name || ''} ${c.last_name || ''}`.trim()),
-    ...invoices.map(i => `${i.client_first_name || ''} ${i.client_last_name || ''}`.trim())
-  ])).filter(Boolean).sort();
+  const clientsList = React.useMemo(() => {
+    const suspendedSet = new Set(
+      suspendedClientNames.map(n => n.trim().toLowerCase()).filter(Boolean)
+    );
+    const entriesMap = new Map<string, { fullName: string; firstName: string; lastName: string }>();
 
-  const staffList = Array.from(new Set([
-    ...allDbStaff.map(s => `${s.first_name || ''} ${s.last_name || ''}`.trim()),
-    ...invoices.map(i => `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim())
-  ])).filter(Boolean).sort();
+    for (const c of allDbClients) {
+      if ((c.status || 'ACTIVE').toUpperCase() === 'SUSPENDED') continue;
+      const firstName = (c.first_name || c.firstName || '').trim();
+      const lastName = (c.last_name || c.lastName || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (!fullName || suspendedSet.has(fullName.toLowerCase())) continue;
+      entriesMap.set(fullName.toLowerCase(), {
+        fullName,
+        firstName,
+        lastName: lastName || firstName,
+      });
+    }
+
+    for (const i of invoices) {
+      const firstName = (i.client_first_name || '').trim();
+      const lastName = (i.client_last_name || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (!fullName || suspendedSet.has(fullName.toLowerCase())) continue;
+      if (!entriesMap.has(fullName.toLowerCase())) {
+        const parts = fullName.split(/\s+/);
+        entriesMap.set(fullName.toLowerCase(), {
+          fullName,
+          firstName: lastName ? firstName : parts.slice(0, -1).join(' '),
+          lastName: lastName || parts[parts.length - 1] || fullName,
+        });
+      }
+    }
+
+    return Array.from(entriesMap.values())
+      .sort((a, b) => {
+        const lastCmp = a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' });
+        if (lastCmp !== 0) return lastCmp;
+        return a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' });
+      })
+      .map(item => item.fullName);
+  }, [allDbClients, invoices, suspendedClientNames]);
+
+  const staffList = React.useMemo(() => {
+    const suspendedSet = new Set(
+      suspendedStaffNames.map(n => n.trim().toLowerCase()).filter(Boolean)
+    );
+    const entriesMap = new Map<string, { fullName: string; firstName: string; lastName: string }>();
+
+    for (const s of allDbStaff) {
+      if ((s.status || 'ACTIVE').toUpperCase() === 'SUSPENDED') continue;
+      const firstName = (s.first_name || s.firstName || '').trim();
+      const lastName = (s.last_name || s.lastName || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (!fullName || suspendedSet.has(fullName.toLowerCase())) continue;
+      entriesMap.set(fullName.toLowerCase(), {
+        fullName,
+        firstName,
+        lastName: lastName || firstName,
+      });
+    }
+
+    // Extract singular custom or other staff names from invoices (splitting any comma-separated lists)
+    for (const i of invoices) {
+      const rawCombined = `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim();
+      if (!rawCombined) continue;
+      const individualNames = rawCombined
+        .split(',')
+        .map((part: string) => part.trim())
+        .filter(Boolean);
+
+      for (const singleName of individualNames) {
+        const key = singleName.toLowerCase();
+        if (suspendedSet.has(key)) continue;
+        if (!entriesMap.has(key)) {
+          const parts = singleName.split(/\s+/);
+          const inferredLast = parts.length > 1 ? parts[parts.length - 1] : singleName;
+          const inferredFirst = parts.length > 1 ? parts.slice(0, -1).join(' ') : singleName;
+          entriesMap.set(key, {
+            fullName: singleName,
+            firstName: inferredFirst,
+            lastName: inferredLast,
+          });
+        }
+      }
+    }
+
+    return Array.from(entriesMap.values())
+      .sort((a, b) => {
+        const lastCmp = a.lastName.localeCompare(b.lastName, undefined, { sensitivity: 'base' });
+        if (lastCmp !== 0) return lastCmp;
+        return a.firstName.localeCompare(b.firstName, undefined, { sensitivity: 'base' });
+      })
+      .map(item => item.fullName);
+  }, [allDbStaff, invoices, suspendedStaffNames]);
 
   const getFallbackInvoiceNumber = (i: any) => {
     if (i.invoice_number) return i.invoice_number;
@@ -898,7 +988,13 @@ export default function InvoicingView() {
     const staffName = `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim();
     
     if (filterClient && clientName !== filterClient) return false;
-    if (filterStaff && staffName !== filterStaff) return false;
+    if (filterStaff) {
+      const invoiceStaffList = staffName
+        .split(',')
+        .map((n: string) => n.trim().toLowerCase())
+        .filter(Boolean);
+      if (!invoiceStaffList.includes(filterStaff.trim().toLowerCase())) return false;
+    }
 
     if (filterStartDate || filterEndDate) {
       const iDateStr = i.start_time || i.created_at;

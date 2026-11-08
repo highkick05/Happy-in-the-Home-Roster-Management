@@ -21592,16 +21592,32 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     (req: any, res: any) => {
       try {
-        const clients = db
+        const allClients = db
           .prepare(
-            "SELECT id, first_name, last_name, funding_type FROM clients ORDER BY first_name ASC",
+            "SELECT id, first_name, last_name, funding_type, status FROM clients ORDER BY LOWER(TRIM(last_name)) ASC, LOWER(TRIM(first_name)) ASC",
           )
-          .all();
-        const staff = db
+          .all() as any[];
+        const clients = allClients.filter(
+          (c) => (c.status || "ACTIVE").toUpperCase() !== "SUSPENDED",
+        );
+        const suspendedClientNames = allClients
+          .filter((c) => (c.status || "").toUpperCase() === "SUSPENDED")
+          .map((c) => `${c.first_name || ""} ${c.last_name || ""}`.trim())
+          .filter(Boolean);
+
+        const allUsers = db
           .prepare(
-            "SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' AND status = 'ACTIVE' ORDER BY first_name ASC",
+            "SELECT id, first_name, last_name, status, COALESCE(is_external, 0) as is_external, role FROM users ORDER BY LOWER(TRIM(last_name)) ASC, LOWER(TRIM(first_name)) ASC",
           )
-          .all();
+          .all() as any[];
+        const staff = allUsers.filter(
+          (u) => (u.status || "ACTIVE").toUpperCase() !== "SUSPENDED",
+        );
+        const suspendedStaffNames = allUsers
+          .filter((u) => (u.status || "").toUpperCase() === "SUSPENDED")
+          .map((u) => `${u.first_name || ""} ${u.last_name || ""}`.trim())
+          .filter(Boolean);
+
         const rawServices = db
           .prepare(
             "SELECT id, name, rate, unit, code, type, rates_json, status, service_category FROM services WHERE (status IS NULL OR status != 'ARCHIVED') ORDER BY id ASC",
@@ -21627,7 +21643,13 @@ app.get("/api/health", (req, res) => {
             }, {}),
         }));
 
-        res.json({ clients: clientsWithServices, staff, services });
+        res.json({
+          clients: clientsWithServices,
+          staff,
+          services,
+          suspendedClientNames,
+          suspendedStaffNames,
+        });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
