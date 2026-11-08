@@ -1799,6 +1799,80 @@ export default function RosterCalendar() {
     resourceId: groupBy === 'STAFF' ? e.staffId : e.clientId
   }));
 
+  const calendarContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const { scrollToTime, earliestTargetMinutes } = React.useMemo(() => {
+    const startDayStr = settings?.invoicingStartDay || 'Monday';
+    const weekStartsOn = DAYS_OF_WEEK.indexOf(startDayStr) !== -1 ? DAYS_OF_WEEK.indexOf(startDayStr) : 1;
+
+    let rangeStart = new Date(date);
+    let rangeEnd = new Date(date);
+
+    if (activeView === Views.WEEK) {
+      rangeStart = startOfWeek(date, { weekStartsOn: weekStartsOn as any });
+      rangeEnd = endOfWeek(date, { weekStartsOn: weekStartsOn as any });
+    } else if (activeView === Views.DAY) {
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd.setHours(23, 59, 59, 999);
+    }
+
+    let minMinutes: number | null = null;
+    for (const ev of mappedEvents) {
+      if (ev.isRespiteWrapper || !ev.start || !ev.end) continue;
+      const s = new Date(ev.start);
+      const e = new Date(ev.end);
+      // Skip multi-day events that render in the all-day header row
+      if (s.toDateString() !== e.toDateString() && e.getTime() - s.getTime() >= 24 * 60 * 60 * 1000) {
+        continue;
+      }
+      if (s >= rangeStart && s <= rangeEnd) {
+        const mins = s.getHours() * 60 + s.getMinutes();
+        if (minMinutes === null || mins < minMinutes) {
+          minMinutes = mins;
+        }
+      }
+    }
+
+    // Add a small 15-minute top breathing buffer above the first shift (defaulting to 7:45 AM if no shifts)
+    const targetMins = minMinutes !== null ? Math.max(0, minMinutes - 15) : 7 * 60 + 45;
+    const scrollDate = new Date(date);
+    scrollDate.setHours(Math.floor(targetMins / 60), targetMins % 60, 0, 0);
+
+    return {
+      scrollToTime: scrollDate,
+      earliestTargetMinutes: targetMins,
+    };
+  }, [mappedEvents, date, activeView, settings?.invoicingStartDay]);
+
+  useEffect(() => {
+    if (activeView !== Views.WEEK && activeView !== Views.DAY) return;
+
+    const applyScroll = () => {
+      const container = calendarContainerRef.current;
+      if (!container) return;
+      const timeContent = container.querySelector('.rbc-time-content') as HTMLElement | null;
+      if (!timeContent || timeContent.scrollHeight <= timeContent.clientHeight) return;
+      const targetScrollTop = Math.floor((earliestTargetMinutes / 1440) * timeContent.scrollHeight);
+      timeContent.scrollTop = targetScrollTop;
+    };
+
+    const rafId = requestAnimationFrame(applyScroll);
+    const timerId = setTimeout(applyScroll, 60);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timerId);
+    };
+  }, [
+    earliestTargetMinutes,
+    date,
+    activeView,
+    coordinatorFilter,
+    clientFilter,
+    staffFilter,
+    mappedEvents.length,
+  ]);
+
   return (
     <div className={`flex flex-col space-y-0.5 md:space-y-1 p-1 md:p-2 text-zinc-100 ${isFullScreen ? 'fixed inset-0 z-[100] bg-brand-bg pb-20 md:pb-2' : 'h-full w-full bg-brand-navy border-0 md:border md:border-border-subtle rounded-xl'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-0.5 md:space-y-0 px-1 md:px-1 mt-0">
@@ -1963,13 +2037,17 @@ export default function RosterCalendar() {
         </div>
       )}
       
-      <div className="flex-1 bg-brand-bg p-0 md:p-1.5 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide mt-0.5">
+      <div
+        ref={calendarContainerRef}
+        className="flex-1 bg-brand-bg p-0 md:p-1.5 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide mt-0.5"
+      >
         {activeView !== Views.AGENDA ? (
           <DnDCalendar
             localizer={localizer}
             events={mappedEvents}
             view={activeView}
             date={date}
+            scrollToTime={scrollToTime}
             views={calendarViewsMapping}
             onView={(view: View) => setView(view)}
             onNavigate={(date: Date) => setDate(date)}
@@ -1997,6 +2075,7 @@ export default function RosterCalendar() {
             events={mappedEvents}
             view={activeView}
             date={date}
+            scrollToTime={scrollToTime}
             views={calendarViewsMapping}
             onView={(view: View) => setView(view)}
             onNavigate={(date: Date) => setDate(date)}
