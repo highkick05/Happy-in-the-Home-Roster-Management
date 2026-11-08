@@ -10,7 +10,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity, GraduationCap, Users2, Check } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity, GraduationCap, Users2, Check, ChevronDown, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import ShiftDetailsModal from './ShiftDetailsModal';
@@ -184,6 +184,50 @@ export default function RosterCalendar() {
   const [groupBy, setGroupBy] = useLocalStorage<'STAFF' | 'CLIENT'>('roster_group_by', 'STAFF');
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
+  const clientDropdownRef = React.useRef<HTMLDivElement>(null);
+  const staffDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedClientIds = React.useMemo(
+    () => (clientFilter ? String(clientFilter).split(',').map(s => s.trim()).filter(Boolean) : []),
+    [clientFilter]
+  );
+
+  const selectedStaffIds = React.useMemo(
+    () => (staffFilter ? String(staffFilter).split(',').map(s => s.trim()).filter(Boolean) : []),
+    [staffFilter]
+  );
+
+  const toggleClientFilterId = useCallback((idStr: string) => {
+    const current = clientFilter ? String(clientFilter).split(',').map(s => s.trim()).filter(Boolean) : [];
+    const next = current.includes(idStr)
+      ? current.filter(x => x !== idStr)
+      : [...current, idStr];
+    setClientFilter(next.join(','));
+  }, [clientFilter, setClientFilter]);
+
+  const toggleStaffFilterId = useCallback((idStr: string) => {
+    const current = staffFilter ? String(staffFilter).split(',').map(s => s.trim()).filter(Boolean) : [];
+    const next = current.includes(idStr)
+      ? current.filter(x => x !== idStr)
+      : [...current, idStr];
+    setStaffFilter(next.join(','));
+  }, [staffFilter, setStaffFilter]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) {
+        setIsClientDropdownOpen(false);
+      }
+      if (staffDropdownRef.current && !staffDropdownRef.current.contains(e.target as Node)) {
+        setIsStaffDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string | number>>(new Set());
   const longPressHandledRef = React.useRef(0);
@@ -238,22 +282,26 @@ export default function RosterCalendar() {
   }, [activeView, multiSelectMode]);
 
   useEffect(() => {
-    if (clientList.length > 0 && clientFilter) {
-      const recordExists = clientList.some((c: any) => c.id.toString() === clientFilter);
-      if (!recordExists) {
-        setClientFilter('');
+    if (clientList.length > 0 && selectedClientIds.length > 0) {
+      const validIds = selectedClientIds.filter(id =>
+        clientList.some((c: any) => c.id.toString() === id)
+      );
+      if (validIds.length !== selectedClientIds.length) {
+        setClientFilter(validIds.join(','));
       }
     }
-  }, [clientList, clientFilter, setClientFilter]);
+  }, [clientList, selectedClientIds, setClientFilter]);
 
   useEffect(() => {
-    if (staffList.length > 0 && staffFilter && staffFilter !== 'unassigned') {
-      const recordExists = staffList.some((s: any) => s.id.toString() === staffFilter);
-      if (!recordExists) {
-        setStaffFilter('');
+    if (staffList.length > 0 && selectedStaffIds.length > 0) {
+      const validIds = selectedStaffIds.filter(
+        id => id === 'unassigned' || staffList.some((s: any) => s.id.toString() === id)
+      );
+      if (validIds.length !== selectedStaffIds.length) {
+        setStaffFilter(validIds.join(','));
       }
     }
-  }, [staffList, staffFilter, setStaffFilter]);
+  }, [staffList, selectedStaffIds, setStaffFilter]);
 
   const [holidays, setHolidays] = useState<any[]>([]);
 
@@ -512,21 +560,24 @@ export default function RosterCalendar() {
           return false;
         }
       }
-      if (clientFilter && e.clientId?.toString() !== clientFilter) return false;
+      if (selectedClientIds.length > 0 && !selectedClientIds.includes(String(e.clientId ?? ''))) {
+        return false;
+      }
       
-      if (staffFilter === 'unassigned') {
+      if (selectedStaffIds.length > 0) {
+        const wantUnassigned = selectedStaffIds.includes('unassigned');
         if (e.isRespiteWrapper && e.respiteData?.shifts) {
-          const isStaffAssigned = e.respiteData.shifts.some((s: any) => !s.staff_id);
-          if (!isStaffAssigned) return false;
+          const matchesRespite = e.respiteData.shifts.some((s: any) =>
+            (!s.staff_id && wantUnassigned) ||
+            (s.staff_id != null && selectedStaffIds.includes(String(s.staff_id)))
+          );
+          if (!matchesRespite) return false;
         } else {
-          if (e.staffId !== null && e.staffId !== undefined) return false;
-        }
-      } else if (staffFilter) {
-        if (e.isRespiteWrapper && e.respiteData?.shifts) {
-          const isStaffAssigned = e.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
-          if (!isStaffAssigned) return false;
-        } else {
-          if (e.staffId?.toString() !== staffFilter) return false;
+          const isUnassignedShift = e.staffId === null || e.staffId === undefined;
+          const matchesShift =
+            (isUnassignedShift && wantUnassigned) ||
+            (!isUnassignedShift && selectedStaffIds.includes(String(e.staffId)));
+          if (!matchesShift) return false;
         }
       }
     }
@@ -747,8 +798,8 @@ export default function RosterCalendar() {
       if (groupBy === 'STAFF') initialData.staffId = String(resourceId);
       if (groupBy === 'CLIENT') initialData.clientId = String(resourceId);
     }
-    if (clientFilter) initialData.clientId = clientFilter;
-    if (staffFilter) initialData.staffId = staffFilter;
+    if (selectedClientIds.length === 1) initialData.clientId = selectedClientIds[0];
+    if (selectedStaffIds.length === 1 && selectedStaffIds[0] !== 'unassigned') initialData.staffId = selectedStaffIds[0];
 
     setInitialShiftData(initialData);
     setIsShiftModalOpen(true);
@@ -760,25 +811,35 @@ export default function RosterCalendar() {
   };
 
   const activeFilterDescription = React.useMemo(() => {
-    if (clientFilter) {
-      const c = clientList.find(c => c.id.toString() === clientFilter);
-      return c ? `Client: ${c.first_name} ${c.last_name}` : 'Filtered by Client';
+    if (selectedClientIds.length > 0) {
+      const names = selectedClientIds
+        .map(id => {
+          const c = clientList.find(cl => cl.id.toString() === id);
+          return c ? `${c.first_name} ${c.last_name}` : null;
+        })
+        .filter(Boolean);
+      return names.length > 0 ? `Client: ${names.join(', ')}` : 'Filtered by Client';
     }
     if (coordinatorFilter) {
       if (coordinatorFilter === 'unassigned') return 'Unassigned Care Coordinator Clients';
       const cc = coordinatorList.find(s => s.id.toString() === coordinatorFilter);
       if (cc) return `Care Coordinator: ${cc.first_name} ${cc.last_name}`;
     }
-    if (staffFilter) {
-      if (staffFilter === 'unassigned') return 'Unassigned Staff Shifts';
-      const s = staffList.find(s => s.id.toString() === staffFilter);
-      return s ? `Staff: ${s.first_name} ${s.last_name}` : 'Filtered by Staff';
+    if (selectedStaffIds.length > 0) {
+      const names = selectedStaffIds
+        .map(id => {
+          if (id === 'unassigned') return 'Unassigned Staff';
+          const s = staffList.find(st => st.id.toString() === id);
+          return s ? `${s.first_name} ${s.last_name}` : null;
+        })
+        .filter(Boolean);
+      return names.length > 0 ? `Staff: ${names.join(', ')}` : 'Filtered by Staff';
     }
     if (user?.role !== 'ADMIN') {
       return `Staff: ${user?.firstName || ''} ${user?.lastName || ''}`.trim();
     }
     return 'All Staff & Clients';
-  }, [clientFilter, coordinatorFilter, staffFilter, clientList, coordinatorList, staffList, user]);
+  }, [selectedClientIds, coordinatorFilter, selectedStaffIds, clientList, coordinatorList, staffList, user]);
 
   const handlePrintPdfWithOptions = async (rangeStart: Date, rangeEnd: Date) => {
     try {
@@ -834,21 +895,22 @@ export default function RosterCalendar() {
                 return false;
               }
             }
-            if (clientFilter && shift.clientId?.toString() !== clientFilter) return false;
+            if (selectedClientIds.length > 0 && !selectedClientIds.includes(String(shift.clientId ?? ''))) return false;
             
-            if (staffFilter === 'unassigned') {
+            if (selectedStaffIds.length > 0) {
+              const wantUnassigned = selectedStaffIds.includes('unassigned');
               if (shift.isRespiteWrapper && shift.respiteData?.shifts) {
-                const isStaffAssigned = shift.respiteData.shifts.some((s: any) => !s.staff_id);
+                const isStaffAssigned = shift.respiteData.shifts.some((s: any) =>
+                  (!s.staff_id && wantUnassigned) ||
+                  (s.staff_id != null && selectedStaffIds.includes(String(s.staff_id)))
+                );
                 if (!isStaffAssigned) return false;
               } else {
-                if (shift.staffId !== null && shift.staffId !== undefined) return false;
-              }
-            } else if (staffFilter) {
-              if (shift.isRespiteWrapper && shift.respiteData?.shifts) {
-                const isStaffAssigned = shift.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
-                if (!isStaffAssigned) return false;
-              } else {
-                if (shift.staffId?.toString() !== staffFilter) return false;
+                const isUnassignedShift = shift.staffId === null || shift.staffId === undefined;
+                const matches =
+                  (isUnassignedShift && wantUnassigned) ||
+                  (!isUnassignedShift && selectedStaffIds.includes(String(shift.staffId)));
+                if (!matches) return false;
               }
             }
           }
@@ -857,9 +919,14 @@ export default function RosterCalendar() {
       }
 
       let filterName = '';
-      if (clientFilter) {
-        const c = clientList.find(c => c.id.toString() === clientFilter);
-        if (c) filterName = `${c.first_name} ${c.last_name}`;
+      if (selectedClientIds.length > 0) {
+        const names = selectedClientIds
+          .map(id => {
+            const c = clientList.find(cl => cl.id.toString() === id);
+            return c ? `${c.first_name} ${c.last_name}` : null;
+          })
+          .filter(Boolean);
+        if (names.length > 0) filterName = names.join(', ');
       } else if (coordinatorFilter) {
         if (coordinatorFilter === 'unassigned') {
           filterName = 'Unassigned Care Coordinator';
@@ -867,13 +934,15 @@ export default function RosterCalendar() {
           const cc = coordinatorList.find(s => s.id.toString() === coordinatorFilter);
           if (cc) filterName = `Coordinator ${cc.first_name} ${cc.last_name}`;
         }
-      } else if (staffFilter) {
-        if (staffFilter === 'unassigned') {
-          filterName = 'Unassigned Staff';
-        } else {
-          const s = staffList.find(s => s.id.toString() === staffFilter);
-          if (s) filterName = `${s.first_name} ${s.last_name}`;
-        }
+      } else if (selectedStaffIds.length > 0) {
+        const names = selectedStaffIds
+          .map(id => {
+            if (id === 'unassigned') return 'Unassigned Staff';
+            const s = staffList.find(st => st.id.toString() === id);
+            return s ? `${s.first_name} ${s.last_name}` : null;
+          })
+          .filter(Boolean);
+        if (names.length > 0) filterName = names.join(', ');
       } else if (user?.role !== 'ADMIN') {
         filterName = (user?.firstName || '') + ' ' + (user?.lastName || '');
       }
@@ -1888,14 +1957,16 @@ export default function RosterCalendar() {
                   onChange={(e) => {
                     const nextCoord = e.target.value;
                     setCoordinatorFilter(nextCoord);
-                    if (nextCoord && clientFilter) {
-                      const selectedClient = clientList.find((c: any) => String(c.id) === String(clientFilter));
-                      if (selectedClient) {
-                        const belongs =
-                          nextCoord === 'unassigned'
-                            ? !selectedClient.care_coordinator_id
-                            : String(selectedClient.care_coordinator_id || '') === String(nextCoord);
-                        if (!belongs) setClientFilter('');
+                    if (nextCoord && selectedClientIds.length > 0) {
+                      const remainingIds = selectedClientIds.filter(idStr => {
+                        const selectedClient = clientList.find((c: any) => String(c.id) === idStr);
+                        if (!selectedClient) return false;
+                        return nextCoord === 'unassigned'
+                          ? !selectedClient.care_coordinator_id
+                          : String(selectedClient.care_coordinator_id || '') === String(nextCoord);
+                      });
+                      if (remainingIds.length !== selectedClientIds.length) {
+                        setClientFilter(remainingIds.join(','));
                       }
                     }
                   }}
@@ -1922,30 +1993,271 @@ export default function RosterCalendar() {
                   </option>
                 </select>
 
-                <select
-                  value={clientFilter}
-                  onChange={(e) => setClientFilter(e.target.value)}
-                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
-                >
-                  <option value="">
-                    {coordinatorFilter ? `All Portfolio Clients (${visibleClientList.length})` : 'All Clients'}
-                  </option>
-                  {visibleClientList.map(c => (
-                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                  ))}
-                </select>
+                {/* Multi-select Client Checkbox Dropdown */}
+                <div ref={clientDropdownRef} className="relative w-full sm:w-auto">
+                  {(() => {
+                    const selectedClientNames = selectedClientIds
+                      .map(id => {
+                        const c = visibleClientList.find((cl: any) => String(cl.id) === id) || clientList.find((cl: any) => String(cl.id) === id);
+                        return c ? `${c.first_name} ${c.last_name}` : null;
+                      })
+                      .filter(Boolean) as string[];
 
-                <select
-                  value={staffFilter}
-                  onChange={(e) => setStaffFilter(e.target.value)}
-                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
-                >
-                  <option value="">All Staff</option>
-                  <option value="unassigned">Unassigned Staff</option>
-                  {staffList.map(s => (
-                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-                  ))}
-                </select>
+                    const buttonLabel =
+                      selectedClientNames.length === 0
+                        ? (coordinatorFilter ? `All Portfolio Clients (${visibleClientList.length})` : 'All Clients')
+                        : selectedClientNames.length === 1
+                          ? selectedClientNames[0]
+                          : `${selectedClientNames[0]} +${selectedClientNames.length - 1}`;
+
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsClientDropdownOpen(prev => !prev);
+                            setIsStaffDropdownOpen(false);
+                          }}
+                          title={selectedClientNames.length > 0 ? selectedClientNames.join(', ') : 'Filter by one or more clients'}
+                          className={`bg-brand-bg border rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none w-full sm:w-auto min-w-[155px] flex items-center justify-between gap-2 transition-colors ${
+                            selectedClientIds.length > 0
+                              ? 'border-brand-blue/70 ring-1 ring-brand-blue/30'
+                              : 'border-border-subtle hover:border-brand-blue'
+                          }`}
+                        >
+                          <span className="truncate text-left">{buttonLabel}</span>
+                          <span className="flex items-center gap-1 shrink-0">
+                            {selectedClientIds.length > 0 && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClientFilter('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setClientFilter('');
+                                  }
+                                }}
+                                title="Clear client filter"
+                                className="p-0.5 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </span>
+                            )}
+                            <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${isClientDropdownOpen ? 'rotate-180' : ''}`} />
+                          </span>
+                        </button>
+
+                        {isClientDropdownOpen && (
+                          <div className="absolute left-0 mt-1 w-64 max-h-80 overflow-y-auto bg-[#0d1117] border border-border-subtle rounded-lg shadow-2xl z-[120] py-1 custom-scrollbar">
+                            <button
+                              type="button"
+                              onClick={() => setClientFilter('')}
+                              className="w-full px-3 py-1.5 text-left text-[11px] flex items-center justify-between hover:bg-white/[0.06] transition-colors border-b border-white/[0.06]"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span
+                                  className={`w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0 transition-colors ${
+                                    selectedClientIds.length === 0
+                                      ? 'bg-brand-blue border-brand-blue text-white'
+                                      : 'border-zinc-500 bg-transparent'
+                                  }`}
+                                >
+                                  {selectedClientIds.length === 0 && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                </span>
+                                <span className={selectedClientIds.length === 0 ? 'font-semibold text-white' : 'text-zinc-300'}>
+                                  {coordinatorFilter ? `All Portfolio Clients (${visibleClientList.length})` : 'All Clients'}
+                                </span>
+                              </div>
+                              {selectedClientIds.length > 0 && (
+                                <span className="text-[10px] font-semibold text-brand-teal hover:underline shrink-0 ml-2">
+                                  Clear ({selectedClientIds.length})
+                                </span>
+                              )}
+                            </button>
+
+                            {visibleClientList.map((c: any) => {
+                              const idStr = String(c.id);
+                              const isChecked = selectedClientIds.includes(idStr);
+                              const cName = `${c.first_name} ${c.last_name}`;
+                              const dotColor = getClientColor(c.id, cName, clientColorMap);
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => toggleClientFilterId(idStr)}
+                                  className={`w-full px-3 py-1.5 text-left text-[11px] flex items-center gap-2.5 hover:bg-white/[0.06] transition-colors ${
+                                    isChecked ? 'bg-brand-blue/10 text-white font-medium' : 'text-zinc-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0 transition-colors ${
+                                      isChecked
+                                        ? 'bg-brand-blue border-brand-blue text-white'
+                                        : 'border-zinc-500 bg-transparent'
+                                    }`}
+                                  >
+                                    {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                  </span>
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: dotColor }}
+                                  />
+                                  <span className="truncate">{cName}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Multi-select Staff Checkbox Dropdown */}
+                <div ref={staffDropdownRef} className="relative w-full sm:w-auto">
+                  {(() => {
+                    const selectedStaffNames = selectedStaffIds
+                      .map(id => {
+                        if (id === 'unassigned') return 'Unassigned Staff';
+                        const s = staffList.find((st: any) => String(st.id) === id);
+                        return s ? `${s.first_name} ${s.last_name}` : null;
+                      })
+                      .filter(Boolean) as string[];
+
+                    const buttonLabel =
+                      selectedStaffNames.length === 0
+                        ? 'All Staff'
+                        : selectedStaffNames.length === 1
+                          ? selectedStaffNames[0]
+                          : `${selectedStaffNames[0]} +${selectedStaffNames.length - 1}`;
+
+                    const isUnassignedChecked = selectedStaffIds.includes('unassigned');
+
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsStaffDropdownOpen(prev => !prev);
+                            setIsClientDropdownOpen(false);
+                          }}
+                          title={selectedStaffNames.length > 0 ? selectedStaffNames.join(', ') : 'Filter by one or more staff members'}
+                          className={`bg-brand-bg border rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none w-full sm:w-auto min-w-[145px] flex items-center justify-between gap-2 transition-colors ${
+                            selectedStaffIds.length > 0
+                              ? 'border-brand-blue/70 ring-1 ring-brand-blue/30'
+                              : 'border-border-subtle hover:border-brand-blue'
+                          }`}
+                        >
+                          <span className="truncate text-left">{buttonLabel}</span>
+                          <span className="flex items-center gap-1 shrink-0">
+                            {selectedStaffIds.length > 0 && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStaffFilter('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setStaffFilter('');
+                                  }
+                                }}
+                                title="Clear staff filter"
+                                className="p-0.5 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </span>
+                            )}
+                            <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${isStaffDropdownOpen ? 'rotate-180' : ''}`} />
+                          </span>
+                        </button>
+
+                        {isStaffDropdownOpen && (
+                          <div className="absolute left-0 mt-1 w-60 max-h-80 overflow-y-auto bg-[#0d1117] border border-border-subtle rounded-lg shadow-2xl z-[120] py-1 custom-scrollbar">
+                            <button
+                              type="button"
+                              onClick={() => setStaffFilter('')}
+                              className="w-full px-3 py-1.5 text-left text-[11px] flex items-center justify-between hover:bg-white/[0.06] transition-colors border-b border-white/[0.06]"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span
+                                  className={`w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0 transition-colors ${
+                                    selectedStaffIds.length === 0
+                                      ? 'bg-brand-blue border-brand-blue text-white'
+                                      : 'border-zinc-500 bg-transparent'
+                                  }`}
+                                >
+                                  {selectedStaffIds.length === 0 && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                </span>
+                                <span className={selectedStaffIds.length === 0 ? 'font-semibold text-white' : 'text-zinc-300'}>
+                                  All Staff
+                                </span>
+                              </div>
+                              {selectedStaffIds.length > 0 && (
+                                <span className="text-[10px] font-semibold text-brand-teal hover:underline shrink-0 ml-2">
+                                  Clear ({selectedStaffIds.length})
+                                </span>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleStaffFilterId('unassigned')}
+                              className={`w-full px-3 py-1.5 text-left text-[11px] flex items-center gap-2.5 hover:bg-white/[0.06] transition-colors border-b border-white/[0.06] ${
+                                isUnassignedChecked ? 'bg-brand-blue/10 text-white font-medium' : 'text-pink-300'
+                              }`}
+                            >
+                              <span
+                                className={`w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0 transition-colors ${
+                                  isUnassignedChecked
+                                    ? 'bg-brand-blue border-brand-blue text-white'
+                                    : 'border-zinc-500 bg-transparent'
+                                }`}
+                              >
+                                {isUnassignedChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </span>
+                              <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                              <span className="truncate">Unassigned Staff</span>
+                            </button>
+
+                            {staffList.map((s: any) => {
+                              const idStr = String(s.id);
+                              const isChecked = selectedStaffIds.includes(idStr);
+                              const sName = `${s.first_name} ${s.last_name}`;
+                              return (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => toggleStaffFilterId(idStr)}
+                                  className={`w-full px-3 py-1.5 text-left text-[11px] flex items-center gap-2.5 hover:bg-white/[0.06] transition-colors ${
+                                    isChecked ? 'bg-brand-blue/10 text-white font-medium' : 'text-zinc-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0 transition-colors ${
+                                      isChecked
+                                        ? 'bg-brand-blue border-brand-blue text-white'
+                                        : 'border-zinc-500 bg-transparent'
+                                    }`}
+                                  >
+                                    {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                  </span>
+                                  <span className="truncate">{sName}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
 
               {/* Action Group */}
