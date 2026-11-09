@@ -1422,7 +1422,7 @@ export default function RosterCalendar() {
         backgroundColor,
         backgroundImage: `${statusGradient}, url("${serviceBgUrl}")`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center 42%',
+        backgroundPosition: serviceBgUrl === showerRunningImg ? 'center 32%' : 'center 42%',
         backgroundRepeat: 'no-repeat',
         borderRadius: '6px',
         opacity: 1,
@@ -1516,6 +1516,7 @@ export default function RosterCalendar() {
                 e.currentTarget.muted = true;
                 e.currentTarget.play().catch(() => {});
               }}
+              style={{ objectPosition: serviceVideoUrl === showerRunningVideo ? 'center 32%' : 'center center' }}
               className="w-full h-full object-cover"
             />
             <div
