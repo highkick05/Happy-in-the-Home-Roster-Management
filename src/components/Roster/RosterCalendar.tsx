@@ -1488,6 +1488,7 @@ export default function RosterCalendar() {
       })();
 
       const resolvedServiceName = resolvePrimaryShiftServiceName(event);
+      const serviceBadge = resolvedServiceName ? getServiceBadge(resolvedServiceName) : null;
       const serviceBgUrl = getServiceCardBackgroundImage(resolvedServiceName);
       const serviceVideoUrl = getServiceCardBackgroundVideo(resolvedServiceName);
       const statusGradient = getShiftStatusGradient(event);
@@ -1561,6 +1562,14 @@ export default function RosterCalendar() {
               </span>
             )}
             <span className="truncate font-bold">{title}</span>
+            {serviceBadge && (
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-950/80 border border-white/25 ml-1.5 shrink-0 shadow-xs"
+                title={resolvedServiceName}
+              >
+                {serviceBadge.icon}
+              </span>
+            )}
           </div>
 
           {event.isRespiteWrapper && (
