@@ -510,16 +510,21 @@ input:-webkit-autofill:active {
   to { background-position: 28px 28px; }
 }
 
-.unassigned-shift-animated {
+.unassigned-shift-animated::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
   background-image: repeating-linear-gradient(
     -45deg,
-    rgba(255, 255, 255, 0.28),
-    rgba(255, 255, 255, 0.28) 10px,
-    rgba(0, 0, 0, 0.16) 10px,
-    rgba(0, 0, 0, 0.16) 20px
-  ) !important;
-  background-size: 28px 28px !important;
-  animation: subtle-stripe-slide 2s linear infinite !important;
+    rgba(255, 255, 255, 0.22),
+    rgba(255, 255, 255, 0.22) 10px,
+    rgba(0, 0, 0, 0.14) 10px,
+    rgba(0, 0, 0, 0.14) 20px
+  );
+  background-size: 28px 28px;
+  animation: subtle-stripe-slide 2s linear infinite;
 }
 
 /* In-Progress Shift: Warm golden amber with a gentle live amber halo */
@@ -812,12 +817,20 @@ it might be cut off if padding is not sufficient */
   display: none !important;
 }
 
-.rbc-event, .rbc-event-content {
+.rbc-event {
   font-size: 10px !important;
   font-weight: 600 !important;
   letter-spacing: 0.025em !important;
   isolation: isolate !important;
   overflow: hidden !important;
+}
+
+.rbc-event-content {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.025em !important;
+  position: static !important;
+  overflow: visible !important;
 }
 
 .rbc-time-view .rbc-event,
@@ -837,8 +850,10 @@ it might be cut off if padding is not sufficient */
 
 .rbc-event-label {
   font-size: 9px !important;
-  font-weight: 500 !important;
-  opacity: 0.9;
+  font-weight: 600 !important;
+  opacity: 0.96;
+  position: relative !important;
+  z-index: 2 !important;
 }
 
 .rbc-time-slot {

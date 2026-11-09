@@ -19,6 +19,27 @@ import ActiveShiftModal from './ActiveShiftModal';
 import PrintRosterModal from './PrintRosterModal';
 import { buildClientColorMap, getClientColor } from '../../utils/clientColors';
 import { getAvatarUrl } from '../../utils/avatar';
+import showerRunningImg from '../../assets/images/shower_running_card_1794192403171.jpg';
+import broomSweepingImg from '../../assets/images/broom_sweeping_card_1794192403811.jpg';
+import shoppingGroceriesImg from '../../assets/images/shopping_groceries_card_1794192406239.jpg';
+import communitySocialImg from '../../assets/images/community_social_card_1794192406752.jpg';
+import clinicalNursingImg from '../../assets/images/clinical_nursing_card_1794192407634.jpg';
+import carDrivingImg from '../../assets/images/service_car_driving.jpg';
+import mealPrepImg from '../../assets/images/service_meal_prep.jpg';
+import respiteBedroomImg from '../../assets/images/service_respite_bedroom.jpg';
+import gardeningImg from '../../assets/images/service_gardening.jpg';
+import trainingImg from '../../assets/images/service_training.jpg';
+
+import showerRunningVideo from '../../assets/videos/service_shower.mp4';
+import broomSweepingVideo from '../../assets/videos/service_cleaning.mp4';
+import shoppingGroceriesVideo from '../../assets/videos/service_shopping.mp4';
+import communitySocialVideo from '../../assets/videos/service_community.mp4';
+import clinicalNursingVideo from '../../assets/videos/service_clinical.mp4';
+import carDrivingVideo from '../../assets/videos/service_driving.mp4';
+import mealPrepVideo from '../../assets/videos/service_meal.mp4';
+import respiteBedroomVideo from '../../assets/videos/service_respite.mp4';
+import gardeningVideo from '../../assets/videos/service_gardening.mp4';
+import trainingVideo from '../../assets/videos/service_training.mp4';
 
 const locales = {
   'en-US': enUS,
@@ -1016,6 +1037,321 @@ export default function RosterCalendar() {
     return getClientColor(event.clientId, event.clientName || event.title, clientColorMap);
   };
 
+  const resolvePrimaryShiftServiceName = useCallback((event: ShiftEvent): string => {
+    if (!event) return '';
+    if (event.isRespiteWrapper) return 'Respite';
+    if (Array.isArray(event.servicesData) && event.servicesData.length > 0) {
+      const resolveSdName = (sd: any) => {
+        const srv = servicesList.find((s: any) => String(s.id) === String(sd?.serviceId));
+        let name = srv ? srv.name : (sd?.serviceName || sd?.customName || sd?.name || '');
+        if (!name || name === 'Unknown Service') {
+          if (String(sd?.serviceId).toLowerCase().includes('orientation')) {
+            name = 'Orientation';
+          } else if (String(sd?.serviceId).toLowerCase().includes('custom')) {
+            name = sd?.serviceName || sd?.customName || 'Custom Service';
+          }
+        }
+        return String(name || '');
+      };
+      const nonTravelItem = event.servicesData.find((sd: any) => {
+        const lower = resolveSdName(sd).toLowerCase();
+        return (
+          lower &&
+          !lower.includes('provider travel') &&
+          !lower.includes('travel - provider') &&
+          !lower.includes('activity based transport') &&
+          !lower.includes('activity-based transport')
+        );
+      });
+      const chosenSd = nonTravelItem || event.servicesData[0];
+      const chosenName = resolveSdName(chosenSd);
+      if (chosenName) return chosenName;
+    }
+    return String(event.serviceName || '');
+  }, [servicesList]);
+
+  const getServiceCardBackgroundImage = useCallback((serviceName?: string): string => {
+    const s = (serviceName || '').toLowerCase();
+
+    // Self-care / Personal Care / Activities of daily living / Hygiene / Shower / Dressing
+    if (
+      s.includes('self-care') ||
+      s.includes('self care') ||
+      s.includes('personal care') ||
+      s.includes('daily living') ||
+      s.includes('hygiene') ||
+      s.includes('shower') ||
+      s.includes('dressing')
+    ) {
+      return showerRunningImg;
+    }
+
+    // Domestic Assistance / Cleaning / Household / Laundry / Chores
+    if (
+      s.includes('domestic') ||
+      s.includes('clean') ||
+      s.includes('cleaning') ||
+      s.includes('household') ||
+      s.includes('laundry') ||
+      s.includes('chore')
+    ) {
+      return broomSweepingImg;
+    }
+
+    // Shopping / Groceries / Trolley / Store / Errands
+    if (
+      s.includes('shop') ||
+      s.includes('shopping') ||
+      s.includes('groceries') ||
+      s.includes('grocery') ||
+      s.includes('store') ||
+      s.includes('errand') ||
+      s.includes('trolley')
+    ) {
+      return shoppingGroceriesImg;
+    }
+
+    // Individual Social Supports / Transport / Travel / Driving / Vehicle
+    if (
+      s.includes('individual social') ||
+      s.includes('social support') ||
+      s.includes('transport') ||
+      s.includes('travel') ||
+      s.includes('drive') ||
+      s.includes('driving') ||
+      s.includes('vehicle') ||
+      s.includes('car')
+    ) {
+      return carDrivingImg;
+    }
+
+    // Registered Nurse / Clinical Care / Medication / Therapy / Allied Health
+    if (
+      s.includes('registered nurse') ||
+      s.includes('clinical care') ||
+      s.includes('nurse') ||
+      s.includes('nursing') ||
+      s.includes('clinical') ||
+      s.includes('medication') ||
+      s.includes('medicine') ||
+      s.includes('pill') ||
+      s.includes('admin') ||
+      s.includes('therapy') ||
+      s.includes('allied') ||
+      s.includes('physio') ||
+      s.includes('psych') ||
+      s.includes('rehab')
+    ) {
+      return clinicalNursingImg;
+    }
+
+    // Meal Prep / Cooking / Food / Diet / Kitchen / Nutrition
+    if (
+      s.includes('meal') ||
+      s.includes('food') ||
+      s.includes('cook') ||
+      s.includes('cooking') ||
+      s.includes('kitchen') ||
+      s.includes('nutrition')
+    ) {
+      return mealPrepImg;
+    }
+
+    // Respite / Short Term Accommodation / Sleepover / Night
+    if (
+      s.includes('respite') ||
+      s.includes('short term accommodation') ||
+      s.includes('sleepover') ||
+      s.includes('night') ||
+      s.includes('bed') ||
+      /\bsta\b/i.test(s)
+    ) {
+      return respiteBedroomImg;
+    }
+
+    // Gardening / Yard / Lawn / Outdoor
+    if (
+      s.includes('garden') ||
+      s.includes('gardening') ||
+      s.includes('yard') ||
+      s.includes('lawn') ||
+      s.includes('outdoor')
+    ) {
+      return gardeningImg;
+    }
+
+    // Skill Development and Training / Capacity Building / Learning
+    if (
+      s.includes('skill') ||
+      s.includes('training') ||
+      s.includes('learning') ||
+      s.includes('development') ||
+      s.includes('capacity')
+    ) {
+      return trainingImg;
+    }
+
+    // Community / Social / Outing / Buddy / Orientation / Default
+    return communitySocialImg;
+  }, []);
+
+  const getServiceCardBackgroundVideo = useCallback((serviceName?: string): string => {
+    const s = (serviceName || '').toLowerCase();
+
+    // Self-care / Personal Care / Activities of daily living / Hygiene / Shower / Dressing
+    if (
+      s.includes('self-care') ||
+      s.includes('self care') ||
+      s.includes('personal care') ||
+      s.includes('daily living') ||
+      s.includes('hygiene') ||
+      s.includes('shower') ||
+      s.includes('dressing')
+    ) {
+      return showerRunningVideo;
+    }
+
+    // Domestic Assistance / Cleaning / Household / Laundry / Chores
+    if (
+      s.includes('domestic') ||
+      s.includes('clean') ||
+      s.includes('cleaning') ||
+      s.includes('household') ||
+      s.includes('laundry') ||
+      s.includes('chore')
+    ) {
+      return broomSweepingVideo;
+    }
+
+    // Shopping / Groceries / Trolley / Store / Errands
+    if (
+      s.includes('shop') ||
+      s.includes('shopping') ||
+      s.includes('groceries') ||
+      s.includes('grocery') ||
+      s.includes('store') ||
+      s.includes('errand') ||
+      s.includes('trolley')
+    ) {
+      return shoppingGroceriesVideo;
+    }
+
+    // Individual Social Supports / Transport / Travel / Driving / Vehicle
+    if (
+      s.includes('individual social') ||
+      s.includes('social support') ||
+      s.includes('transport') ||
+      s.includes('travel') ||
+      s.includes('drive') ||
+      s.includes('driving') ||
+      s.includes('vehicle') ||
+      s.includes('car')
+    ) {
+      return carDrivingVideo;
+    }
+
+    // Registered Nurse / Clinical Care / Medication / Therapy / Allied Health
+    if (
+      s.includes('registered nurse') ||
+      s.includes('clinical care') ||
+      s.includes('nurse') ||
+      s.includes('nursing') ||
+      s.includes('clinical') ||
+      s.includes('medication') ||
+      s.includes('medicine') ||
+      s.includes('pill') ||
+      s.includes('admin') ||
+      s.includes('therapy') ||
+      s.includes('allied') ||
+      s.includes('physio') ||
+      s.includes('psych') ||
+      s.includes('rehab')
+    ) {
+      return clinicalNursingVideo;
+    }
+
+    // Meal Prep / Cooking / Food / Diet / Kitchen / Nutrition
+    if (
+      s.includes('meal') ||
+      s.includes('food') ||
+      s.includes('cook') ||
+      s.includes('cooking') ||
+      s.includes('kitchen') ||
+      s.includes('nutrition')
+    ) {
+      return mealPrepVideo;
+    }
+
+    // Respite / Short Term Accommodation / Sleepover / Night
+    if (
+      s.includes('respite') ||
+      s.includes('short term accommodation') ||
+      s.includes('sleepover') ||
+      s.includes('night') ||
+      s.includes('bed') ||
+      /\bsta\b/i.test(s)
+    ) {
+      return respiteBedroomVideo;
+    }
+
+    // Gardening / Yard / Lawn / Outdoor
+    if (
+      s.includes('garden') ||
+      s.includes('gardening') ||
+      s.includes('yard') ||
+      s.includes('lawn') ||
+      s.includes('outdoor')
+    ) {
+      return gardeningVideo;
+    }
+
+    // Skill Development and Training / Capacity Building / Learning
+    if (
+      s.includes('skill') ||
+      s.includes('training') ||
+      s.includes('learning') ||
+      s.includes('development') ||
+      s.includes('capacity')
+    ) {
+      return trainingVideo;
+    }
+
+    // Community / Social / Outing / Buddy / Orientation / Default
+    return communitySocialVideo;
+  }, []);
+
+  const getShiftStatusGradient = useCallback((event: ShiftEvent): string => {
+    const isInProgress = event.status === 'IN_PROGRESS';
+    const isUnassigned = !event.staffId && !event.isRespiteWrapper;
+
+    let statusGradient = 'linear-gradient(105deg, rgba(14, 165, 233, 0.78) 0%, rgba(14, 165, 233, 0.48) 48%, rgba(14, 165, 233, 0.18) 100%)';
+
+    if (event.status === 'DRAFT') {
+      statusGradient = 'linear-gradient(105deg, rgba(82, 82, 91, 0.80) 0%, rgba(82, 82, 91, 0.52) 48%, rgba(82, 82, 91, 0.22) 100%)';
+    }
+    if (event.status === 'COMPLETED') {
+      statusGradient = 'linear-gradient(105deg, rgba(163, 230, 53, 0.78) 0%, rgba(163, 230, 53, 0.48) 48%, rgba(163, 230, 53, 0.16) 100%)';
+    }
+    if (isInProgress) {
+      statusGradient = 'linear-gradient(105deg, rgba(245, 158, 11, 0.80) 0%, rgba(245, 158, 11, 0.50) 48%, rgba(245, 158, 11, 0.20) 100%)';
+    }
+    if (event.status === 'PENDING_SYNC') {
+      statusGradient = 'linear-gradient(105deg, rgba(249, 115, 22, 0.78) 0%, rgba(249, 115, 22, 0.50) 48%, rgba(249, 115, 22, 0.20) 100%)';
+    }
+    if (event.status === 'CANCELLED') {
+      statusGradient = 'linear-gradient(105deg, rgba(239, 68, 68, 0.80) 0%, rgba(239, 68, 68, 0.52) 48%, rgba(239, 68, 68, 0.22) 100%)';
+    }
+    if (event.isRespiteWrapper) {
+      statusGradient = 'linear-gradient(105deg, rgba(139, 92, 246, 0.78) 0%, rgba(139, 92, 246, 0.50) 48%, rgba(139, 92, 246, 0.20) 100%)';
+    }
+    if (isUnassigned && event.status !== 'CANCELLED' && event.status !== 'COMPLETED') {
+      statusGradient = event.status === 'DRAFT'
+        ? 'linear-gradient(105deg, rgba(157, 23, 77, 0.80) 0%, rgba(157, 23, 77, 0.52) 48%, rgba(157, 23, 77, 0.22) 100%)'
+        : 'linear-gradient(105deg, rgba(219, 39, 119, 0.78) 0%, rgba(219, 39, 119, 0.50) 48%, rgba(219, 39, 119, 0.20) 100%)';
+    }
+    return statusGradient;
+  }, []);
+
   const eventStyleGetter = (event: ShiftEvent) => {
     if (view === Views.AGENDA) {
       return {
@@ -1033,6 +1369,9 @@ export default function RosterCalendar() {
     const isInProgress = event.status === 'IN_PROGRESS';
     const isUnassigned = !event.staffId && !event.isRespiteWrapper;
     const clientBorderColor = getClientBorderColor(event);
+    const resolvedServiceName = resolvePrimaryShiftServiceName(event);
+    const serviceBgUrl = getServiceCardBackgroundImage(resolvedServiceName);
+    const statusGradient = getShiftStatusGradient(event);
 
     let backgroundColor: string | undefined = '#0ea5e9'; // brand-blue
     let outerBorder = isSelected ? '2px solid white' : '1.5px solid #0B0E14';
@@ -1041,13 +1380,19 @@ export default function RosterCalendar() {
       backgroundColor = '#52525b'; // zinc-600
       outerBorder = isSelected ? '2px solid white' : '1px dashed #a1a1aa'; // zinc-400
     }
-    if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
+    if (event.status === 'COMPLETED') {
+      backgroundColor = '#a3e635'; // brand-green
+    }
     if (isInProgress) {
       backgroundColor = '#f59e0b'; // warm golden amber
       outerBorder = isSelected ? '2px solid white' : '1.5px solid #d97706';
     }
-    if (event.status === 'PENDING_SYNC') backgroundColor = '#f97316'; // orange-500
-    if (event.status === 'CANCELLED') backgroundColor = '#ef4444'; // red-500
+    if (event.status === 'PENDING_SYNC') {
+      backgroundColor = '#f97316'; // orange-500
+    }
+    if (event.status === 'CANCELLED') {
+      backgroundColor = '#ef4444'; // red-500
+    }
     
     if (event.isRespiteWrapper) {
       backgroundColor = '#8b5cf6'; // violet-500
@@ -1066,20 +1411,24 @@ export default function RosterCalendar() {
     if (isInProgress) classList.push('in-progress-shift-animated');
     const className = classList.join(' ');
 
-    let textColor: string | undefined;
-    if (event.status === 'COMPLETED' || event.status === 'PENDING_SYNC' || isInProgress) {
-      textColor = '#0b1120';
-    } else {
-      textColor = 'white';
-    }
+    const isDarkText = event.status === 'COMPLETED' || event.status === 'PENDING_SYNC' || isInProgress;
+    const textColor = isDarkText ? '#0b1120' : '#ffffff';
+    const textShadow = isDarkText
+      ? '0 1px 2px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.75)'
+      : '0 1px 3px rgba(0, 0, 0, 0.92), 0 0 6px rgba(0, 0, 0, 0.7)';
 
     return {
       className,
       style: {
         backgroundColor,
+        backgroundImage: `${statusGradient}, url("${serviceBgUrl}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center 42%',
+        backgroundRepeat: 'no-repeat',
         borderRadius: '6px',
         opacity: 1,
         color: textColor,
+        textShadow,
         borderTop: outerBorder,
         borderRight: outerBorder,
         borderBottom: outerBorder,
@@ -1138,56 +1487,54 @@ export default function RosterCalendar() {
         return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '?';
       })();
 
-      const resolvedServiceName = (() => {
-        if (event.isRespiteWrapper) return 'Respite';
-        if (Array.isArray(event.servicesData) && event.servicesData.length > 0) {
-          const resolveSdName = (sd: any) => {
-            const srv = servicesList.find((s: any) => String(s.id) === String(sd?.serviceId));
-            let name = srv ? srv.name : (sd?.serviceName || sd?.customName || sd?.name || '');
-            if (!name || name === 'Unknown Service') {
-              if (String(sd?.serviceId).toLowerCase().includes('orientation')) {
-                name = 'Orientation';
-              } else if (String(sd?.serviceId).toLowerCase().includes('custom')) {
-                name = sd?.serviceName || sd?.customName || 'Custom Service';
-              }
-            }
-            return String(name || '');
-          };
-          const nonTravelItem = event.servicesData.find((sd: any) => {
-            const lower = resolveSdName(sd).toLowerCase();
-            return (
-              lower &&
-              !lower.includes('provider travel') &&
-              !lower.includes('travel - provider') &&
-              !lower.includes('activity based transport') &&
-              !lower.includes('activity-based transport')
-            );
-          });
-          const chosenSd = nonTravelItem || event.servicesData[0];
-          const chosenName = resolveSdName(chosenSd);
-          if (chosenName) return chosenName;
-        }
-        return String(event.serviceName || '');
-      })();
-
-      const serviceBadge = resolvedServiceName ? getServiceBadge(resolvedServiceName) : null;
+      const resolvedServiceName = resolvePrimaryShiftServiceName(event);
+      const serviceBgUrl = getServiceCardBackgroundImage(resolvedServiceName);
+      const serviceVideoUrl = getServiceCardBackgroundVideo(resolvedServiceName);
+      const statusGradient = getShiftStatusGradient(event);
+      const isDarkText =
+        event.status === 'COMPLETED' ||
+        event.status === 'PENDING_SYNC' ||
+        event.status === 'IN_PROGRESS';
 
       return (
         <div 
-          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1 relative isolate"
+          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1"
+          title={resolvedServiceName ? `${title} — ${resolvedServiceName}` : title}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onTouchStart={handleMouseDown}
           onTouchEnd={handleMouseUp}
         >
+          {/* Always-on full-card realistic service video with poster fallback + status tint */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+            <video
+              src={serviceVideoUrl}
+              poster={serviceBgUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.muted = true;
+                e.currentTarget.play().catch(() => {});
+              }}
+              className="w-full h-full object-cover"
+            />
+            <div
+              className="absolute inset-0"
+              style={{ background: statusGradient }}
+            />
+          </div>
+
           {event.isRespiteWrapper && (
-            <div className="flex items-center gap-1 shrink-0 mr-1 relative z-1">
+            <div className="flex items-center gap-1 shrink-0 mr-1 relative z-2">
               <Bed className="w-3.5 h-3.5 text-violet-100 drop-shadow-sm" />
             </div>
           )}
           {event.status === 'IN_PROGRESS' && (
-            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-black/25 border border-black/20 shadow-xs relative z-1 select-none shrink-0">
+            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-black/25 border border-black/20 shadow-xs relative z-2 select-none shrink-0">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-600 opacity-90"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600"></span>
@@ -1195,7 +1542,13 @@ export default function RosterCalendar() {
               <span className="text-[9px] font-black tracking-wider text-slate-950 uppercase leading-none">LIVE</span>
             </span>
           )}
-          <div className="inline-flex items-center min-w-0 max-w-full relative z-1">
+          <div
+            className={`inline-flex items-center min-w-0 max-w-full relative z-2 px-1 py-0.5 rounded-md ${
+              isDarkText
+                ? 'bg-white/35 backdrop-blur-[1px]'
+                : 'bg-black/30 backdrop-blur-[1px]'
+            }`}
+          >
             {clientAvatarUrl ? (
               <img
                 src={clientAvatarUrl}
@@ -1207,15 +1560,7 @@ export default function RosterCalendar() {
                 {clientInitials}
               </span>
             )}
-            <span className="truncate">{title}</span>
-            {serviceBadge && (
-              <span
-                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-950/75 border border-white/20 ml-1.5 shrink-0 shadow-xs"
-                title={resolvedServiceName}
-              >
-                {serviceBadge.icon}
-              </span>
-            )}
+            <span className="truncate font-bold">{title}</span>
           </div>
 
           {event.isRespiteWrapper && (
