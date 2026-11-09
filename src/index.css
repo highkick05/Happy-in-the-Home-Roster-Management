@@ -130,9 +130,11 @@ input:-webkit-autofill:active {
 }
 .rbc-timeslot-group {
   border-bottom: 1px solid #27272a !important;
+  min-height: 80px !important;
 }
 .rbc-day-slot .rbc-time-slot {
   border-top: 1px solid #27272a !important;
+  flex: 1 0 0 !important;
 }
 .rbc-day-slot .rbc-events-container {
   margin-right: 1px;

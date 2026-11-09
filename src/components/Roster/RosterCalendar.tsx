@@ -2269,11 +2269,13 @@ export default function RosterCalendar() {
     };
 
     const rafId = requestAnimationFrame(applyScroll);
-    const timerId = setTimeout(applyScroll, 60);
+    const timerId1 = setTimeout(applyScroll, 60);
+    const timerId2 = setTimeout(applyScroll, 180);
 
     return () => {
       cancelAnimationFrame(rafId);
-      clearTimeout(timerId);
+      clearTimeout(timerId1);
+      clearTimeout(timerId2);
     };
   }, [
     earliestTargetMinutes,
