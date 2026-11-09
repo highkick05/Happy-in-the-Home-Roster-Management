@@ -433,6 +433,8 @@ export default function RosterCalendar() {
           isHistorical: d.is_historical,
           vehicleId: d.vehicle_id,
           vehicle_id: d.vehicle_id,
+          invoiceLocked: Boolean(d.invoice_locked),
+          invoiceStatus: d.invoice_status || null,
         }));
 
         let allEvents = [...mappedShifts];

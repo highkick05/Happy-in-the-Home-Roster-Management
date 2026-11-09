@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car, ArrowDown, Edit } from 'lucide-react';
+import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car, ArrowDown, Edit, Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
 
@@ -402,11 +402,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       e.preventDefault();
       e.stopPropagation();
     }
-    const resolvedWaypoints = (hasABTService && didTransport)
+    const isInvoiceLocked = Boolean(shift.invoiceLocked);
+    const resolvedWaypoints = (!isInvoiceLocked && hasABTService && didTransport)
       ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, coords: wp.coords, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
       : null;
 
-    const shouldPreserveAbt = hasABTService && shift.status === 'COMPLETED' && !isEditingTransport && !hasModifiedTransport;
+    const shouldPreserveAbt = isInvoiceLocked || (hasABTService && shift.status === 'COMPLETED' && !isEditingTransport && !hasModifiedTransport);
 
     if (!shouldPreserveAbt && hasABTService && didTransport && waypoints.length === 0) {
        alert("Please add at least 1 destination if you transported the client.");
@@ -1154,25 +1155,35 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                             <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
                           </h4>
                           {shift.status === 'COMPLETED' && hasABTService && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextEditing = !isEditingTransport;
-                                setIsEditingTransport(nextEditing);
-                                if (routeLogDetailsRef.current) {
-                                  routeLogDetailsRef.current.open = false;
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
-                                isEditingTransport
-                                  ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
-                                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
-                              }`}
-                              title="Edit Client Transport"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                              <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
-                            </button>
+                            shift.invoiceLocked ? (
+                              <span
+                                className="px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1.5 shrink-0 bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                title="Transport cannot be edited because the invoice for this shift has already been sent for payment."
+                              >
+                                <Lock className="w-3 h-3 shrink-0" />
+                                <span>Invoice {shift.invoiceStatus === 'PAID' ? 'Paid' : 'Sent'} — Locked</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextEditing = !isEditingTransport;
+                                  setIsEditingTransport(nextEditing);
+                                  if (routeLogDetailsRef.current) {
+                                    routeLogDetailsRef.current.open = false;
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
+                                  isEditingTransport
+                                    ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
+                                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
+                                }`}
+                                title="Edit Client Transport"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
+                              </button>
+                            )
                           )}
                         </div>
 
@@ -1365,7 +1376,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           );
                         })()}
 
-                        {hasABTService && (shift.status !== 'COMPLETED' || isEditingTransport) && (
+                        {hasABTService && (shift.status !== 'COMPLETED' || (isEditingTransport && !shift.invoiceLocked)) && (
                           <div className={shift.status === 'COMPLETED' ? 'pt-3 mt-3 border-t border-indigo-500/30 animate-in fade-in' : ''}>
                             <div className="flex justify-between items-center">
                               <div className="flex flex-col pr-4">

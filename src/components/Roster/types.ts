@@ -41,5 +41,7 @@ export interface ShiftEvent {
   actualFinishTime?: string;
   vehicleId?: number;
   vehicle_id?: number;
+  invoiceLocked?: boolean;
+  invoiceStatus?: string | null;
 }
 

@@ -3755,8 +3755,98 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     };
   };
 
+  const getShiftInvoiceLockStatus = (shiftId: number | string): { isLocked: boolean; status: string | null } => {
+    try {
+      const inv = db
+        .prepare(
+          "SELECT id, status, merged_into_invoice_id, merged_into_shift_id FROM invoices WHERE shift_id = ? ORDER BY id DESC LIMIT 1",
+        )
+        .get(shiftId) as any;
+      if (inv) {
+        if (inv.status === "SENT" || inv.status === "PAID") {
+          return { isLocked: true, status: inv.status };
+        }
+        if (inv.merged_into_invoice_id) {
+          const parentInv = db
+            .prepare("SELECT status FROM invoices WHERE id = ?")
+            .get(inv.merged_into_invoice_id) as any;
+          if (parentInv && (parentInv.status === "SENT" || parentInv.status === "PAID")) {
+            return { isLocked: true, status: parentInv.status };
+          }
+          if (parentInv?.status) {
+            return { isLocked: false, status: parentInv.status };
+          }
+        }
+        if (inv.merged_into_shift_id) {
+          const targetShiftInv = db
+            .prepare(
+              "SELECT status, merged_into_invoice_id FROM invoices WHERE shift_id = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get(inv.merged_into_shift_id) as any;
+          if (targetShiftInv) {
+            if (targetShiftInv.status === "SENT" || targetShiftInv.status === "PAID") {
+              return { isLocked: true, status: targetShiftInv.status };
+            }
+            if (targetShiftInv.merged_into_invoice_id) {
+              const parentInv2 = db
+                .prepare("SELECT status FROM invoices WHERE id = ?")
+                .get(targetShiftInv.merged_into_invoice_id) as any;
+              if (parentInv2 && (parentInv2.status === "SENT" || parentInv2.status === "PAID")) {
+                return { isLocked: true, status: parentInv2.status };
+              }
+            }
+          }
+        }
+        return { isLocked: false, status: inv.status };
+      }
+      const shiftRow = db
+        .prepare("SELECT respite_booking_id FROM shifts WHERE id = ?")
+        .get(shiftId) as any;
+      if (shiftRow?.respite_booking_id) {
+        const respInv = db
+          .prepare(
+            "SELECT status, merged_into_invoice_id FROM invoices WHERE respite_booking_id = ? ORDER BY id DESC LIMIT 1",
+          )
+          .get(shiftRow.respite_booking_id) as any;
+        if (respInv) {
+          if (respInv.status === "SENT" || respInv.status === "PAID") {
+            return { isLocked: true, status: respInv.status };
+          }
+          if (respInv.merged_into_invoice_id) {
+            const parentResp = db
+              .prepare("SELECT status FROM invoices WHERE id = ?")
+              .get(respInv.merged_into_invoice_id) as any;
+            if (parentResp && (parentResp.status === "SENT" || parentResp.status === "PAID")) {
+              return { isLocked: true, status: parentResp.status };
+            }
+          }
+          return { isLocked: false, status: respInv.status };
+        }
+      }
+    } catch (e) {
+      console.error("Failed to check shift invoice lock status:", e);
+    }
+    return { isLocked: false, status: null };
+  };
+
   const generateInvoiceForRespiteBooking = (respiteBookingId: number) => {
     try {
+      const existingRespInv = db
+        .prepare("SELECT id, status, merged_into_invoice_id FROM invoices WHERE respite_booking_id = ? ORDER BY id DESC LIMIT 1")
+        .get(respiteBookingId) as any;
+      if (existingRespInv) {
+        if (existingRespInv.status === "SENT" || existingRespInv.status === "PAID") {
+          console.log(`[DEBUG] Skipping respite invoice generation for booking ${respiteBookingId} because invoice is already ${existingRespInv.status}`);
+          return;
+        }
+        if (existingRespInv.merged_into_invoice_id) {
+          const parentResp = db.prepare("SELECT status FROM invoices WHERE id = ?").get(existingRespInv.merged_into_invoice_id) as any;
+          if (parentResp && (parentResp.status === "SENT" || parentResp.status === "PAID")) {
+            console.log(`[DEBUG] Skipping respite invoice generation for booking ${respiteBookingId} because merged parent invoice is already ${parentResp.status}`);
+            return;
+          }
+        }
+      }
       const data = getInvoiceDataForRespiteBooking(respiteBookingId);
       if (!data) return;
 
@@ -3950,6 +4040,11 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
 
   const generateInvoiceForShift = (shiftId: number) => {
     try {
+      const lockInfo = getShiftInvoiceLockStatus(shiftId);
+      if (lockInfo.isLocked) {
+        console.log(`[DEBUG] Skipping invoice generation for shift ${shiftId} because invoice is already ${lockInfo.status}`);
+        return;
+      }
       const shiftCheck = db.prepare("SELECT services_json FROM shifts WHERE id = ?").get(shiftId) as any;
       if (shiftCheck && shiftCheck.services_json) {
         if (shiftCheck.services_json.includes('"orientation"') || shiftCheck.services_json.includes('-- Orientation --')) {
@@ -17192,6 +17287,43 @@ app.get("/api/health", (req, res) => {
       WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)${dateFilter}
     `;
     
+    const invoiceLockRows = db.prepare(`
+      SELECT i.shift_id, i.respite_booking_id, i.status,
+             p.status as parent_invoice_status,
+             s_inv.status as target_shift_status,
+             sp.status as target_shift_parent_status
+      FROM invoices i
+      LEFT JOIN invoices p ON i.merged_into_invoice_id = p.id
+      LEFT JOIN invoices s_inv ON i.merged_into_shift_id = s_inv.shift_id
+      LEFT JOIN invoices sp ON s_inv.merged_into_invoice_id = sp.id
+    `).all() as any[];
+    const shiftInvoiceStatusMap = new Map<number, string>();
+    const respiteInvoiceStatusMap = new Map<number, string>();
+    for (const row of invoiceLockRows) {
+      const effectiveStatus =
+        row.status === 'SENT' || row.status === 'PAID'
+          ? row.status
+          : row.parent_invoice_status === 'SENT' || row.parent_invoice_status === 'PAID'
+            ? row.parent_invoice_status
+            : row.target_shift_status === 'SENT' || row.target_shift_status === 'PAID'
+              ? row.target_shift_status
+              : row.target_shift_parent_status === 'SENT' || row.target_shift_parent_status === 'PAID'
+                ? row.target_shift_parent_status
+                : row.parent_invoice_status || row.target_shift_status || row.status;
+      if (row.shift_id) {
+        const prev = shiftInvoiceStatusMap.get(Number(row.shift_id));
+        if (!prev || effectiveStatus === 'SENT' || effectiveStatus === 'PAID') {
+          shiftInvoiceStatusMap.set(Number(row.shift_id), effectiveStatus);
+        }
+      }
+      if (row.respite_booking_id) {
+        const prev = respiteInvoiceStatusMap.get(Number(row.respite_booking_id));
+        if (!prev || effectiveStatus === 'SENT' || effectiveStatus === 'PAID') {
+          respiteInvoiceStatusMap.set(Number(row.respite_booking_id), effectiveStatus);
+        }
+      }
+    }
+
     // If not admin, only show their own published shifts and omit rates
     if (req.user.role !== "ADMIN") {
       const staffQuery = `
@@ -17209,6 +17341,12 @@ app.get("/api/health", (req, res) => {
        `;
       const shifts = db.prepare(staffQuery).all(req.user.id, ...queryParams) as any[];
       shifts.forEach((s) => {
+        const effInvStatus =
+          shiftInvoiceStatusMap.get(Number(s.id)) ||
+          (s.respite_booking_id ? respiteInvoiceStatusMap.get(Number(s.respite_booking_id)) : null) ||
+          null;
+        s.invoice_status = effInvStatus;
+        s.invoice_locked = effInvStatus === 'SENT' || effInvStatus === 'PAID';
         try {
           let parsed = s.services_json ? JSON.parse(s.services_json) : [];
           if (Array.isArray(parsed)) {
@@ -17288,6 +17426,12 @@ app.get("/api/health", (req, res) => {
 
     const shifts = db.prepare(query).all(...queryParams) as any[];
     shifts.forEach((s) => {
+      const effInvStatus =
+        shiftInvoiceStatusMap.get(Number(s.id)) ||
+        (s.respite_booking_id ? respiteInvoiceStatusMap.get(Number(s.respite_booking_id)) : null) ||
+        null;
+      s.invoice_status = effInvStatus;
+      s.invoice_locked = effInvStatus === 'SENT' || effInvStatus === 'PAID';
       try {
         let parsed = s.services_json ? JSON.parse(s.services_json) : [];
         if (Array.isArray(parsed)) {
@@ -18549,6 +18693,11 @@ app.get("/api/health", (req, res) => {
         if (!shift) return res.status(404).json({ error: "Shift not found" });
         if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id)
           return res.status(403).json({ error: "Forbidden" });
+        if (req.user.role !== "ADMIN" && getShiftInvoiceLockStatus(id).isLocked) {
+          return res.status(403).json({
+            error: "This shift's invoice has already been sent or paid and cannot be uncompleted.",
+          });
+        }
 
         const oldValue = JSON.stringify(shift);
 
@@ -19524,6 +19673,60 @@ app.get("/api/health", (req, res) => {
         if (!shift) return res.status(404).json({ error: "Shift not found" });
         if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id)
           return res.status(403).json({ error: "Forbidden" });
+
+        const invoiceLockInfo = getShiftInvoiceLockStatus(id);
+        // If shift is already COMPLETED and its invoice has been SENT or PAID (or if staff is only updating progress notes without editing transport on an already-invoiced shift),
+        // always allow Progress Notes & Incident updates while locking transport/billing and preventing invoice regeneration.
+        if (
+          shift.status === "COMPLETED" &&
+          (invoiceLockInfo.isLocked || (preserveAbt && invoiceLockInfo.status !== null))
+        ) {
+          const updatedNoteVal = notes !== undefined ? notes : shift.notes;
+          const finalNoteText = updatedNoteVal || shift.progress_note;
+          const updatedTags = is_incident ? "Incident" : (shift.tags || null);
+          const updatedNoteStatus =
+            finalNoteText && String(finalNoteText).trim().length > 0
+              ? "COMPLETED"
+              : shift.progress_note_status || null;
+
+          db.prepare(
+            "UPDATE shifts SET notes = ?, tags = ?, progress_note_status = ? WHERE id = ?",
+          ).run(updatedNoteVal, updatedTags, updatedNoteStatus, id);
+
+          if (is_incident) {
+            const alertClient = db
+              .prepare("SELECT first_name, last_name FROM clients WHERE id = ?")
+              .get(shift.client_id) as any;
+            const alertStaff = db
+              .prepare("SELECT first_name, last_name FROM users WHERE id = ?")
+              .get(shift.staff_id) as any;
+            if (alertClient && alertStaff) {
+              const staffName = `${alertStaff.first_name || ""} ${alertStaff.last_name || ""}`.trim();
+              const clientName = `${alertClient.first_name || ""} ${alertClient.last_name || ""}`.trim();
+              const admins = db
+                .prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1")
+                .all() as any[];
+              const insertNotification = db.prepare(`
+                INSERT INTO notifications (user_id, type, title, message, link)
+                VALUES (?, 'ALERT', 'Incident Reported', ?, ?)
+              `);
+              for (const admin of admins) {
+                insertNotification.run(
+                  admin.id,
+                  `ALERT! ${staffName} has submitted an Incident for ${clientName}`,
+                  `/progress-notes?client=${shift.client_id}`,
+                );
+              }
+            }
+          }
+
+          return res.json({
+            success: true,
+            abt_km: Number(shift.abt_km) || 0,
+            pTravelDistance: Number(shift.provider_travel_km) || 0,
+            invoiceLocked: invoiceLockInfo.isLocked,
+          });
+        }
 
         const isHomeCare =
           shift.funding_type === "HCP" ||
