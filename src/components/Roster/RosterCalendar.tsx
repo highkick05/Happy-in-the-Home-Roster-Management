@@ -1860,12 +1860,47 @@ export default function RosterCalendar() {
       const formattedTravelTime = travelMins > 0 ? (travelMins >= 60 ? `${Math.floor(travelMins / 60)}h ${Math.round(travelMins % 60)}m` : `${Math.round(travelMins)} mins`) : (event.staffId ? '0 mins' : '–');
       const formattedAbtDistance = abtKm > 0 ? `${parseFloat(abtKm.toFixed(2))} km` : (event.staffId ? '0.0 km' : '–');
 
+      const resolvedServiceName = resolvePrimaryShiftServiceName(event);
+      const serviceBgUrl = getServiceCardBackgroundImage(resolvedServiceName);
+      const serviceVideoUrl = getServiceCardBackgroundVideo(resolvedServiceName);
+
       return (
         <div 
            className={`${containerClass} cursor-pointer w-full group relative`}
         >
+          {/* Right-side realistic service background video with smooth left fadeout */}
+          <div
+            className="absolute inset-y-0 right-0 w-[56%] sm:w-[50%] lg:w-[46%] pointer-events-none z-0 overflow-hidden"
+            style={{
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.35) 22%, rgba(0, 0, 0, 0.85) 52%, black 75%)',
+              maskImage: 'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.35) 22%, rgba(0, 0, 0, 0.85) 52%, black 75%)',
+            }}
+          >
+            <video
+              src={serviceVideoUrl}
+              poster={serviceBgUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.muted = true;
+                e.currentTarget.play().catch(() => {});
+              }}
+              style={{ objectPosition: serviceVideoUrl === showerRunningVideo ? 'center 32%' : 'center center' }}
+              className="w-full h-full object-cover opacity-85 group-hover:opacity-95 transition-opacity duration-200"
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(to right, rgba(24, 24, 27, 0.72) 0%, rgba(24, 24, 27, 0.22) 35%, rgba(24, 24, 27, 0.08) 100%)',
+              }}
+            />
+          </div>
+
           {/* Shift Card Layout (3 Clean Rows + Vertical Status Ribbon at the End) */}
-          <div className="flex items-stretch justify-between w-full min-w-0">
+          <div className="relative z-10 flex items-stretch justify-between w-full min-w-0">
             {/* 3 Rows of Shift Info */}
             <div className="flex flex-col gap-1.5 sm:gap-2 flex-1 min-w-0 justify-center pr-2.5 sm:pr-3.5">
               {/* Row 1: Time on the first row with client name and funding type */}
@@ -2020,7 +2055,7 @@ export default function RosterCalendar() {
 
             {/* Shift status ribbon on the end of the card, spanning the entire height like a vertical ribbon */}
             <div 
-              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-1.5 sm:px-2 lg:px-2.5 min-w-[30px] sm:min-w-[34px] lg:min-w-[38px] transition-colors select-none ${badgeClass}`}
+              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-1.5 sm:px-2 lg:px-2.5 min-w-[30px] sm:min-w-[34px] lg:min-w-[38px] backdrop-blur-xs transition-colors select-none ${badgeClass}`}
             >
               {isInProgress && (
                 <span className="relative flex h-2 w-2 mb-1.5 shrink-0">
