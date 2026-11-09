@@ -2257,6 +2257,35 @@ export default function RosterCalendar() {
     };
   }, [mappedEvents, date, activeView, settings?.invoicingStartDay]);
 
+  const computeTimeslotHeight = useCallback((): number => {
+    if (typeof window === 'undefined') return 60;
+    const screenW = window.screen?.width || window.innerWidth;
+    const screenH = window.screen?.height || window.innerHeight;
+    if (screenW > 1920 || (screenW >= 1920 && screenH > 1080)) {
+      return 80;
+    }
+    if (screenW === 1920 && screenH >= 1080) {
+      return 60;
+    }
+    return 40;
+  }, []);
+
+  const [timeslotHeight, setTimeslotHeight] = useState<number>(() => computeTimeslotHeight());
+
+  useEffect(() => {
+    const updateTimeslotHeight = () => {
+      const nextHeight = computeTimeslotHeight();
+      setTimeslotHeight(prev => (prev !== nextHeight ? nextHeight : prev));
+      document.documentElement.style.setProperty('--rbc-timeslot-height', `${nextHeight}px`);
+    };
+
+    updateTimeslotHeight();
+    window.addEventListener('resize', updateTimeslotHeight);
+    return () => {
+      window.removeEventListener('resize', updateTimeslotHeight);
+    };
+  }, [computeTimeslotHeight]);
+
   useEffect(() => {
     if (activeView !== Views.WEEK && activeView !== Views.DAY) return;
 
@@ -2286,6 +2315,7 @@ export default function RosterCalendar() {
     clientFilter,
     staffFilter,
     mappedEvents.length,
+    timeslotHeight,
   ]);
 
   return (
@@ -2697,6 +2727,7 @@ export default function RosterCalendar() {
       
       <div
         ref={calendarContainerRef}
+        style={{ '--rbc-timeslot-height': `${timeslotHeight}px` } as React.CSSProperties}
         className="flex-1 bg-brand-bg p-0 md:p-1.5 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide mt-0.5"
       >
         {activeView !== Views.AGENDA ? (

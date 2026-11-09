@@ -128,9 +128,22 @@ input:-webkit-autofill:active {
 .rbc-time-header-content {
   border-left: 1px solid #27272a !important;
 }
+:root {
+  --rbc-timeslot-height: 40px;
+}
+@media (min-width: 1920px) and (min-height: 1080px) {
+  :root {
+    --rbc-timeslot-height: 60px;
+  }
+}
+@media (min-width: 1921px), (min-width: 1920px) and (min-height: 1081px) {
+  :root {
+    --rbc-timeslot-height: 80px;
+  }
+}
 .rbc-timeslot-group {
   border-bottom: 1px solid #27272a !important;
-  min-height: 80px !important;
+  min-height: var(--rbc-timeslot-height, 60px) !important;
 }
 .rbc-day-slot .rbc-time-slot {
   border-top: 1px solid #27272a !important;
