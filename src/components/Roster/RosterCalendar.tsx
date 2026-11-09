@@ -1411,11 +1411,8 @@ export default function RosterCalendar() {
     if (isInProgress) classList.push('in-progress-shift-animated');
     const className = classList.join(' ');
 
-    const isDarkText = event.status === 'COMPLETED' || event.status === 'PENDING_SYNC' || isInProgress;
-    const textColor = isDarkText ? '#0b1120' : '#ffffff';
-    const textShadow = isDarkText
-      ? '0 1px 2px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.75)'
-      : '0 1px 3px rgba(0, 0, 0, 0.92), 0 0 6px rgba(0, 0, 0, 0.7)';
+    const textColor = '#000000';
+    const textShadow = '0 1px 1px rgba(255, 255, 255, 0.85)';
 
     return {
       className,
@@ -1492,10 +1489,6 @@ export default function RosterCalendar() {
       const serviceBgUrl = getServiceCardBackgroundImage(resolvedServiceName);
       const serviceVideoUrl = getServiceCardBackgroundVideo(resolvedServiceName);
       const statusGradient = getShiftStatusGradient(event);
-      const isDarkText =
-        event.status === 'COMPLETED' ||
-        event.status === 'PENDING_SYNC' ||
-        event.status === 'IN_PROGRESS';
 
       return (
         <div 
@@ -1535,21 +1528,15 @@ export default function RosterCalendar() {
             </div>
           )}
           {event.status === 'IN_PROGRESS' && (
-            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-black/25 border border-black/20 shadow-xs relative z-2 select-none shrink-0">
+            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-white/75 border border-white/60 shadow-xs relative z-2 select-none shrink-0">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-600 opacity-90"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600"></span>
               </span>
-              <span className="text-[9px] font-black tracking-wider text-slate-950 uppercase leading-none">LIVE</span>
+              <span className="text-[9px] font-black tracking-wider text-black uppercase leading-none">LIVE</span>
             </span>
           )}
-          <div
-            className={`inline-flex items-center min-w-0 max-w-full relative z-2 px-1 py-0.5 rounded-md ${
-              isDarkText
-                ? 'bg-white/35 backdrop-blur-[1px]'
-                : 'bg-black/30 backdrop-blur-[1px]'
-            }`}
-          >
+          <div className="inline-flex items-center min-w-0 max-w-full relative z-2 px-1.5 py-0.5 rounded-md bg-white/65 backdrop-blur-[2px] border border-white/50 text-black shadow-xs">
             {clientAvatarUrl ? (
               <img
                 src={clientAvatarUrl}
@@ -1557,14 +1544,14 @@ export default function RosterCalendar() {
                 className="w-4 h-4 rounded-full object-cover shrink-0 mr-1.5 border border-black/30 bg-[#151515] shadow-xs"
               />
             ) : (
-              <span className="w-4 h-4 rounded-full bg-slate-950/75 text-white border border-white/25 flex items-center justify-center text-[8px] font-bold shrink-0 mr-1.5 shadow-xs">
+              <span className="w-4 h-4 rounded-full bg-slate-950/85 text-white border border-white/25 flex items-center justify-center text-[8px] font-bold shrink-0 mr-1.5 shadow-xs">
                 {clientInitials}
               </span>
             )}
-            <span className="truncate font-bold">{title}</span>
+            <span className="truncate font-bold uppercase tracking-wide text-black">{title}</span>
             {serviceBadge && (
               <span
-                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-950/80 border border-white/25 ml-1.5 shrink-0 shadow-xs"
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-950/85 border border-black/25 ml-1.5 shrink-0 shadow-xs"
                 title={resolvedServiceName}
               >
                 {serviceBadge.icon}
