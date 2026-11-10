@@ -29,6 +29,8 @@ import mealPrepImg from '../../assets/images/service_meal_prep.jpg';
 import respiteBedroomImg from '../../assets/images/service_respite_bedroom.jpg';
 import gardeningImg from '../../assets/images/service_gardening.jpg';
 import trainingImg from '../../assets/images/service_training.jpg';
+import medicationPillsImg from '../../assets/images/service_medication.jpg';
+import carChatImg from '../../assets/images/service_car_chat.jpg';
 
 import showerRunningVideo from '../../assets/videos/service_shower.mp4';
 import broomSweepingVideo from '../../assets/videos/service_cleaning.mp4';
@@ -40,6 +42,8 @@ import mealPrepVideo from '../../assets/videos/service_meal.mp4';
 import respiteBedroomVideo from '../../assets/videos/service_respite.mp4';
 import gardeningVideo from '../../assets/videos/service_gardening.mp4';
 import trainingVideo from '../../assets/videos/service_training.mp4';
+import medicationPillsVideo from '../../assets/videos/service_medication.mp4';
+import carChatVideo from '../../assets/videos/service_car_chat.mp4';
 
 const locales = {
   'en-US': enUS,
@@ -1113,6 +1117,41 @@ export default function RosterCalendar() {
       return shoppingGroceriesImg;
     }
 
+    // Assistance with Self-Administration of Medication / Pills / Medicine
+    if (
+      s.includes('medication') ||
+      s.includes('medicine') ||
+      s.includes('pill') ||
+      s.includes('self-administration') ||
+      s.includes('self administration')
+    ) {
+      return medicationPillsImg;
+    }
+
+    // Registered Nurse Clinical Care (Direct & Indirect) / Nursing / Therapy / Allied Health
+    if (
+      s.includes('registered nurse') ||
+      s.includes('clinical care') ||
+      s.includes('nurse') ||
+      s.includes('nursing') ||
+      s.includes('clinical') ||
+      s.includes('therapy') ||
+      s.includes('allied') ||
+      s.includes('physio') ||
+      s.includes('psych') ||
+      s.includes('rehab')
+    ) {
+      return clinicalNursingImg;
+    }
+
+    // NDIS Access Community Social and Rec Activ - Standard - Saturday (Close-up of two people in a car chatting & driving)
+    if (
+      (s.includes('access community') && s.includes('saturday')) ||
+      (s.includes('social and rec') && s.includes('saturday'))
+    ) {
+      return carChatImg;
+    }
+
     // Individual Social Supports / Transport / Travel / Driving / Vehicle
     if (
       s.includes('individual social') ||
@@ -1122,29 +1161,9 @@ export default function RosterCalendar() {
       s.includes('drive') ||
       s.includes('driving') ||
       s.includes('vehicle') ||
-      s.includes('car')
+      /\bcar\b/i.test(s)
     ) {
       return carDrivingImg;
-    }
-
-    // Registered Nurse / Clinical Care / Medication / Therapy / Allied Health
-    if (
-      s.includes('registered nurse') ||
-      s.includes('clinical care') ||
-      s.includes('nurse') ||
-      s.includes('nursing') ||
-      s.includes('clinical') ||
-      s.includes('medication') ||
-      s.includes('medicine') ||
-      s.includes('pill') ||
-      s.includes('admin') ||
-      s.includes('therapy') ||
-      s.includes('allied') ||
-      s.includes('physio') ||
-      s.includes('psych') ||
-      s.includes('rehab')
-    ) {
-      return clinicalNursingImg;
     }
 
     // Meal Prep / Cooking / Food / Diet / Kitchen / Nutrition
@@ -1238,6 +1257,41 @@ export default function RosterCalendar() {
       return shoppingGroceriesVideo;
     }
 
+    // Assistance with Self-Administration of Medication / Pills / Medicine
+    if (
+      s.includes('medication') ||
+      s.includes('medicine') ||
+      s.includes('pill') ||
+      s.includes('self-administration') ||
+      s.includes('self administration')
+    ) {
+      return medicationPillsVideo;
+    }
+
+    // Registered Nurse Clinical Care (Direct & Indirect) / Nursing / Therapy / Allied Health
+    if (
+      s.includes('registered nurse') ||
+      s.includes('clinical care') ||
+      s.includes('nurse') ||
+      s.includes('nursing') ||
+      s.includes('clinical') ||
+      s.includes('therapy') ||
+      s.includes('allied') ||
+      s.includes('physio') ||
+      s.includes('psych') ||
+      s.includes('rehab')
+    ) {
+      return clinicalNursingVideo;
+    }
+
+    // NDIS Access Community Social and Rec Activ - Standard - Saturday (Close-up of two people in a car chatting & driving)
+    if (
+      (s.includes('access community') && s.includes('saturday')) ||
+      (s.includes('social and rec') && s.includes('saturday'))
+    ) {
+      return carChatVideo;
+    }
+
     // Individual Social Supports / Transport / Travel / Driving / Vehicle
     if (
       s.includes('individual social') ||
@@ -1247,29 +1301,9 @@ export default function RosterCalendar() {
       s.includes('drive') ||
       s.includes('driving') ||
       s.includes('vehicle') ||
-      s.includes('car')
+      /\bcar\b/i.test(s)
     ) {
       return carDrivingVideo;
-    }
-
-    // Registered Nurse / Clinical Care / Medication / Therapy / Allied Health
-    if (
-      s.includes('registered nurse') ||
-      s.includes('clinical care') ||
-      s.includes('nurse') ||
-      s.includes('nursing') ||
-      s.includes('clinical') ||
-      s.includes('medication') ||
-      s.includes('medicine') ||
-      s.includes('pill') ||
-      s.includes('admin') ||
-      s.includes('therapy') ||
-      s.includes('allied') ||
-      s.includes('physio') ||
-      s.includes('psych') ||
-      s.includes('rehab')
-    ) {
-      return clinicalNursingVideo;
     }
 
     // Meal Prep / Cooking / Food / Diet / Kitchen / Nutrition
