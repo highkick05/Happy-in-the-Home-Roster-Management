@@ -1144,10 +1144,10 @@ export default function RosterCalendar() {
       return clinicalNursingImg;
     }
 
-    // NDIS Access Community Social and Rec Activ - Standard - Saturday (Close-up of two people in a car chatting & driving)
+    // NDIS Access Community Social and Rec (Close-up of two people in a car chatting & driving)
     if (
-      (s.includes('access community') && s.includes('saturday')) ||
-      (s.includes('social and rec') && s.includes('saturday'))
+      s.includes('access community') ||
+      s.includes('social and rec')
     ) {
       return carChatImg;
     }
@@ -1284,10 +1284,10 @@ export default function RosterCalendar() {
       return clinicalNursingVideo;
     }
 
-    // NDIS Access Community Social and Rec Activ - Standard - Saturday (Close-up of two people in a car chatting & driving)
+    // NDIS Access Community Social and Rec (Close-up of two people in a car chatting & driving)
     if (
-      (s.includes('access community') && s.includes('saturday')) ||
-      (s.includes('social and rec') && s.includes('saturday'))
+      s.includes('access community') ||
+      s.includes('social and rec')
     ) {
       return carChatVideo;
     }
