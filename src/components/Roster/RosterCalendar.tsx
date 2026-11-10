@@ -2089,24 +2089,27 @@ export default function RosterCalendar() {
 
             {/* Shift status ribbon on the end of the card, spanning the entire height like a vertical ribbon */}
             <div 
-              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-1.5 sm:px-2 lg:px-2.5 min-w-[30px] sm:min-w-[34px] lg:min-w-[38px] backdrop-blur-xs transition-colors select-none ${badgeClass}`}
+              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-1 sm:px-1.5 lg:px-2 min-w-[30px] sm:min-w-[34px] lg:min-w-[38px] backdrop-blur-xs transition-colors select-none ${badgeClass}`}
             >
-              {isInProgress && (
-                <span className="relative flex h-2 w-2 mb-1.5 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+              <div className="flex flex-col items-center justify-center px-1 py-1.5 rounded-md bg-white/70 backdrop-blur-[2px] border border-white/60 text-black shadow-xs">
+                {isInProgress && (
+                  <span className="relative flex h-2 w-2 mb-1.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-600 opacity-90"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+                  </span>
+                )}
+                <span 
+                  className="uppercase text-center select-none text-[13.5px] sm:text-[14px] lg:text-[15px] leading-none font-bold text-black"
+                  style={{ 
+                    writingMode: 'vertical-rl',
+                    fontFamily: '"Bebas Neue", "Oswald", "Cinzel", "Helvetica Neue", sans-serif',
+                    letterSpacing: '0.14em',
+                    textShadow: '0 1px 1px rgba(255, 255, 255, 0.85)',
+                  }}
+                >
+                  {badgeLabel}
                 </span>
-              )}
-              <span 
-                className="uppercase text-center select-none text-[13.5px] sm:text-[14px] lg:text-[15px] leading-none"
-                style={{ 
-                  writingMode: 'vertical-rl',
-                  fontFamily: '"Bebas Neue", "Oswald", "Cinzel", "Helvetica Neue", sans-serif',
-                  letterSpacing: '0.14em',
-                }}
-              >
-                {badgeLabel}
-              </span>
+              </div>
             </div>
           </div>
         </div>
