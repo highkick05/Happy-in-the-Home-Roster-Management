@@ -16628,38 +16628,51 @@ app.get("/api/health", (req, res) => {
               .text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY + 4, { align: 'right', width: doc.page.width - 60 });
           }
 
-          // --- Shift Status Colour Legend ---
-          const legendItems = [
-            { label: 'Published', color: '#0ea5e9' },
-            { label: 'Completed', color: '#16a34a' },
-            { label: 'In Progress', color: '#d97706' },
-            { label: 'Cancelled', color: '#dc2626' },
-            { label: 'Draft', color: '#52525b' },
-            { label: 'Pending Sync', color: '#ea580c' },
-            { label: 'Respite / STA', color: '#7c3aed' },
-          ];
-          const legendY = initialY + 36;
-          const swatchSize = 8;
-          const swatchTextGap = 4;
-          const itemGap = 14;
-          doc.fontSize(8).font('Helvetica-Bold');
-          const totalLegendWidth = legendItems.reduce((acc, item, idx) => {
-            const labelW = doc.widthOfString(item.label);
-            return acc + swatchSize + swatchTextGap + labelW + (idx < legendItems.length - 1 ? itemGap : 0);
-          }, 0);
-          let legendCursorX = (doc.page.width - totalLegendWidth) / 2;
-          legendItems.forEach((item) => {
-            doc.save();
-            doc.roundedRect(legendCursorX, legendY, swatchSize, swatchSize, 1.5).fillColor(item.color).fill();
-            doc.restore();
-            legendCursorX += swatchSize + swatchTextGap;
-            doc.fillColor('#374151').fontSize(8).font('Helvetica-Bold');
-            doc.text(item.label, legendCursorX, legendY + 0.5, { lineBreak: false });
-            legendCursorX += doc.widthOfString(item.label) + itemGap;
-          });
+          const drawFooterLegend = () => {
+            const prevBottomMargin = doc.page.margins.bottom;
+            const prevY = doc.y;
+            doc.page.margins.bottom = 0;
 
-          doc.y = initialY + 54;
-          doc.moveDown(0.3);
+            const legendItems = [
+              { label: 'Published', color: '#0ea5e9' },
+              { label: 'Completed', color: '#16a34a' },
+              { label: 'In Progress', color: '#d97706' },
+              { label: 'Cancelled', color: '#dc2626' },
+              { label: 'Draft', color: '#52525b' },
+              { label: 'Pending Sync', color: '#ea580c' },
+              { label: 'Respite / STA', color: '#7c3aed' },
+            ];
+            const legendY = doc.page.height - 26;
+            const swatchSize = 8;
+            const swatchTextGap = 4;
+            const itemGap = 14;
+
+            doc.save();
+            doc.moveTo(30, legendY - 6).lineTo(doc.page.width - 30, legendY - 6).strokeColor('#e5e7eb').lineWidth(0.75).stroke();
+            doc.restore();
+
+            doc.fontSize(8).font('Helvetica-Bold');
+            const totalLegendWidth = legendItems.reduce((acc, item, idx) => {
+              const labelW = doc.widthOfString(item.label);
+              return acc + swatchSize + swatchTextGap + labelW + (idx < legendItems.length - 1 ? itemGap : 0);
+            }, 0);
+            let legendCursorX = (doc.page.width - totalLegendWidth) / 2;
+            legendItems.forEach((item) => {
+              doc.save();
+              doc.roundedRect(legendCursorX, legendY, swatchSize, swatchSize, 1.5).fillColor(item.color).fill();
+              doc.restore();
+              legendCursorX += swatchSize + swatchTextGap;
+              doc.fillColor('#374151').fontSize(8).font('Helvetica-Bold');
+              doc.text(item.label, legendCursorX, legendY + 0.5, { lineBreak: false });
+              legendCursorX += doc.widthOfString(item.label) + itemGap;
+            });
+
+            doc.y = prevY;
+            doc.page.margins.bottom = prevBottomMargin;
+          };
+
+          doc.y = initialY + 42;
+          doc.moveDown(0.5);
 
           const colWidth = (doc.page.width - 60) / 7;
           let startY = doc.y;
@@ -16736,7 +16749,8 @@ app.get("/api/health", (req, res) => {
 
             if (rowMaxHeight === 0) continue;
 
-            if (currentY + rowMaxHeight > doc.page.height - 45) {
+            if ( currentY + rowMaxHeight > doc.page.height - 55 ) {
+              drawFooterLegend();
               doc.addPage();
               startY = 30;
               drawHeader();
@@ -16814,7 +16828,8 @@ app.get("/api/health", (req, res) => {
           }
 
           // --- Add Daily Subtotals ---
-          if (currentY + 35 > doc.page.height - 30) {
+          if (currentY + 35 > doc.page.height - 45) {
+            drawFooterLegend();
             doc.addPage();
             currentY = 30;
           } else {
@@ -16829,6 +16844,8 @@ app.get("/api/health", (req, res) => {
             const hrs = dailyTotalHours[d] > 0 ? dailyTotalHours[d].toFixed(2) + ' hrs' : '-';
             doc.text(hrs, 30 + d * colWidth, currentY, { width: colWidth, align: 'center' });
           }
+
+          drawFooterLegend();
         });
 
         doc.end();
