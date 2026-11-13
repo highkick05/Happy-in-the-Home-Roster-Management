@@ -505,12 +505,6 @@ export default function ComplianceDashboard() {
           <Users className="w-3.5 h-3.5 mr-2" /> Workforce Compliance
         </button>
         <button
-          onClick={() => setActiveTab('mandatory_documents')}
-          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center ${activeTab === 'mandatory_documents' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-        >
-          <ClipboardList className="w-3.5 h-3.5 mr-2" /> Mandatory Documents
-        </button>
-        <button
           onClick={() => setActiveTab('system_logs')}
           className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center ml-auto ${activeTab === 'system_logs' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >

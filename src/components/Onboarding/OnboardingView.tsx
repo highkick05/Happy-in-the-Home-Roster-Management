@@ -285,6 +285,17 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       });
       const data = await res.json();
       if (res.ok && data.id) {
+        const effectiveStaffId = contextUserId || user?.id;
+        if (effectiveStaffId) {
+          fetch(`/api/staff/${effectiveStaffId}/sharepoint/mirror-local-file`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ fileId: data.id, subfolder: 'Onboarding' })
+          }).catch(err => console.warn('[SharePoint Onboarding Mirror] Background sync warning:', err));
+        }
         await updateProgress(stepId, 'completed', { type: 'add', file: { id: data.id, name: data.name || file.name } });
         setSessionUploadedFiles(prev => ({ ...prev, [stepId]: true }));
       } else {

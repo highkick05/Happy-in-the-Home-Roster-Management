@@ -41,6 +41,7 @@ interface SharePointStatusResponse {
   tokenRoles?: string[];
   ndisPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
   hcPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
+  staffPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
   availableSites?: SharePointSiteOption[];
   availableDrives?: SharePointDriveOption[];
   error?: string;
@@ -54,6 +55,7 @@ interface SharePointStatusResponse {
     sharepoint_drive_name?: string;
     sharepoint_ndis_base_path?: string;
     sharepoint_hc_base_path?: string;
+    sharepoint_staff_base_path?: string;
   };
 }
 
@@ -69,6 +71,7 @@ export default function SharePointSettings() {
   const [driveName, setDriveName] = useState('Documents');
   const [ndisBasePath, setNdisBasePath] = useState('General\\NDIS\\Participant Files');
   const [hcBasePath, setHcBasePath] = useState('General\\SAH\\Clients');
+  const [staffBasePath, setStaffBasePath] = useState('General\\Staff');
 
   const [showSecret, setShowSecret] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -90,6 +93,7 @@ export default function SharePointSettings() {
     tokenRoles?: string[];
     ndisPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
     hcPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
+    staffPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
   } | null>(null);
 
   const fetchStatus = async () => {
@@ -117,6 +121,7 @@ export default function SharePointSettings() {
           if (data.settings.sharepoint_drive_name !== undefined) setDriveName(data.settings.sharepoint_drive_name || 'Documents');
           if (data.settings.sharepoint_ndis_base_path) setNdisBasePath(data.settings.sharepoint_ndis_base_path);
           if (data.settings.sharepoint_hc_base_path) setHcBasePath(data.settings.sharepoint_hc_base_path);
+          if (data.settings.sharepoint_staff_base_path) setStaffBasePath(data.settings.sharepoint_staff_base_path);
         }
       }
     } catch (e) {
@@ -152,7 +157,8 @@ export default function SharePointSettings() {
           sharepoint_drive_id: driveId.trim(),
           sharepoint_drive_name: driveName.trim(),
           sharepoint_ndis_base_path: ndisBasePath.trim(),
-          sharepoint_hc_base_path: hcBasePath.trim()
+          sharepoint_hc_base_path: hcBasePath.trim(),
+          sharepoint_staff_base_path: staffBasePath.trim()
         })
       });
 
@@ -192,7 +198,8 @@ export default function SharePointSettings() {
           sharepoint_drive_id: driveId.trim(),
           sharepoint_drive_name: driveName.trim(),
           sharepoint_ndis_base_path: ndisBasePath.trim(),
-          sharepoint_hc_base_path: hcBasePath.trim()
+          sharepoint_hc_base_path: hcBasePath.trim(),
+          sharepoint_staff_base_path: staffBasePath.trim()
         })
       });
 
@@ -212,7 +219,8 @@ export default function SharePointSettings() {
           driveName: data.driveName,
           tokenRoles: data.tokenRoles,
           ndisPathStatus: data.ndisPathStatus,
-          hcPathStatus: data.hcPathStatus
+          hcPathStatus: data.hcPathStatus,
+          staffPathStatus: data.staffPathStatus
         });
         await fetchStatus();
       } else {
@@ -261,7 +269,7 @@ export default function SharePointSettings() {
               )}
             </div>
             <p className="text-xs text-[#8B949E] mt-1">
-              Sync client &amp; participant documents directly with your SharePoint Document Library in real time.
+              Sync client, participant &amp; staff documents directly with your SharePoint Document Library in real time.
             </p>
           </div>
         </div>
@@ -378,7 +386,7 @@ export default function SharePointSettings() {
           )}
 
           {testResult.success && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/10">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-white/10">
               <div className="p-2.5 rounded-lg bg-black/30 border border-white/5 flex items-start gap-2.5">
                 <FolderCheck className={`w-4 h-4 mt-0.5 shrink-0 ${testResult.ndisPathStatus?.exists ? 'text-emerald-400' : 'text-amber-400'}`} />
                 <div className="min-w-0 flex-1">
@@ -391,7 +399,7 @@ export default function SharePointSettings() {
                       </span>
                     ) : (
                       <span className="text-amber-400">
-                        Folder not found yet (will be created automatically when needed)
+                        Folder not found yet (will be created automatically)
                       </span>
                     )}
                   </div>
@@ -410,7 +418,26 @@ export default function SharePointSettings() {
                       </span>
                     ) : (
                       <span className="text-amber-400">
-                        Folder not found yet (will be created automatically when needed)
+                        Folder not found yet (will be created automatically)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-black/30 border border-white/5 flex items-start gap-2.5">
+                <FolderCheck className={`w-4 h-4 mt-0.5 shrink-0 ${testResult.staffPathStatus?.exists ? 'text-emerald-400' : 'text-amber-400'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-[#E6EDF3]">Staff Directory Folder Base</div>
+                  <div className="text-[11px] text-[#8B949E] truncate">{testResult.staffPathStatus?.path}</div>
+                  <div className="text-[11px] mt-1">
+                    {testResult.staffPathStatus?.exists ? (
+                      <span className="text-emerald-400 font-medium">
+                        Found on SharePoint ({testResult.staffPathStatus.childCount ?? 0} staff folders)
+                      </span>
+                    ) : (
+                      <span className="text-amber-400">
+                        Folder not found yet (will be created automatically)
                       </span>
                     )}
                   </div>
@@ -591,16 +618,16 @@ export default function SharePointSettings() {
           </div>
         </div>
 
-        {/* Section 3: Client & Participant Folder Mapping */}
+        {/* Section 3: Client, Participant & Staff Folder Mapping */}
         <div className="p-4 rounded-xl bg-[#0D1117]/70 border border-border-subtle space-y-4">
           <div className="flex items-center gap-2 border-b border-border-subtle pb-2.5">
             <FolderTree className="w-4 h-4 text-brand-teal" />
             <h4 className="text-xs font-semibold uppercase tracking-wider text-[#E6EDF3]">
-              3. Client &amp; Participant Folder Mapping
+              3. Client, Participant &amp; Staff Folder Mapping
             </h4>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-[#8B949E] mb-1.5">
                 NDIS Participants Base Folder Path
@@ -613,7 +640,7 @@ export default function SharePointSettings() {
                 className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] outline-none focus:border-brand-teal transition-colors font-mono"
               />
               <p className="text-[11px] text-[#8B949E] mt-1">
-                NDIS participants (both Active and Suspended) map to{' '}
+                NDIS participants map to{' '}
                 <code className="text-brand-teal">{ndisBasePath}\&lt;Participant Name&gt;</code>
               </p>
             </div>
@@ -632,6 +659,23 @@ export default function SharePointSettings() {
               <p className="text-[11px] text-[#8B949E] mt-1">
                 Home Care / Support at Home clients map to{' '}
                 <code className="text-brand-teal">{hcBasePath}\&lt;Client Name&gt;</code>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[#8B949E] mb-1.5">
+                Staff Directory Base Folder Path
+              </label>
+              <input
+                type="text"
+                value={staffBasePath}
+                onChange={(e) => setStaffBasePath(e.target.value)}
+                placeholder="General\Staff"
+                className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] outline-none focus:border-brand-teal transition-colors font-mono"
+              />
+              <p className="text-[11px] text-[#8B949E] mt-1">
+                Staff documents &amp; onboarding uploads map to{' '}
+                <code className="text-brand-teal">{staffBasePath}\&lt;Staff Full Name&gt;</code>
               </p>
             </div>
           </div>

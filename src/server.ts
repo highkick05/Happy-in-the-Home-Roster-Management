@@ -8568,10 +8568,20 @@ app.get("/api/health", (req, res) => {
 
         const validFileIds = new Set();
         const fileMetadata = new Map();
+        let spStaffFileNames = new Set<string>();
+        try {
+          const spRows = db
+            .prepare("SELECT name FROM sharepoint_staff_items WHERE staff_id = ? AND is_folder = 0")
+            .all(targetUserId) as Array<{ name: string }>;
+          spStaffFileNames = new Set(spRows.map((r) => String(r.name || "").toLowerCase().trim()));
+        } catch {}
+
         existingFiles.forEach((f) => {
           const filePath = path.join(process.cwd(), 'uploads', (f.folder_path || '/').replace(/^\/+/, ''), f.system_name);
+          const lowerSys = String(f.system_name || f.original_name || "").toLowerCase().trim();
+          const existsOnSp = spStaffFileNames.has(lowerSys) || String(f.folder_path || "").startsWith("/Staff/");
           console.log("Checking path:", filePath, fs.existsSync(filePath));
-          if (fs.existsSync(filePath)) {
+          if (fs.existsSync(filePath) || existsOnSp) {
             validFileIds.add(f.id);
             fileMetadata.set(f.id, f);
           }
@@ -10288,6 +10298,12 @@ app.get("/api/health", (req, res) => {
   try {
     db.exec("ALTER TABLE clients ADD COLUMN sharepoint_folder_id TEXT");
   } catch {}
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN sharepoint_folder_name TEXT");
+  } catch {}
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN sharepoint_folder_id TEXT");
+  } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS sharepoint_client_roots (
@@ -10334,6 +10350,51 @@ app.get("/api/health", (req, res) => {
     CREATE INDEX IF NOT EXISTS idx_sp_items_client_subpath ON sharepoint_items(client_id, parent_subpath);
     CREATE INDEX IF NOT EXISTS idx_sp_items_client_folder ON sharepoint_items(client_id, is_folder);
     CREATE INDEX IF NOT EXISTS idx_sp_items_parent_id ON sharepoint_items(parent_id);
+
+    CREATE TABLE IF NOT EXISTS sharepoint_staff_roots (
+      staff_id INTEGER PRIMARY KEY,
+      drive_id TEXT DEFAULT '',
+      site_id TEXT DEFAULT '',
+      folder_item_id TEXT DEFAULT '',
+      folder_name TEXT DEFAULT '',
+      base_category_path TEXT DEFAULT '',
+      full_path TEXT DEFAULT '',
+      web_url TEXT DEFAULT '',
+      etag TEXT DEFAULT '',
+      ctag TEXT DEFAULT '',
+      delta_link TEXT DEFAULT '',
+      folder_exists INTEGER DEFAULT 0,
+      available_folders_json TEXT DEFAULT '[]',
+      last_synced_at TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS sharepoint_staff_items (
+      item_id TEXT PRIMARY KEY,
+      staff_id INTEGER NOT NULL,
+      drive_id TEXT NOT NULL,
+      parent_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      relative_path TEXT NOT NULL DEFAULT '',
+      parent_subpath TEXT NOT NULL DEFAULT '',
+      is_folder INTEGER NOT NULL DEFAULT 0,
+      child_count INTEGER DEFAULT 0,
+      size INTEGER DEFAULT 0,
+      mime_type TEXT DEFAULT '',
+      file_extension TEXT DEFAULT '',
+      web_url TEXT DEFAULT '',
+      web_dav_url TEXT DEFAULT '',
+      created_at TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      last_modified_at TEXT DEFAULT '',
+      last_modified_by TEXT DEFAULT '',
+      etag TEXT DEFAULT '',
+      ctag TEXT DEFAULT '',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sp_staff_items_subpath ON sharepoint_staff_items(staff_id, parent_subpath);
+    CREATE INDEX IF NOT EXISTS idx_sp_staff_items_folder ON sharepoint_staff_items(staff_id, is_folder);
+    CREATE INDEX IF NOT EXISTS idx_sp_staff_items_parent_id ON sharepoint_staff_items(parent_id);
   `);
 
   try {
@@ -10342,6 +10403,7 @@ app.get("/api/health", (req, res) => {
   try {
     // Clean up any synthetic Graph drive-root items ({ name: 'Files', root: {} }) that lack web_url and last_modified_at
     db.exec("DELETE FROM sharepoint_items WHERE is_folder = 1 AND web_url = '' AND last_modified_at = ''");
+    db.exec("DELETE FROM sharepoint_staff_items WHERE is_folder = 1 AND web_url = '' AND last_modified_at = ''");
   } catch {}
 
   let cachedSpToken: { token: string; expiresAt: number; cacheKey: string } | null = null;
@@ -10371,6 +10433,7 @@ app.get("/api/health", (req, res) => {
       sharepoint_drive_name: overrides?.sharepoint_drive_name ?? map.sharepoint_drive_name ?? "Documents",
       sharepoint_ndis_base_path: overrides?.sharepoint_ndis_base_path ?? map.sharepoint_ndis_base_path ?? "General\\NDIS\\Participant Files",
       sharepoint_hc_base_path: overrides?.sharepoint_hc_base_path ?? map.sharepoint_hc_base_path ?? "General\\SAH\\Clients",
+      sharepoint_staff_base_path: overrides?.sharepoint_staff_base_path ?? map.sharepoint_staff_base_path ?? "General\\Staff",
     };
   };
 
@@ -11632,6 +11695,7 @@ app.get("/api/health", (req, res) => {
         "sharepoint_drive_name",
         "sharepoint_ndis_base_path",
         "sharepoint_hc_base_path",
+        "sharepoint_staff_base_path",
       ];
       for (const k of keys) {
         if (req.body[k] !== undefined) {
@@ -11664,6 +11728,7 @@ app.get("/api/health", (req, res) => {
       saveSharePointSettingKey("sharepoint_drive_name", driveInfo.driveName);
       saveSharePointSettingKey("sharepoint_ndis_base_path", cfg.sharepoint_ndis_base_path);
       saveSharePointSettingKey("sharepoint_hc_base_path", cfg.sharepoint_hc_base_path);
+      saveSharePointSettingKey("sharepoint_staff_base_path", cfg.sharepoint_staff_base_path);
 
       const checkBasePath = async (rawBasePath: string) => {
         const lookup = await findSharePointFolderBySegments(
@@ -11682,9 +11747,10 @@ app.get("/api/health", (req, res) => {
         };
       };
 
-      const [ndisPathStatus, hcPathStatus] = await Promise.all([
+      const [ndisPathStatus, hcPathStatus, staffPathStatus] = await Promise.all([
         checkBasePath(cfg.sharepoint_ndis_base_path),
         checkBasePath(cfg.sharepoint_hc_base_path),
+        checkBasePath(cfg.sharepoint_staff_base_path),
       ]);
 
       res.json({
@@ -11700,6 +11766,7 @@ app.get("/api/health", (req, res) => {
         availableDrives: driveInfo.availableDrives,
         ndisPathStatus,
         hcPathStatus,
+        staffPathStatus,
       });
     } catch (err: any) {
       res.status(400).json({
@@ -12266,6 +12333,1746 @@ app.get("/api/health", (req, res) => {
       }
     }
   );
+
+  // =========================================================================
+  // STAFF SHAREPOINT ONLINE / GRAPH API & COMPLIANCE SYNC ENGINE
+  // (Maps General\Staff\[Full_Name] & Reconciles Onboarding/Compliance Files)
+  // =========================================================================
+
+  const upsertStaffSharePointItemToDb = (
+    staffId: number,
+    driveId: string,
+    parentSubpath: string,
+    rawItem: any
+  ) => {
+    const isFolder = Boolean(rawItem.folder);
+    const cleanSub = normalizeSpPath(parentSubpath);
+    const name = String(rawItem.name || "").trim();
+    const relativePath = cleanSub ? `${cleanSub}/${name}` : name;
+    const ext = getFileExtension(name, isFolder);
+    const createdBy =
+      rawItem.createdBy?.user?.displayName ||
+      rawItem.createdBy?.application?.displayName ||
+      "SharePoint";
+    const modifiedBy =
+      rawItem.lastModifiedBy?.user?.displayName ||
+      rawItem.lastModifiedBy?.application?.displayName ||
+      createdBy ||
+      "SharePoint";
+
+    db.prepare(
+      `INSERT INTO sharepoint_staff_items (
+        item_id, staff_id, drive_id, parent_id, name, relative_path, parent_subpath,
+        is_folder, child_count, size, mime_type, file_extension, web_url, web_dav_url,
+        created_at, created_by, last_modified_at, last_modified_by, etag, ctag, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(item_id) DO UPDATE SET
+        staff_id = excluded.staff_id,
+        drive_id = excluded.drive_id,
+        parent_id = excluded.parent_id,
+        name = excluded.name,
+        relative_path = excluded.relative_path,
+        parent_subpath = excluded.parent_subpath,
+        is_folder = excluded.is_folder,
+        child_count = excluded.child_count,
+        size = excluded.size,
+        mime_type = excluded.mime_type,
+        file_extension = excluded.file_extension,
+        web_url = excluded.web_url,
+        web_dav_url = CASE WHEN excluded.web_dav_url != '' THEN excluded.web_dav_url ELSE sharepoint_staff_items.web_dav_url END,
+        created_at = excluded.created_at,
+        created_by = excluded.created_by,
+        last_modified_at = excluded.last_modified_at,
+        last_modified_by = excluded.last_modified_by,
+        etag = excluded.etag,
+        ctag = excluded.ctag,
+        updated_at = CURRENT_TIMESTAMP`
+    ).run(
+      String(rawItem.id),
+      Number(staffId),
+      String(driveId),
+      String(rawItem.parentReference?.id || "root"),
+      name,
+      relativePath,
+      cleanSub,
+      isFolder ? 1 : 0,
+      Number(rawItem.folder?.childCount ?? 0),
+      Number(rawItem.size ?? 0),
+      String(rawItem.file?.mimeType || ""),
+      ext,
+      String(rawItem.webUrl || ""),
+      String(rawItem.webDavUrl || ""),
+      String(rawItem.createdDateTime || ""),
+      String(createdBy),
+      String(rawItem.lastModifiedDateTime || ""),
+      String(modifiedBy),
+      String(rawItem.eTag || ""),
+      String(rawItem.cTag || "")
+    );
+  };
+
+  const recalculateStaffSqliteFolderCounts = (staffId: number) => {
+    db.prepare(
+      `UPDATE sharepoint_staff_items
+       SET child_count = (
+         SELECT COUNT(*) FROM sharepoint_staff_items c
+         WHERE c.staff_id = sharepoint_staff_items.staff_id
+           AND c.parent_subpath = sharepoint_staff_items.relative_path
+       )
+       WHERE staff_id = ? AND is_folder = 1`
+    ).run(Number(staffId));
+  };
+
+  // Reconcile files discovered in SharePoint General\Staff\[Full_Name] with local `files` table and `onboarding_json`
+  const reconcileStaffSharePointCompliance = (staffId: number | string) => {
+    try {
+      const user = db
+        .prepare("SELECT id, first_name, last_name, onboarding_json, primary_position, additional_positions FROM users WHERE id = ?")
+        .get(staffId) as any;
+      if (!user) return;
+
+      const nameDir = [user.first_name, user.last_name].filter(Boolean).join(" ");
+      const onboardingFolderPath = `/Staff/${nameDir}/Onboarding`;
+
+      const spFiles = db
+        .prepare("SELECT * FROM sharepoint_staff_items WHERE staff_id = ? AND is_folder = 0 ORDER BY parent_subpath ASC, name ASC")
+        .all(user.id) as any[];
+      if (!spFiles.length) return;
+
+      // 1. Ensure each SharePoint file in Onboarding or root has a corresponding metadata row in `files` (preserving existing dates)
+      for (const spFile of spFiles) {
+        const subLower = String(spFile.parent_subpath || "").toLowerCase();
+        const isTraining = subLower.startsWith("training");
+        const isVehicles = subLower.startsWith("vehicles");
+        const targetLocalFolderPath = isTraining
+          ? `/Staff/${nameDir}/Training`
+          : isVehicles
+          ? `/Staff/${nameDir}/Vehicles`
+          : onboardingFolderPath;
+
+        const existingFileRow = db
+          .prepare(
+            "SELECT id FROM files WHERE (LOWER(system_name) = LOWER(?) OR LOWER(original_name) = LOWER(?)) AND folder_path = ?"
+          )
+          .get(spFile.name, spFile.name, targetLocalFolderPath) as any;
+
+        if (!existingFileRow) {
+          db.prepare(
+            "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)"
+          ).run(spFile.name, spFile.name, Number(spFile.size || 0), user.id, targetLocalFolderPath);
+        }
+      }
+
+      // 2. Auto-link onboarding compliance steps to matching files in `/Staff/${nameDir}/Onboarding`
+      const userFiles = db
+        .prepare("SELECT * FROM files WHERE folder_path = ?")
+        .all(onboardingFolderPath) as any[];
+      if (!userFiles.length) return;
+
+      const allSteps = db
+        .prepare(
+          `SELECT s.*, rt.name as requirement_type_name
+           FROM onboarding_hub_steps s
+           LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id
+           ORDER BY s.order_index ASC, s.id ASC`
+        )
+        .all() as any[];
+
+      let progressData: Record<string, any> = {};
+      try {
+        if (user.onboarding_json) {
+          progressData = JSON.parse(user.onboarding_json);
+        }
+      } catch {}
+
+      const sanitizeForMatch = (str: string) =>
+        String(str || "")
+          .toLowerCase()
+          .replace(/\.[^/.]+$/, "") // strip extension
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+
+      const keywordMap: Record<string, string[]> = {
+        tfn_super: ["taxation", "tfn", "tax", "super", "superannuation", "ato"],
+        ndis_screening: ["screening", "nwsc", "worker screening", "ndis check", "yellow"],
+        wwcc: ["wwcc", "children", "working with children", "blue card"],
+        vevo: ["vevo", "visa", "passport", "citizenship", "right to work"],
+        ahpra: ["ahpra", "registration", "nursing"],
+        ndis_orientation: ["orientation", "ndis module", "quality safety"],
+        cpr: ["cpr", "hltaid009", "resuscitation", "basic life"],
+        first_aid: ["first aid", "hltaid011", "first_aid", "firstaid"],
+        manual_handling: ["manual handling", "manual_handling", "handling"],
+        driver_license: ["driver", "license", "licence", "driving"],
+        car_insurance: ["insurance", "comprehensive", "car", "vehicle"],
+        flu_shot: ["flu", "influenza"],
+        immunisation: ["immunisation", "immunization", "vaccine history"],
+        covid_vaccine: ["covid", "covid-19", "coronavirus", "pfizer", "astra"],
+        police_check: ["police", "clearance", "national police", "npc"],
+      };
+
+      let updated = false;
+
+      for (const file of userFiles) {
+        const cleanFileStem = sanitizeForMatch(file.original_name || file.system_name || "");
+        if (!cleanFileStem) continue;
+
+        // Match dynamic steps whose title or requirement_type_name matches this file
+        for (const step of allSteps) {
+          if (step.upload_required === 0) continue;
+          const stepKey = `dynamic_${step.id}`;
+          const stepTitleClean = sanitizeForMatch(step.title || "");
+          const reqTypeClean = sanitizeForMatch(step.requirement_type_name || "");
+
+          let isMatch = false;
+          if (stepTitleClean && (cleanFileStem === stepTitleClean || cleanFileStem.includes(stepTitleClean) || stepTitleClean.includes(cleanFileStem))) {
+            isMatch = true;
+          } else if (reqTypeClean && (cleanFileStem === reqTypeClean || cleanFileStem.includes(reqTypeClean))) {
+            isMatch = true;
+          } else {
+            // Check keyword overlap for common compliance items
+            for (const kws of Object.values(keywordMap)) {
+              const stepHasKw = kws.some((kw) => stepTitleClean.includes(kw) || reqTypeClean.includes(kw));
+              const fileHasKw = kws.some((kw) => cleanFileStem.includes(kw));
+              if (stepHasKw && fileHasKw) {
+                isMatch = true;
+                break;
+              }
+            }
+          }
+
+          if (isMatch) {
+            const existingStep = progressData[stepKey] || { status: "pending", files: [] };
+            const existingFilesArr = Array.isArray(existingStep.files) ? existingStep.files : [];
+            const alreadyLinked =
+              existingFilesArr.some((ef: any) => Number(ef.id) === Number(file.id)) ||
+              Number(existingStep.fileId) === Number(file.id);
+
+            if (!alreadyLinked && existingFilesArr.length === 0) {
+              progressData[stepKey] = {
+                status: "completed",
+                fileId: file.id,
+                files: [
+                  {
+                    id: file.id,
+                    name: file.original_name || file.system_name,
+                    date_issued: file.date_issued || undefined,
+                    date_expires: file.date_expires || undefined,
+                  },
+                ],
+              };
+              updated = true;
+            }
+          }
+        }
+      }
+
+      if (updated) {
+        db.prepare("UPDATE users SET onboarding_json = ? WHERE id = ?").run(
+          JSON.stringify(progressData),
+          user.id
+        );
+      }
+    } catch (e: any) {
+      logger.warn(`Failed to reconcile staff SharePoint compliance for staff ${staffId}: ${e.message}`);
+    }
+  };
+
+  const getCachedStaffSharePointPayload = (staffId: string | number, requestedSubpath = "") => {
+    const staff = db
+      .prepare(
+        "SELECT id, first_name, last_name, email, role, primary_position, additional_positions, status, is_external, external_provider, sharepoint_folder_name, sharepoint_folder_id FROM users WHERE id = ?"
+      )
+      .get(staffId) as any;
+
+    if (!staff) {
+      throw new Error("Staff member not found");
+    }
+
+    const cfg = getSharePointSettingsFromDb();
+    const configured = Boolean(
+      cfg.sharepoint_tenant_id &&
+        cfg.sharepoint_client_id &&
+        cfg.sharepoint_client_secret &&
+        cfg.sharepoint_site_url
+    );
+    const defaultBaseCategoryPath = normalizeSpPath(cfg.sharepoint_staff_base_path || "General\\Staff");
+    const defaultStaffName = `${staff.first_name || ""} ${staff.last_name || ""}`
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "");
+    const preferredFolderName = String(staff.sharepoint_folder_name || defaultStaffName).trim();
+
+    const rootRow = db
+      .prepare("SELECT * FROM sharepoint_staff_roots WHERE staff_id = ?")
+      .get(staff.id) as any;
+
+    const baseCategoryPath = rootRow?.base_category_path || defaultBaseCategoryPath;
+    const folderName = rootRow?.folder_name || preferredFolderName;
+    const fullSharePointPath = rootRow?.full_path || `${baseCategoryPath}/${folderName}`;
+
+    const staffInfo = {
+      id: staff.id,
+      name: `${staff.first_name || ""} ${staff.last_name || ""}`.trim(),
+      email: staff.email || "",
+      role: staff.role || "STAFF",
+      primaryPosition: staff.primary_position || "Support Worker",
+      status: staff.status || "ACTIVE",
+      isExternal: Boolean(staff.is_external),
+      baseCategoryPath,
+      folderName,
+      fullSharePointPath,
+      folderWebUrl: rootRow?.web_url || "",
+      folderItemId: rootRow?.folder_item_id || staff.sharepoint_folder_id || "",
+      lastSyncedAt: rootRow?.last_synced_at || null,
+    };
+
+    if (!configured) {
+      return {
+        hasCache: true,
+        configured: false,
+        folderExists: false,
+        staffInfo,
+        availableFolders: [] as string[],
+        items: [],
+        allItems: [],
+        allSubfolders: [],
+        lastSyncedAt: null,
+      };
+    }
+
+    if (!rootRow) {
+      return {
+        hasCache: false,
+        configured: true,
+        folderExists: false,
+        staffInfo,
+        availableFolders: [] as string[],
+        items: [],
+        allItems: [],
+        allSubfolders: [],
+        lastSyncedAt: null,
+      };
+    }
+
+    let availableFolders: string[] = [];
+    try {
+      availableFolders = JSON.parse(rootRow.available_folders_json || "[]");
+    } catch {}
+
+    if (!rootRow.folder_exists) {
+      return {
+        hasCache: true,
+        configured: true,
+        folderExists: false,
+        staffInfo,
+        availableFolders,
+        items: [],
+        allItems: [],
+        allSubfolders: [],
+        lastSyncedAt: rootRow.last_synced_at || null,
+      };
+    }
+
+    const cleanSub = normalizeSpPath(requestedSubpath);
+    const allRows = db
+      .prepare(
+        "SELECT * FROM sharepoint_staff_items WHERE staff_id = ? ORDER BY is_folder DESC, name COLLATE NOCASE ASC"
+      )
+      .all(staff.id) as any[];
+
+    const allItems = allRows.map((r) => formatSqliteSpItem(r, rootRow.web_url || ""));
+    const items = allItems.filter((it) => it.parentSubpath === cleanSub);
+    const allSubfolders = allItems
+      .filter((it) => it.isFolder)
+      .map((it) => ({
+        id: it.id,
+        name: it.name,
+        path: it.relativePath,
+        parentSubpath: it.parentSubpath,
+        childCount: it.childCount,
+      }));
+
+    return {
+      hasCache: true,
+      configured: true,
+      folderExists: true,
+      staffInfo,
+      availableFolders,
+      items,
+      allItems,
+      allSubfolders,
+      lastSyncedAt: rootRow.last_synced_at || null,
+    };
+  };
+
+  const syncStaffSharePointDelta = async (
+    staffId: string | number,
+    options: { forceFull?: boolean } = {}
+  ): Promise<{
+    synced: boolean;
+    added: number;
+    updated: number;
+    removed: number;
+    lastSyncedAt: string;
+  }> => {
+    const staff = db
+      .prepare(
+        "SELECT id, first_name, last_name, role, status, sharepoint_folder_name, sharepoint_folder_id FROM users WHERE id = ?"
+      )
+      .get(staffId) as any;
+
+    if (!staff) {
+      throw new Error("Staff member not found");
+    }
+
+    const fastCtx = await getFastSharePointDriveContext();
+    if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+      return { synced: false, added: 0, updated: 0, removed: 0, lastSyncedAt: "" };
+    }
+
+    const { accessToken, driveId, siteId, cfg } = fastCtx;
+    const baseCategoryPath = normalizeSpPath(cfg.sharepoint_staff_base_path || "General\\Staff");
+    const defaultStaffName = `${staff.first_name || ""} ${staff.last_name || ""}`
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "");
+    const preferredFolderName = String(staff.sharepoint_folder_name || defaultStaffName).trim();
+
+    const existingRoot = db
+      .prepare("SELECT * FROM sharepoint_staff_roots WHERE staff_id = ?")
+      .get(staff.id) as any;
+
+    let folderItem: any = null;
+    let resolvedBase = existingRoot?.base_category_path || baseCategoryPath;
+    let availableFolders: string[] = [];
+    try {
+      availableFolders = JSON.parse(existingRoot?.available_folders_json || "[]");
+    } catch {}
+
+    const cachedFolderId = existingRoot?.folder_item_id || staff.sharepoint_folder_id || "";
+    const nameUnchanged =
+      !staff.sharepoint_folder_name ||
+      !existingRoot?.folder_name ||
+      existingRoot.folder_name.toLowerCase() === preferredFolderName.toLowerCase();
+
+    if (cachedFolderId && nameUnchanged && !options.forceFull) {
+      try {
+        const itemRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(cachedFolderId)}?$select=id,name,webUrl,eTag,cTag,folder,deleted`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (itemRes.ok) {
+          const itemJson = (await itemRes.json().catch(() => null)) as any;
+          if (itemJson && itemJson.id && !itemJson.deleted) {
+            folderItem = itemJson;
+          }
+        }
+      } catch {}
+    }
+
+    if (!folderItem) {
+      const baseCacheKey = `${driveId}:${baseCategoryPath.toLowerCase()}`;
+      const cachedBase = cachedBaseCategoryFolderIds[baseCacheKey];
+      let baseChildren: any[] = [];
+      let baseExists = false;
+
+      if (cachedBase && cachedBase.expiresAt > Date.now()) {
+        const listRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(cachedBase.folderId)}/children?$top=500`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (listRes.ok) {
+          const listData = (await listRes.json().catch(() => ({}))) as any;
+          baseChildren = Array.isArray(listData?.value) ? listData.value : [];
+          resolvedBase = cachedBase.resolvedPath;
+          baseExists = true;
+        }
+      }
+
+      if (!baseExists) {
+        const baseLookup = await findSharePointFolderBySegments(
+          accessToken,
+          driveId,
+          baseCategoryPath
+        );
+        if (baseLookup.exists && baseLookup.item?.id) {
+          baseExists = true;
+          baseChildren = baseLookup.children;
+          resolvedBase = baseLookup.resolvedPath || baseCategoryPath;
+          cachedBaseCategoryFolderIds[baseCacheKey] = {
+            folderId: String(baseLookup.item.id),
+            resolvedPath: resolvedBase,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+          };
+        }
+      }
+
+      if (baseExists) {
+        const folderItems = baseChildren.filter((c) => Boolean(c.folder));
+        availableFolders = folderItems
+          .map((f) => String(f.name))
+          .sort((a, b) => a.localeCompare(b));
+
+        // Match both space ("First Last") and underscore ("First_Last") variations from copied folders
+        const normalizeName = (n: string) =>
+          String(n || "")
+            .toLowerCase()
+            .replace(/[_-]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        folderItem =
+          folderItems.find((f) => normalizeName(f.name) === normalizeName(preferredFolderName)) ||
+          folderItems.find((f) => normalizeName(f.name) === normalizeName(defaultStaffName));
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+
+    if (!folderItem?.id) {
+      db.prepare(
+        `INSERT INTO sharepoint_staff_roots (
+          staff_id, drive_id, site_id, folder_item_id, folder_name,
+          base_category_path, full_path, web_url, etag, ctag, delta_link,
+          folder_exists, available_folders_json, last_synced_at
+        ) VALUES (?, ?, ?, '', ?, ?, ?, '', '', '', '', 0, ?, ?)
+        ON CONFLICT(staff_id) DO UPDATE SET
+          drive_id = excluded.drive_id,
+          site_id = excluded.site_id,
+          folder_item_id = '',
+          folder_name = excluded.folder_name,
+          base_category_path = excluded.base_category_path,
+          full_path = excluded.full_path,
+          folder_exists = 0,
+          available_folders_json = excluded.available_folders_json,
+          last_synced_at = excluded.last_synced_at`
+      ).run(
+        staff.id,
+        driveId,
+        siteId,
+        preferredFolderName,
+        resolvedBase,
+        `${resolvedBase}/${preferredFolderName}`,
+        JSON.stringify(availableFolders),
+        nowIso
+      );
+      db.prepare("DELETE FROM sharepoint_staff_items WHERE staff_id = ?").run(staff.id);
+      return { synced: true, added: 0, updated: 0, removed: 0, lastSyncedAt: nowIso };
+    }
+
+    const rootFolderId = String(folderItem.id);
+    const resolvedFolderName = String(folderItem.name || preferredFolderName);
+    const fullPath = `${resolvedBase}/${resolvedFolderName}`;
+
+    db.prepare(
+      "UPDATE users SET sharepoint_folder_id = ?, sharepoint_folder_name = COALESCE(sharepoint_folder_name, ?) WHERE id = ?"
+    ).run(rootFolderId, resolvedFolderName, staff.id);
+
+    let deltaUrl =
+      !options.forceFull && existingRoot?.delta_link && existingRoot?.folder_item_id === rootFolderId
+        ? String(existingRoot.delta_link)
+        : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(rootFolderId)}/delta?$top=500`;
+
+    const isInitialOrFullSync = !deltaUrl.includes("token=");
+    let rawDeltaItems: any[] = [];
+    let newDeltaLink = "";
+    let deltaSucceeded = false;
+
+    try {
+      let pageGuard = 0;
+      while (deltaUrl && pageGuard < 20) {
+        pageGuard++;
+        const deltaRes = await fetch(deltaUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!deltaRes.ok) {
+          if (!isInitialOrFullSync && pageGuard === 1) {
+            deltaUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(rootFolderId)}/delta?$top=500`;
+            continue;
+          }
+          break;
+        }
+        const deltaData = (await deltaRes.json().catch(() => ({}))) as any;
+        if (Array.isArray(deltaData?.value)) {
+          rawDeltaItems.push(...deltaData.value);
+        }
+        if (deltaData?.["@odata.nextLink"]) {
+          deltaUrl = String(deltaData["@odata.nextLink"]);
+        } else {
+          newDeltaLink = String(deltaData?.["@odata.deltaLink"] || "");
+          deltaUrl = "";
+          deltaSucceeded = true;
+        }
+      }
+    } catch (e: any) {
+      logger.warn(`Staff SharePoint delta query fallback triggered: ${e.message}`);
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+    let removedCount = 0;
+
+    const existingRows = db
+      .prepare("SELECT item_id, relative_path, parent_id, is_folder, etag FROM sharepoint_staff_items WHERE staff_id = ?")
+      .all(staff.id) as Array<{
+      item_id: string;
+      relative_path: string;
+      parent_id: string;
+      is_folder: number;
+      etag: string;
+    }>;
+    const existingMap = new Map(existingRows.map((r) => [r.item_id, r]));
+
+    const folderPathById = new Map<string, string>();
+    folderPathById.set(rootFolderId, "");
+    for (const r of existingRows) {
+      if (r.is_folder) {
+        folderPathById.set(r.item_id, r.relative_path);
+      }
+    }
+
+    if (deltaSucceeded && rawDeltaItems.length > 0) {
+      const seenActiveIds = new Set<string>();
+
+      const nonRootItems = rawDeltaItems.filter((it) => {
+        if (!it || !it.id || String(it.id) === rootFolderId) return false;
+        if (Boolean(it.root)) return false;
+        if (!it.deleted && !it.webUrl && !it.lastModifiedDateTime) return false;
+        return true;
+      });
+      const deletedItems = nonRootItems.filter((it) => Boolean(it.deleted));
+      const activeFolders = nonRootItems.filter((it) => !it.deleted && Boolean(it.folder));
+      const activeFiles = nonRootItems.filter((it) => !it.deleted && !it.folder);
+
+      let unresolvedFolders = [...activeFolders];
+      let pass = 0;
+      while (unresolvedFolders.length > 0 && pass < 15) {
+        pass++;
+        const nextRemaining: any[] = [];
+        for (const folder of unresolvedFolders) {
+          const parentId = String(folder.parentReference?.id || "");
+          if (folderPathById.has(parentId)) {
+            const parentSub = folderPathById.get(parentId) || "";
+            const relPath = parentSub ? `${parentSub}/${folder.name}` : String(folder.name);
+            folderPathById.set(String(folder.id), relPath);
+          } else {
+            nextRemaining.push(folder);
+          }
+        }
+        if (nextRemaining.length === unresolvedFolders.length) {
+          for (const folder of nextRemaining) {
+            const rawParentPath = decodeURIComponent(String(folder.parentReference?.path || ""));
+            const idx = rawParentPath.toLowerCase().indexOf(fullPath.toLowerCase());
+            if (idx !== -1) {
+              const parentSub = normalizeSpPath(rawParentPath.slice(idx + fullPath.length));
+              const relPath = parentSub ? `${parentSub}/${folder.name}` : String(folder.name);
+              folderPathById.set(String(folder.id), relPath);
+            }
+          }
+          break;
+        }
+        unresolvedFolders = nextRemaining;
+      }
+
+      const syncTransaction = db.transaction(() => {
+        db.prepare(
+          "DELETE FROM sharepoint_staff_items WHERE staff_id = ? AND is_folder = 1 AND web_url = '' AND last_modified_at = ''"
+        ).run(staff.id);
+
+        for (const del of deletedItems) {
+          const delId = String(del.id);
+          const prev = existingMap.get(delId);
+          if (prev) {
+            db.prepare("DELETE FROM sharepoint_staff_items WHERE item_id = ?").run(delId);
+            if (prev.is_folder && prev.relative_path) {
+              db.prepare(
+                "DELETE FROM sharepoint_staff_items WHERE staff_id = ? AND (parent_subpath = ? OR parent_subpath LIKE ?)"
+              ).run(staff.id, prev.relative_path, `${prev.relative_path}/%`);
+            }
+            removedCount++;
+          }
+        }
+
+        for (const item of [...activeFolders, ...activeFiles]) {
+          const itemId = String(item.id);
+          const parentId = String(item.parentReference?.id || "");
+          let parentSub = folderPathById.get(parentId);
+          if (parentSub === undefined) {
+            const rawParentPath = decodeURIComponent(String(item.parentReference?.path || ""));
+            const idx = rawParentPath.toLowerCase().indexOf(fullPath.toLowerCase());
+            if (idx !== -1) {
+              parentSub = normalizeSpPath(rawParentPath.slice(idx + fullPath.length));
+            } else {
+              continue;
+            }
+          }
+          seenActiveIds.add(itemId);
+
+          const prev = existingMap.get(itemId);
+          if (!prev) {
+            addedCount++;
+          } else if (prev.etag !== String(item.eTag || "")) {
+            updatedCount++;
+          }
+
+          upsertStaffSharePointItemToDb(staff.id, driveId, parentSub, item);
+        }
+
+        if (isInitialOrFullSync || options.forceFull) {
+          for (const [oldId] of existingMap) {
+            if (!seenActiveIds.has(oldId)) {
+              db.prepare("DELETE FROM sharepoint_staff_items WHERE item_id = ?").run(oldId);
+              removedCount++;
+            }
+          }
+        }
+
+        recalculateStaffSqliteFolderCounts(staff.id);
+      });
+
+      syncTransaction();
+    } else if (!deltaSucceeded) {
+      const queue: Array<{ folderId: string; subpath: string }> = [
+        { folderId: rootFolderId, subpath: "" },
+      ];
+      const visited = new Set<string>();
+      const collected: Array<{ subpath: string; item: any }> = [];
+
+      while (queue.length > 0 && visited.size < 100) {
+        const current = queue.shift()!;
+        if (visited.has(current.folderId)) continue;
+        visited.add(current.folderId);
+
+        const res = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(current.folderId)}/children?$top=500`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!res.ok) continue;
+        const data = (await res.json().catch(() => ({}))) as any;
+        const children: any[] = Array.isArray(data?.value) ? data.value : [];
+        for (const ch of children) {
+          collected.push({ subpath: current.subpath, item: ch });
+          if (ch.folder && ch.id) {
+            const nextSub = current.subpath ? `${current.subpath}/${ch.name}` : String(ch.name);
+            queue.push({ folderId: String(ch.id), subpath: nextSub });
+          }
+        }
+      }
+
+      const fallbackTx = db.transaction(() => {
+        db.prepare("DELETE FROM sharepoint_staff_items WHERE staff_id = ?").run(staff.id);
+        for (const entry of collected) {
+          upsertStaffSharePointItemToDb(staff.id, driveId, entry.subpath, entry.item);
+          addedCount++;
+        }
+        recalculateStaffSqliteFolderCounts(staff.id);
+      });
+      fallbackTx();
+    }
+
+    db.prepare(
+      `INSERT INTO sharepoint_staff_roots (
+        staff_id, drive_id, site_id, folder_item_id, folder_name,
+        base_category_path, full_path, web_url, etag, ctag, delta_link,
+        folder_exists, available_folders_json, last_synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ON CONFLICT(staff_id) DO UPDATE SET
+        drive_id = excluded.drive_id,
+        site_id = excluded.site_id,
+        folder_item_id = excluded.folder_item_id,
+        folder_name = excluded.folder_name,
+        base_category_path = excluded.base_category_path,
+        full_path = excluded.full_path,
+        web_url = excluded.web_url,
+        etag = excluded.etag,
+        ctag = excluded.ctag,
+        delta_link = CASE WHEN excluded.delta_link != '' THEN excluded.delta_link ELSE sharepoint_staff_roots.delta_link END,
+        folder_exists = 1,
+        available_folders_json = excluded.available_folders_json,
+        last_synced_at = excluded.last_synced_at`
+    ).run(
+      staff.id,
+      driveId,
+      siteId,
+      rootFolderId,
+      resolvedFolderName,
+      resolvedBase,
+      fullPath,
+      String(folderItem.webUrl || ""),
+      String(folderItem.eTag || ""),
+      String(folderItem.cTag || ""),
+      newDeltaLink,
+      JSON.stringify(availableFolders),
+      nowIso
+    );
+
+    // Reconcile synced SharePoint files with `files` table and `onboarding_json` compliance records
+    reconcileStaffSharePointCompliance(staff.id);
+
+    return {
+      synced: true,
+      added: addedCount,
+      updated: updatedCount,
+      removed: removedCount,
+      lastSyncedAt: nowIso,
+    };
+  };
+
+  const resolveStaffTargetFolderIdFast = async (
+    staffId: string | number,
+    accessToken: string,
+    driveId: string,
+    fullSharePointPath: string,
+    rootFolderItemId: string,
+    subpath: string
+  ): Promise<{ folderId: string; cleanSubpath: string }> => {
+    const cleanSub = normalizeSpPath(subpath || "");
+    if (!cleanSub && rootFolderItemId) {
+      return { folderId: rootFolderItemId, cleanSubpath: "" };
+    }
+    if (cleanSub) {
+      const cachedFolder = db
+        .prepare(
+          "SELECT item_id FROM sharepoint_staff_items WHERE staff_id = ? AND relative_path = ? AND is_folder = 1"
+        )
+        .get(staffId, cleanSub) as { item_id: string } | undefined;
+      if (cachedFolder?.item_id) {
+        return { folderId: cachedFolder.item_id, cleanSubpath: cleanSub };
+      }
+    }
+    const targetPath = cleanSub ? `${fullSharePointPath}/${cleanSub}` : fullSharePointPath;
+    const ensured = await ensureSharePointFolderHierarchy(accessToken, driveId, targetPath);
+    return { folderId: String(ensured.id), cleanSubpath: cleanSub };
+  };
+
+  // Staff SharePoint Route 1: GET /api/staff/:id/sharepoint/items
+  app.get("/api/staff/:id/sharepoint/items", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = req.params.id;
+      const subpath = normalizeSpPath(String(req.query.subpath || ""));
+      const forceSync = req.query.sync === "1";
+
+      let cached = getCachedStaffSharePointPayload(staffId, subpath);
+      if (!cached.configured) {
+        return res.json(cached);
+      }
+
+      if (!cached.hasCache || forceSync) {
+        await syncStaffSharePointDelta(staffId, { forceFull: !cached.hasCache });
+        cached = getCachedStaffSharePointPayload(staffId, subpath);
+      }
+
+      return res.json(cached);
+    } catch (err: any) {
+      logger.error(`Staff SharePoint list items error: ${err.message}`);
+      res.status(500).json({ error: err.message || "Failed to load Staff SharePoint folder" });
+    }
+  });
+
+  // Staff SharePoint Route 2: POST /api/staff/:id/sharepoint/sync
+  app.post("/api/staff/:id/sharepoint/sync", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = req.params.id;
+      const subpath = normalizeSpPath(String(req.body?.subpath || ""));
+      const forceFull = Boolean(req.body?.full);
+
+      const syncStats = await syncStaffSharePointDelta(staffId, { forceFull });
+      const payload = getCachedStaffSharePointPayload(staffId, subpath);
+
+      res.json({
+        ...payload,
+        syncStats,
+      });
+    } catch (err: any) {
+      logger.error(`Staff SharePoint delta sync error: ${err.message}`);
+      res.status(500).json({ error: err.message || "Failed to sync Staff folder with SharePoint" });
+    }
+  });
+
+  // Staff SharePoint Route 3: POST /api/staff/:id/sharepoint/init-folder
+  app.post("/api/staff/:id/sharepoint/init-folder", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = req.params.id;
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured yet." });
+      }
+
+      const cached = getCachedStaffSharePointPayload(staffId, "");
+      const created = await ensureSharePointFolderHierarchy(
+        fastCtx.accessToken,
+        fastCtx.driveId,
+        cached.staffInfo.fullSharePointPath
+      );
+
+      // Also ensure default Onboarding, Training, and Vehicles subfolders exist inside the Staff folder
+      for (const defaultSub of ["Onboarding", "Training", "Vehicles"]) {
+        try {
+          await ensureSharePointFolderHierarchy(
+            fastCtx.accessToken,
+            fastCtx.driveId,
+            `${cached.staffInfo.fullSharePointPath}/${defaultSub}`
+          );
+        } catch {}
+      }
+
+      if (created?.id) {
+        db.prepare("UPDATE users SET sharepoint_folder_id = ? WHERE id = ?").run(
+          String(created.id),
+          staffId
+        );
+      }
+
+      await syncStaffSharePointDelta(staffId, { forceFull: true });
+      const updatedPayload = getCachedStaffSharePointPayload(staffId, "");
+
+      res.json({
+        success: true,
+        folderName: updatedPayload.staffInfo.folderName,
+        fullSharePointPath: updatedPayload.staffInfo.fullSharePointPath,
+        webUrl: created?.webUrl || updatedPayload.staffInfo.folderWebUrl || "",
+        payload: updatedPayload,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to create staff folder on SharePoint" });
+    }
+  });
+
+  // Staff SharePoint Route 4: POST /api/staff/:id/sharepoint/link-folder
+  app.post("/api/staff/:id/sharepoint/link-folder", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = req.params.id;
+      const { folderName } = req.body;
+      if (!folderName || !String(folderName).trim()) {
+        return res.status(400).json({ error: "Folder name is required" });
+      }
+      const cleanName = String(folderName).trim();
+      db.prepare(
+        "UPDATE users SET sharepoint_folder_name = ?, sharepoint_folder_id = NULL WHERE id = ?"
+      ).run(cleanName, staffId);
+      db.prepare("DELETE FROM sharepoint_staff_roots WHERE staff_id = ?").run(staffId);
+      db.prepare("DELETE FROM sharepoint_staff_items WHERE staff_id = ?").run(staffId);
+
+      await syncStaffSharePointDelta(staffId, { forceFull: true });
+      const updatedPayload = getCachedStaffSharePointPayload(staffId, "");
+
+      res.json({
+        success: true,
+        folderName: cleanName,
+        payload: updatedPayload,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to link Staff SharePoint folder" });
+    }
+  });
+
+  // Staff SharePoint Route 5: POST /api/staff/:id/sharepoint/folders
+  app.post("/api/staff/:id/sharepoint/folders", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = Number(req.params.id);
+      const { subpath, folderName } = req.body;
+      if (!folderName || !String(folderName).trim()) {
+        return res.status(400).json({ error: "Folder name is required" });
+      }
+
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const cached = getCachedStaffSharePointPayload(staffId, subpath || "");
+      const { folderId: parentFolderId, cleanSubpath } = await resolveStaffTargetFolderIdFast(
+        staffId,
+        fastCtx.accessToken,
+        fastCtx.driveId,
+        cached.staffInfo.fullSharePointPath,
+        cached.staffInfo.folderItemId,
+        subpath || ""
+      );
+
+      const createRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}/children`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${fastCtx.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: String(folderName).trim(),
+            folder: {},
+            "@microsoft.graph.conflictBehavior": "rename",
+          }),
+        }
+      );
+
+      const createdData = (await createRes.json().catch(() => ({}))) as any;
+      if (!createRes.ok || !createdData?.id) {
+        throw new Error(createdData?.error?.message || "Failed to create subfolder on SharePoint");
+      }
+
+      upsertStaffSharePointItemToDb(staffId, fastCtx.driveId, cleanSubpath, createdData);
+      recalculateStaffSqliteFolderCounts(staffId);
+
+      const createdRow = db
+        .prepare("SELECT * FROM sharepoint_staff_items WHERE item_id = ?")
+        .get(String(createdData.id));
+
+      res.json({
+        success: true,
+        item: createdRow ? formatSqliteSpItem(createdRow) : createdData,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to create subfolder" });
+    }
+  });
+
+  // Staff SharePoint Route 6: POST /api/staff/:id/sharepoint/upload
+  app.post(
+    "/api/staff/:id/sharepoint/upload",
+    authenticateToken,
+    upload.single("file"),
+    async (req: any, res: any) => {
+      const tempFilePath = req.file?.path;
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const staffId = Number(req.params.id);
+        const fastCtx = await getFastSharePointDriveContext();
+        if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+          return res.status(400).json({ error: "SharePoint is not configured." });
+        }
+
+        const cleanSub = normalizeSpPath(req.body?.subpath || "");
+        const cached = getCachedStaffSharePointPayload(staffId, cleanSub);
+        const { folderId: parentFolderId } = await resolveStaffTargetFolderIdFast(
+          staffId,
+          fastCtx.accessToken,
+          fastCtx.driveId,
+          cached.staffInfo.fullSharePointPath,
+          cached.staffInfo.folderItemId,
+          cleanSub
+        );
+
+        const fileName = req.body?.customFileName || req.file.originalname || req.file.filename;
+        const encodedFileName = encodeURIComponent(fileName);
+        const fileBuffer = fs.readFileSync(req.file.path);
+        let uploadedItem: any = null;
+
+        if (fileBuffer.length <= 4 * 1024 * 1024) {
+          const putRes = await fetch(
+            `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/content`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${fastCtx.accessToken}`,
+                "Content-Type": req.file.mimetype || "application/octet-stream",
+              },
+              body: fileBuffer,
+            }
+          );
+          const putData = (await putRes.json().catch(() => ({}))) as any;
+          if (!putRes.ok) {
+            throw new Error(putData?.error?.message || "Failed to upload file to SharePoint");
+          }
+          uploadedItem = putData;
+        } else {
+          const sessionRes = await fetch(
+            `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/createUploadSession`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${fastCtx.accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                item: {
+                  "@microsoft.graph.conflictBehavior": "replace",
+                  name: fileName,
+                },
+              }),
+            }
+          );
+          const sessionData = (await sessionRes.json().catch(() => ({}))) as any;
+          if (!sessionRes.ok || !sessionData.uploadUrl) {
+            throw new Error(
+              sessionData?.error?.message || "Failed to initialize large file upload session"
+            );
+          }
+
+          const putChunkRes = await fetch(sessionData.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Length": String(fileBuffer.length),
+              "Content-Range": `bytes 0-${fileBuffer.length - 1}/${fileBuffer.length}`,
+            },
+            body: fileBuffer,
+          });
+          const chunkData = (await putChunkRes.json().catch(() => ({}))) as any;
+          if (!putChunkRes.ok) {
+            throw new Error(chunkData?.error?.message || "Failed during large file upload to SharePoint");
+          }
+          uploadedItem = chunkData;
+        }
+
+        if (uploadedItem?.id) {
+          upsertStaffSharePointItemToDb(staffId, fastCtx.driveId, cleanSub, uploadedItem);
+          recalculateStaffSqliteFolderCounts(staffId);
+          reconcileStaffSharePointCompliance(staffId);
+        }
+
+        const savedRow = uploadedItem?.id
+          ? db.prepare("SELECT * FROM sharepoint_staff_items WHERE item_id = ?").get(String(uploadedItem.id))
+          : null;
+
+        return res.json({
+          success: true,
+          item: savedRow ? formatSqliteSpItem(savedRow) : uploadedItem,
+        });
+      } catch (err: any) {
+        logger.error(`Staff SharePoint upload error: ${err.message}`);
+        res.status(500).json({ error: err.message || "Failed to upload file to SharePoint" });
+      } finally {
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+        }
+      }
+    }
+  );
+
+  // Staff SharePoint Route 6b: POST /api/staff/:id/sharepoint/mirror-local-file
+  // Automatically mirrors an Onboarding Hub local upload (`/uploads/Staff/[Full_Name]/Onboarding/...`) to SharePoint `General\Staff\[Full_Name]\Onboarding`
+  app.post("/api/staff/:id/sharepoint/mirror-local-file", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = Number(req.params.id || req.user?.id);
+      const { fileId, subfolder = "Onboarding" } = req.body || {};
+      if (!fileId) {
+        return res.status(400).json({ error: "fileId is required" });
+      }
+
+      const fileRow = db.prepare("SELECT * FROM files WHERE id = ?").get(fileId) as any;
+      if (!fileRow) {
+        return res.status(404).json({ error: "Local file record not found" });
+      }
+
+      const localFilePath = path.join(
+        process.cwd(),
+        "uploads",
+        String(fileRow.folder_path || "/").replace(/^\/+/, ""),
+        fileRow.system_name
+      );
+      if (!fs.existsSync(localFilePath)) {
+        return res.status(404).json({ error: "Local file not found on disk" });
+      }
+
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+        return res.json({ success: false, skipped: true, reason: "SharePoint not configured" });
+      }
+
+      const cleanSub = normalizeSpPath(subfolder);
+      const cached = getCachedStaffSharePointPayload(staffId, cleanSub);
+      const { folderId: parentFolderId } = await resolveStaffTargetFolderIdFast(
+        staffId,
+        fastCtx.accessToken,
+        fastCtx.driveId,
+        cached.staffInfo.fullSharePointPath,
+        cached.staffInfo.folderItemId,
+        cleanSub
+      );
+
+      const fileName = fileRow.system_name || fileRow.original_name;
+      const encodedFileName = encodeURIComponent(fileName);
+      const fileBuffer = fs.readFileSync(localFilePath);
+
+      const putRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/content`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${fastCtx.accessToken}`,
+            "Content-Type": "application/octet-stream",
+          },
+          body: fileBuffer,
+        }
+      );
+
+      const putData = (await putRes.json().catch(() => ({}))) as any;
+      if (!putRes.ok) {
+        throw new Error(putData?.error?.message || "Failed to mirror Onboarding file to SharePoint");
+      }
+
+      if (putData?.id) {
+        upsertStaffSharePointItemToDb(staffId, fastCtx.driveId, cleanSub, putData);
+        recalculateStaffSqliteFolderCounts(staffId);
+      }
+
+      return res.json({
+        success: true,
+        sharePointPath: `${cached.staffInfo.fullSharePointPath}/${cleanSub}/${fileName}`,
+        webUrl: putData?.webUrl || "",
+      });
+    } catch (err: any) {
+      logger.warn(`Failed to mirror Onboarding file to SharePoint: ${err.message}`);
+      res.status(500).json({ error: err.message || "Failed to mirror file to SharePoint" });
+    }
+  });
+
+  // Staff SharePoint Route 7: PATCH /api/staff/:id/sharepoint/items/:itemId
+  app.patch("/api/staff/:id/sharepoint/items/:itemId", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = Number(req.params.id);
+      const { itemId } = req.params;
+      const { name, targetSubpath, targetFolderId } = req.body;
+
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const existingRow = db
+        .prepare("SELECT * FROM sharepoint_staff_items WHERE item_id = ? AND staff_id = ?")
+        .get(itemId, staffId) as any;
+
+      const cached = getCachedStaffSharePointPayload(staffId, "");
+      const patchPayload: any = {};
+      if (name && String(name).trim()) {
+        patchPayload.name = String(name).trim();
+      }
+
+      let resolvedDestSubpath =
+        existingRow?.parent_subpath !== undefined ? String(existingRow.parent_subpath) : "";
+
+      if (targetFolderId) {
+        patchPayload.parentReference = { id: String(targetFolderId) };
+        if (String(targetFolderId) === cached.staffInfo.folderItemId) {
+          resolvedDestSubpath = "";
+        } else {
+          const targetFolderRow = db
+            .prepare("SELECT relative_path FROM sharepoint_staff_items WHERE item_id = ? AND staff_id = ?")
+            .get(String(targetFolderId), staffId) as { relative_path: string } | undefined;
+          if (targetFolderRow) {
+            resolvedDestSubpath = targetFolderRow.relative_path;
+          }
+        }
+      } else if (targetSubpath !== undefined) {
+        const { folderId: destFolderId, cleanSubpath } = await resolveStaffTargetFolderIdFast(
+          staffId,
+          fastCtx.accessToken,
+          fastCtx.driveId,
+          cached.staffInfo.fullSharePointPath,
+          cached.staffInfo.folderItemId,
+          String(targetSubpath || "")
+        );
+        patchPayload.parentReference = { id: destFolderId };
+        resolvedDestSubpath = cleanSubpath;
+      }
+
+      const updateRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${fastCtx.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(patchPayload),
+        }
+      );
+
+      const updatedData = (await updateRes.json().catch(() => ({}))) as any;
+      if (!updateRes.ok) {
+        throw new Error(updatedData?.error?.message || "Failed to update item on SharePoint");
+      }
+
+      const oldRelPath = existingRow?.relative_path || "";
+      upsertStaffSharePointItemToDb(staffId, fastCtx.driveId, resolvedDestSubpath, updatedData);
+      const newName = String(updatedData.name || name || existingRow?.name || "").trim();
+      const newRelPath = resolvedDestSubpath ? `${resolvedDestSubpath}/${newName}` : newName;
+
+      if (existingRow?.is_folder && oldRelPath && oldRelPath !== newRelPath) {
+        const descendants = db
+          .prepare(
+            "SELECT item_id, relative_path, parent_subpath FROM sharepoint_staff_items WHERE staff_id = ? AND (parent_subpath = ? OR parent_subpath LIKE ?)"
+          )
+          .all(staffId, oldRelPath, `${oldRelPath}/%`) as Array<{
+          item_id: string;
+          relative_path: string;
+          parent_subpath: string;
+        }>;
+
+        for (const desc of descendants) {
+          const updatedParentSub =
+            desc.parent_subpath === oldRelPath
+              ? newRelPath
+              : newRelPath + desc.parent_subpath.slice(oldRelPath.length);
+          const updatedRel =
+            desc.relative_path === oldRelPath
+              ? newRelPath
+              : newRelPath + desc.relative_path.slice(oldRelPath.length);
+          db.prepare(
+            "UPDATE sharepoint_staff_items SET parent_subpath = ?, relative_path = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?"
+          ).run(updatedParentSub, updatedRel, desc.item_id);
+        }
+      }
+
+      recalculateStaffSqliteFolderCounts(staffId);
+
+      const updatedRow = db
+        .prepare("SELECT * FROM sharepoint_staff_items WHERE item_id = ?")
+        .get(String(updatedData.id || itemId));
+
+      res.json({
+        success: true,
+        item: updatedRow ? formatSqliteSpItem(updatedRow) : updatedData,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to update SharePoint item" });
+    }
+  });
+
+  // Staff SharePoint Route 8: DELETE /api/staff/:id/sharepoint/items/:itemId
+  app.delete("/api/staff/:id/sharepoint/items/:itemId", authenticateToken, async (req: any, res: any) => {
+    try {
+      const staffId = Number(req.params.id);
+      const { itemId } = req.params;
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const delRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${fastCtx.accessToken}` },
+        }
+      );
+
+      if (!delRes.ok && delRes.status !== 204 && delRes.status !== 404) {
+        const errData = (await delRes.json().catch(() => ({}))) as any;
+        throw new Error(errData?.error?.message || "Failed to delete item from SharePoint");
+      }
+
+      const existingRow = db
+        .prepare("SELECT is_folder, relative_path FROM sharepoint_staff_items WHERE item_id = ? AND staff_id = ?")
+        .get(itemId, staffId) as any;
+
+      db.prepare("DELETE FROM sharepoint_staff_items WHERE item_id = ?").run(itemId);
+      if (existingRow?.is_folder && existingRow.relative_path) {
+        db.prepare(
+          "DELETE FROM sharepoint_staff_items WHERE staff_id = ? AND (parent_subpath = ? OR parent_subpath LIKE ?)"
+        ).run(staffId, existingRow.relative_path, `${existingRow.relative_path}/%`);
+      }
+      recalculateStaffSqliteFolderCounts(staffId);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to delete SharePoint item" });
+    }
+  });
+
+  // Staff SharePoint Route 9: GET /api/staff/:id/sharepoint/items/:itemId/content
+  app.get("/api/staff/:id/sharepoint/items/:itemId/content", async (req: any, res: any) => {
+    try {
+      const rawToken =
+        req.headers.authorization?.split(" ")[1] || String(req.query.token || "");
+      if (!rawToken) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      try {
+        jwt.verify(rawToken, JWT_SECRET);
+      } catch {
+        return res.status(403).json({ error: "Invalid token" });
+      }
+
+      const { itemId } = req.params;
+      const isDownload = req.query.download === "1";
+      const fileName = String(req.query.name || "document");
+
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const contentRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}/content`,
+        {
+          headers: { Authorization: `Bearer ${fastCtx.accessToken}` },
+          redirect: "follow",
+        }
+      );
+
+      if (!contentRes.ok) {
+        return res.status(contentRes.status).json({ error: "Failed to fetch content from SharePoint" });
+      }
+
+      const contentType = contentRes.headers.get("content-type") || "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
+      if (isDownload) {
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${fileName.replace(/"/g, "")}"`
+        );
+      }
+
+      const arrayBuf = await contentRes.arrayBuffer();
+      res.send(Buffer.from(arrayBuf));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to stream SharePoint file" });
+    }
+  });
+
+  // Staff SharePoint Route 10: PUT /api/staff/:id/sharepoint/items/:itemId/content
+  app.put(
+    "/api/staff/:id/sharepoint/items/:itemId/content",
+    authenticateToken,
+    express.text({ type: "*/*", limit: "25mb" }),
+    async (req: any, res: any) => {
+      try {
+        const staffId = Number(req.params.id);
+        const { itemId } = req.params;
+        const fastCtx = await getFastSharePointDriveContext();
+        if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+          return res.status(400).json({ error: "SharePoint is not configured." });
+        }
+
+        const bodyBuf = Buffer.from(
+          typeof req.body === "string" ? req.body : JSON.stringify(req.body || ""),
+          "utf8"
+        );
+        const putRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}/content`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${fastCtx.accessToken}`,
+              "Content-Type": "text/plain; charset=utf-8",
+            },
+            body: bodyBuf,
+          }
+        );
+
+        const putData = (await putRes.json().catch(() => ({}))) as any;
+        if (!putRes.ok) {
+          throw new Error(putData?.error?.message || "Failed to save file content to SharePoint");
+        }
+
+        const existingRow = db
+          .prepare("SELECT parent_subpath FROM sharepoint_staff_items WHERE item_id = ? AND staff_id = ?")
+          .get(itemId, staffId) as any;
+
+        if (putData?.id) {
+          upsertStaffSharePointItemToDb(
+            staffId,
+            fastCtx.driveId,
+            existingRow?.parent_subpath || "",
+            putData
+          );
+        }
+
+        const savedRow = db
+          .prepare("SELECT * FROM sharepoint_staff_items WHERE item_id = ?")
+          .get(String(putData.id || itemId));
+
+        res.json({
+          success: true,
+          item: savedRow ? formatSqliteSpItem(savedRow) : putData,
+        });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message || "Failed to save file to SharePoint" });
+      }
+    }
+  );
+
+  // Staff Compliance Summary API (Used by Staff Dashboard Widget & Staff Documents View)
+  app.get("/api/staff/:id/compliance-summary", authenticateToken, (req: any, res: any) => {
+    try {
+      const staffId = Number(req.params.id);
+      if (req.user.role !== "ADMIN" && Number(req.user.id) !== staffId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      // Reconcile any cached SharePoint files first so compliance reflects SharePoint `/Staff/[Full_Name]`
+      reconcileStaffSharePointCompliance(staffId);
+
+      const staff = db
+        .prepare(
+          "SELECT id, first_name, last_name, email, onboarding_json, primary_position, additional_positions, status, is_external FROM users WHERE id = ?"
+        )
+        .get(staffId) as any;
+      if (!staff) {
+        return res.status(404).json({ error: "Staff member not found" });
+      }
+
+      const allFiles = db.prepare("SELECT id, date_issued, date_expires, original_name, system_name FROM files").all() as any[];
+      const filesMap = new Map(allFiles.map((f) => [f.id, f]));
+      const spItems = db
+        .prepare("SELECT item_id, name, relative_path, parent_subpath, web_url FROM sharepoint_staff_items WHERE staff_id = ? AND is_folder = 0")
+        .all(staffId) as any[];
+      const spByLowerName = new Map(spItems.map((it) => [String(it.name || "").toLowerCase().trim(), it]));
+
+      const allPositions = db.prepare("SELECT * FROM positions").all() as any[];
+      const allSteps = db
+        .prepare(
+          `SELECT s.*, rt.name as requirement_type_name
+           FROM onboarding_hub_steps s
+           LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id`
+        )
+        .all() as any[];
+
+      let onboardingData: any = {};
+      try {
+        onboardingData = staff.onboarding_json ? JSON.parse(staff.onboarding_json) : {};
+      } catch {}
+
+      const primary = (staff.primary_position || "").trim();
+      let additionals: string[] = [];
+      try {
+        additionals = staff.additional_positions ? JSON.parse(staff.additional_positions) : [];
+      } catch {}
+
+      const targetPositions: { name: string; isPrimary: boolean }[] = [];
+      if (primary) {
+        targetPositions.push({ name: primary, isPrimary: true });
+      }
+      if (Array.isArray(additionals)) {
+        for (const addPos of additionals) {
+          if (
+            addPos &&
+            typeof addPos === "string" &&
+            addPos.trim() &&
+            !targetPositions.some((p) => p.name.toLowerCase() === addPos.trim().toLowerCase())
+          ) {
+            targetPositions.push({ name: addPos.trim(), isPrimary: false });
+          }
+        }
+      }
+
+      const normalizeKey = (title: string) =>
+        (title || "").trim().toLowerCase().replace(/\s+/g, " ");
+      const getDedupKey = (step: any) => {
+        if (step.requirement_type_id) return `type_${step.requirement_type_id}`;
+        const norm = normalizeKey(step.title);
+        return norm ? `title_${norm}` : `id_${step.id}`;
+      };
+
+      const seenKeys = new Set<string>();
+      const staffSteps: any[] = [];
+
+      for (const step of allSteps
+        .filter((s) => s.is_all_staff === 1)
+        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.id - b.id)) {
+        const key = getDedupKey(step);
+        if (key) seenKeys.add(key);
+        staffSteps.push(step);
+      }
+
+      for (const tp of targetPositions) {
+        const posRow = allPositions.find((p) => p.name.toLowerCase() === tp.name.toLowerCase());
+        if (!posRow) continue;
+        const posSteps = allSteps
+          .filter((s) => (s.is_all_staff === 0 || s.is_all_staff === null) && s.position_id === posRow.id)
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.id - b.id);
+
+        for (const step of posSteps) {
+          const key = getDedupKey(step);
+          if (key && seenKeys.has(key)) continue;
+          if (key) seenKeys.add(key);
+          staffSteps.push(step);
+        }
+      }
+
+      const filesByKey = new Map<string, any>();
+      for (const [k, v] of Object.entries(onboardingData)) {
+        const stepMatch = allSteps.find((s) => "dynamic_" + s.id === k);
+        if (stepMatch && (v as any).files && (v as any).files.length > 0) {
+          const dKey = getDedupKey(stepMatch);
+          if (dKey) filesByKey.set(dKey, v);
+          const norm = normalizeKey(stepMatch.title);
+          if (norm) filesByKey.set(`title_${norm}`, v);
+        }
+      }
+
+      const items: Array<{
+        key: string;
+        stepId: number;
+        label: string;
+        status: "VALID" | "EXPIRING_SOON" | "EXPIRED" | "MISSING";
+        expiry: string | null;
+        issued: string | null;
+        daysRemaining: number | null;
+        fileName: string | null;
+        fileId: number | null;
+        sharePointItemId: string | null;
+        sharePointWebUrl: string | null;
+        isConfirmation: boolean;
+        isMandatory: boolean;
+      }> = [];
+
+      let valid = 0;
+      let expiring = 0;
+      let expired = 0;
+      let missing = 0;
+
+      for (const step of staffSteps) {
+        const key = "dynamic_" + step.id;
+        let stepData = onboardingData[key] || {};
+        let files = stepData.files || [];
+
+        const dKey = getDedupKey(step);
+        if (files.length === 0 && filesByKey.has(dKey)) {
+          stepData = filesByKey.get(dKey);
+          files = stepData.files || [];
+        } else if (files.length === 0 && filesByKey.has(`title_${normalizeKey(step.title)}`)) {
+          stepData = filesByKey.get(`title_${normalizeKey(step.title)}`);
+          files = stepData.files || [];
+        }
+
+        const isOptional =
+          step.is_mandatory === 0 || step.is_mandatory === false || step.is_mandatory === "0";
+
+        if (step.upload_required === 0) {
+          if (stepData.status === "completed") {
+            valid++;
+            items.push({
+              key,
+              stepId: step.id,
+              label: step.title,
+              status: "VALID",
+              expiry: null,
+              issued: null,
+              daysRemaining: null,
+              fileName: "Confirmation Completed",
+              fileId: null,
+              sharePointItemId: null,
+              sharePointWebUrl: null,
+              isConfirmation: true,
+              isMandatory: !isOptional,
+            });
+          } else if (!isOptional) {
+            missing++;
+            items.push({
+              key,
+              stepId: step.id,
+              label: step.title,
+              status: "MISSING",
+              expiry: null,
+              issued: null,
+              daysRemaining: null,
+              fileName: null,
+              fileId: null,
+              sharePointItemId: null,
+              sharePointWebUrl: null,
+              isConfirmation: true,
+              isMandatory: true,
+            });
+          }
+          continue;
+        }
+
+        const fileMeta = files.length > 0 ? filesMap.get(files[0].id) : null;
+        if (!fileMeta) {
+          if (!isOptional) {
+            missing++;
+            items.push({
+              key,
+              stepId: step.id,
+              label: step.title,
+              status: "MISSING",
+              expiry: null,
+              issued: null,
+              daysRemaining: null,
+              fileName: null,
+              fileId: null,
+              sharePointItemId: null,
+              sharePointWebUrl: null,
+              isConfirmation: false,
+              isMandatory: true,
+            });
+          }
+          continue;
+        }
+
+        let status: "VALID" | "EXPIRING_SOON" | "EXPIRED" = "VALID";
+        let daysRemaining: number | null = null;
+
+        if (step.requires_expiry === 1 && fileMeta.date_expires) {
+          const expDate = new Date(fileMeta.date_expires);
+          const today = new Date();
+          const diffTime = expDate.getTime() - today.getTime();
+          daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (daysRemaining <= 0) {
+            status = "EXPIRED";
+            expired++;
+          } else if (daysRemaining <= 30) {
+            status = "EXPIRING_SOON";
+            expiring++;
+          } else {
+            valid++;
+          }
+        } else {
+          valid++;
+        }
+
+        const displayName = fileMeta.original_name || fileMeta.system_name || "Document";
+        const spMatch =
+          spByLowerName.get(String(fileMeta.system_name || "").toLowerCase().trim()) ||
+          spByLowerName.get(String(fileMeta.original_name || "").toLowerCase().trim());
+
+        items.push({
+          key,
+          stepId: step.id,
+          label: step.title,
+          status,
+          expiry: fileMeta.date_expires || null,
+          issued: fileMeta.date_issued || null,
+          daysRemaining,
+          fileName: displayName,
+          fileId: fileMeta.id,
+          sharePointItemId: spMatch?.item_id || null,
+          sharePointWebUrl: spMatch?.web_url || null,
+          isConfirmation: false,
+          isMandatory: !isOptional,
+        });
+      }
+
+      const totalUploaded = valid + expiring + expired;
+      const totalItems = totalUploaded + missing;
+      const percentComplete = totalItems > 0 ? Math.round((totalUploaded / totalItems) * 100) : 100;
+
+      const rootRow = db
+        .prepare("SELECT folder_exists, full_path, web_url, last_synced_at FROM sharepoint_staff_roots WHERE staff_id = ?")
+        .get(staffId) as any;
+
+      res.json({
+        staffId,
+        stats: {
+          valid,
+          expiring,
+          expired,
+          missing,
+          totalUploaded,
+          totalItems,
+          percentComplete,
+          isFullyCompliant: expired === 0 && expiring === 0 && missing === 0,
+        },
+        sharePoint: {
+          folderExists: Boolean(rootRow?.folder_exists),
+          fullPath: rootRow?.full_path || `General/Staff/${staff.first_name || ""} ${staff.last_name || ""}`.trim(),
+          webUrl: rootRow?.web_url || "",
+          lastSyncedAt: rootRow?.last_synced_at || null,
+          syncedFilesCount: spItems.length,
+        },
+        items,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to compute staff compliance summary" });
+    }
+  });
 
 
   // -----------------------------------------------------
