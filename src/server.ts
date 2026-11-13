@@ -16674,82 +16674,146 @@ app.get("/api/health", (req, res) => {
           doc.y = initialY + 42;
           doc.moveDown(0.5);
 
-          const colWidth = (doc.page.width - 60) / 7;
+          const timeColWidth = 46;
+          const gridStartX = 30 + timeColWidth;
+          const colWidth = (doc.page.width - 60 - timeColWidth) / 7;
           let startY = doc.y;
 
           const drawHeader = () => {
+            doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica-Bold');
+            doc.text('Time', 30, startY + 6, { width: timeColWidth - 6, align: 'right' });
+
             w.days.forEach((dayInfo, i) => {
-              const colX = 30 + i * colWidth;
+              const colX = gridStartX + i * colWidth;
               doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
               doc.text(dayInfo.dayName, colX, startY, { width: colWidth, align: 'center' });
               doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica');
               doc.text(dayInfo.dateFormatted, colX, startY + 12, { width: colWidth, align: 'center' });
             });
-            doc.moveTo(30, startY + 26).lineTo(doc.page.width - 30, startY + 26).strokeColor('#cccccc').stroke();
-            startY += 32;
+            doc.save();
+            doc.moveTo(30, startY + 26).lineTo(doc.page.width - 30, startY + 26).strokeColor('#cccccc').lineWidth(1).stroke();
+            doc.restore();
+            startY += 30;
           };
 
           drawHeader();
 
-          const maxShifts = Math.max(...shiftsByDay.map(d => d.length), 0);
-          let currentY = startY;
+          const getShiftStartHour = (shift: any): number => {
+            const parts = new Intl.DateTimeFormat('en-US', {
+              timeZone: tz,
+              hour: 'numeric',
+              hour12: false,
+            }).formatToParts(new Date(shift.start));
+            const hourPart = parts.find(p => p.type === 'hour')?.value || '8';
+            const parsed = parseInt(hourPart, 10);
+            return isNaN(parsed) ? 8 : parsed % 24;
+          };
 
-          for (let i = 0; i < maxShifts; i++) {
-            let rowMaxHeight = 0;
+          const getShiftDisplayInfo = (shift: any) => {
+            const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.start));
+            const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.end));
+            const timeText = `${sStart} - ${sEnd}`;
 
-            for (let d = 0; d < 7; d++) {
-              const shift = shiftsByDay[d][i];
-              if (shift) {
-                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.start));
-                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.end));
-                const timeText = `${sStart} - ${sEnd}`;
+            let namesText = groupBy === 'STAFF' 
+              ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
+              : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
 
-                let namesText = groupBy === 'STAFF' 
-                  ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
-                  : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
+            if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
+              namesText = shift.title;
+            }
 
-                if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
-                  namesText = shift.title;
-                }
-
-                let serviceText = shift.serviceName || '';
-                if (!serviceText || serviceText === 'Unknown Service') {
-                  if (shift.servicesData && shift.servicesData.length > 0) {
-                    for (const sd of shift.servicesData) {
-                      if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation' || String(sd.serviceName).toLowerCase() === 'orientation') {
-                        serviceText = 'Orientation';
-                        break;
-                      }
-                      if (sd.serviceName && sd.serviceName !== 'Unknown Service') {
-                        serviceText = sd.serviceName;
-                        break;
-                      }
-                      if (sd.customName) {
-                        serviceText = sd.customName;
-                        break;
-                      }
-                    }
-                  }
-                  if (!serviceText && shift.services_json && String(shift.services_json).toLowerCase().includes('orientation')) {
+            let serviceText = shift.serviceName || '';
+            if (!serviceText || serviceText === 'Unknown Service') {
+              if (shift.servicesData && shift.servicesData.length > 0) {
+                for (const sd of shift.servicesData) {
+                  if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation' || String(sd.serviceName).toLowerCase() === 'orientation') {
                     serviceText = 'Orientation';
-                  } else if (!serviceText && shift.isRespiteWrapper) {
-                    serviceText = 'Respite / STA';
+                    break;
+                  }
+                  if (sd.serviceName && sd.serviceName !== 'Unknown Service') {
+                    serviceText = sd.serviceName;
+                    break;
+                  }
+                  if (sd.customName) {
+                    serviceText = sd.customName;
+                    break;
                   }
                 }
-
-                doc.fontSize(8);
-                const tHeight = doc.heightOfString(timeText, { width: colWidth - 8 });
-                const nHeight = doc.heightOfString(namesText, { width: colWidth - 8 });
-                doc.fontSize(7.5);
-                const sHeight = serviceText ? doc.heightOfString(serviceText, { width: colWidth - 8 }) : 0;
-                const boxH = tHeight + nHeight + (serviceText ? sHeight + 3 : 0) + 10;
-                if (boxH > rowMaxHeight) rowMaxHeight = boxH;
+              }
+              if (!serviceText && shift.services_json && String(shift.services_json).toLowerCase().includes('orientation')) {
+                serviceText = 'Orientation';
+              } else if (!serviceText && shift.isRespiteWrapper) {
+                serviceText = 'Respite / STA';
               }
             }
 
-            if (rowMaxHeight === 0) continue;
+            let bgColor = '#0ea5e9'; // PUBLISHED
+            if (shift.status === 'DRAFT') bgColor = '#52525b';
+            if (shift.status === 'COMPLETED') bgColor = '#16a34a';
+            if (shift.status === 'IN_PROGRESS') bgColor = '#d97706';
+            if (shift.status === 'PENDING_SYNC') bgColor = '#ea580c';
+            if (shift.status === 'CANCELLED') bgColor = '#dc2626';
+            if (shift.isRespiteWrapper) bgColor = '#7c3aed';
 
-            if ( currentY + rowMaxHeight > doc.page.height - 55 ) {
+            doc.fontSize(8).font('Helvetica-Bold');
+            const tHeight = doc.heightOfString(timeText, { width: colWidth - 8 });
+            doc.font('Helvetica');
+            const nHeight = doc.heightOfString(namesText, { width: colWidth - 8 });
+            doc.fontSize(7.5).font('Helvetica-Bold');
+            const sHeight = serviceText ? doc.heightOfString(serviceText, { width: colWidth - 8 }) : 0;
+            const boxH = tHeight + nHeight + (serviceText ? sHeight + 3 : 0) + 8;
+
+            return { timeText, namesText, serviceText, bgColor, boxH };
+          };
+
+          let minHour = 7;
+          let maxHour = 18;
+          const shiftsByDayAndHour: Record<number, any[][]> = {};
+
+          for (let d = 0; d < 7; d++) {
+            shiftsByDay[d].forEach((shift: any) => {
+              const hr = getShiftStartHour(shift);
+              if (hr < minHour) minHour = hr;
+              if (hr > maxHour) maxHour = hr;
+              if (!shiftsByDayAndHour[hr]) {
+                shiftsByDayAndHour[hr] = Array(7).fill(null).map(() => []);
+              }
+              shiftsByDayAndHour[hr][d].push(shift);
+            });
+          }
+
+          const formatHourLabel = (h: number) => {
+            const suffix = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 === 0 ? 12 : h % 12;
+            return `${h12}:00 ${suffix}`;
+          };
+
+          let currentY = startY;
+          const emptyHourHeight = 14;
+
+          for (let hr = minHour; hr <= maxHour; hr++) {
+            const dayBuckets = shiftsByDayAndHour[hr];
+            let hourRowHeight = emptyHourHeight;
+            const preparedByDay: any[][] = Array(7).fill(null).map(() => []);
+
+            if (dayBuckets) {
+              for (let d = 0; d < 7; d++) {
+                const list = dayBuckets[d] || [];
+                if (list.length > 0) {
+                  let colTotalH = 0;
+                  list.forEach((sh: any, idx: number) => {
+                    const info = getShiftDisplayInfo(sh);
+                    preparedByDay[d].push(info);
+                    colTotalH += info.boxH + (idx > 0 ? 3 : 0);
+                  });
+                  if (colTotalH + 4 > hourRowHeight) {
+                    hourRowHeight = colTotalH + 4;
+                  }
+                }
+              }
+            }
+
+            if (currentY + hourRowHeight > doc.page.height - 55) {
               drawFooterLegend();
               doc.addPage();
               startY = 30;
@@ -16757,74 +16821,50 @@ app.get("/api/health", (req, res) => {
               currentY = startY;
             }
 
+            // Subtle horizontal hour line and vertical day dividers
+            doc.save();
+            doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+            doc.moveTo(gridStartX, currentY).lineTo(gridStartX, currentY + hourRowHeight).strokeColor('#d1d5db').lineWidth(0.75).stroke();
+            for (let d = 1; d < 7; d++) {
+              const vx = gridStartX + d * colWidth;
+              doc.moveTo(vx, currentY).lineTo(vx, currentY + hourRowHeight).strokeColor('#f1f5f9').lineWidth(0.5).stroke();
+            }
+            doc.restore();
+
+            // Left-side hour label
+            doc.fillColor('#4b5563').fontSize(7.5).font('Helvetica-Bold');
+            doc.text(formatHourLabel(hr), 30, currentY + 3, { width: timeColWidth - 6, align: 'right', lineBreak: false });
+
+            // Render shift cards for this hour across the 7 days
             for (let d = 0; d < 7; d++) {
-              const shift = shiftsByDay[d][i];
-              if (shift) {
-                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.start));
-                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.end));
-                const timeText = `${sStart} - ${sEnd}`;
+              const cards = preparedByDay[d];
+              let cardY = currentY + 2;
+              cards.forEach((info: any) => {
+                const cellX = gridStartX + d * colWidth;
+                doc.save();
+                doc.roundedRect(cellX + 2, cardY, colWidth - 4, info.boxH, 2).fillColor(info.bgColor).fill();
+                doc.restore();
 
-                let namesText = groupBy === 'STAFF' 
-                  ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
-                  : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
-
-                if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
-                  namesText = shift.title;
-                }
-
-                let serviceText = shift.serviceName || '';
-                if (!serviceText || serviceText === 'Unknown Service') {
-                  if (shift.servicesData && shift.servicesData.length > 0) {
-                    for (const sd of shift.servicesData) {
-                      if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation' || String(sd.serviceName).toLowerCase() === 'orientation') {
-                        serviceText = 'Orientation';
-                        break;
-                      }
-                      if (sd.serviceName && sd.serviceName !== 'Unknown Service') {
-                        serviceText = sd.serviceName;
-                        break;
-                      }
-                      if (sd.customName) {
-                        serviceText = sd.customName;
-                        break;
-                      }
-                    }
-                  }
-                  if (!serviceText && shift.services_json && String(shift.services_json).toLowerCase().includes('orientation')) {
-                    serviceText = 'Orientation';
-                  } else if (!serviceText && shift.isRespiteWrapper) {
-                    serviceText = 'Respite / STA';
-                  }
-                }
-
-                let bgColor = '#0ea5e9'; // PUBLISHED
-                if (shift.status === 'DRAFT') bgColor = '#52525b';
-                if (shift.status === 'COMPLETED') bgColor = '#16a34a';
-                if (shift.status === 'IN_PROGRESS') bgColor = '#d97706';
-                if (shift.status === 'PENDING_SYNC') bgColor = '#ea580c';
-                if (shift.status === 'CANCELLED') bgColor = '#dc2626';
-                if (shift.isRespiteWrapper) bgColor = '#7c3aed';
-
-                doc.fillColor(bgColor).rect(30 + d * colWidth + 2, currentY, colWidth - 4, rowMaxHeight).fill();
-                
-                let textCursorY = currentY + 3;
+                let textCursorY = cardY + 3;
                 doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
-                doc.text(timeText, 30 + d * colWidth + 4, textCursorY, { width: colWidth - 8 });
-                textCursorY += doc.heightOfString(timeText, { width: colWidth - 8 });
+                doc.text(info.timeText, cellX + 4, textCursorY, { width: colWidth - 8 });
+                textCursorY += doc.heightOfString(info.timeText, { width: colWidth - 8 });
 
                 doc.font('Helvetica');
-                doc.text(namesText, 30 + d * colWidth + 4, textCursorY, { width: colWidth - 8 });
-                textCursorY += doc.heightOfString(namesText, { width: colWidth - 8 });
+                doc.text(info.namesText, cellX + 4, textCursorY, { width: colWidth - 8 });
+                textCursorY += doc.heightOfString(info.namesText, { width: colWidth - 8 });
 
-                if (serviceText) {
+                if (info.serviceText) {
                   doc.fontSize(7.5).fillColor('#f8fafc').font('Helvetica-Bold');
-                  doc.text(serviceText, 30 + d * colWidth + 4, textCursorY + 1, { width: colWidth - 8 });
+                  doc.text(info.serviceText, cellX + 4, textCursorY + 1, { width: colWidth - 8 });
                   doc.font('Helvetica');
                 }
-              }
+
+                cardY += info.boxH + 3;
+              });
             }
 
-            currentY += rowMaxHeight + 4;
+            currentY += hourRowHeight;
           }
 
           // --- Add Daily Subtotals ---
@@ -16833,16 +16873,21 @@ app.get("/api/health", (req, res) => {
             doc.addPage();
             currentY = 30;
           } else {
-            currentY += 8;
+            currentY += 4;
           }
 
-          doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#cccccc').stroke();
+          doc.save();
+          doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#cccccc').lineWidth(1).stroke();
+          doc.restore();
           currentY += 6;
+
+          doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica-Bold');
+          doc.text('Total', 30, currentY + 1, { width: timeColWidth - 6, align: 'right', lineBreak: false });
 
           doc.fillColor('#111827').fontSize(9.5).font('Helvetica-Bold');
           for (let d = 0; d < 7; d++) {
             const hrs = dailyTotalHours[d] > 0 ? dailyTotalHours[d].toFixed(2) + ' hrs' : '-';
-            doc.text(hrs, 30 + d * colWidth, currentY, { width: colWidth, align: 'center' });
+            doc.text(hrs, gridStartX + d * colWidth, currentY, { width: colWidth, align: 'center' });
           }
 
           drawFooterLegend();
