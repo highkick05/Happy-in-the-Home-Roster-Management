@@ -419,8 +419,8 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <UserCheck className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
-            <NavLink replace={true} to="/compliance" className={getNavClasses} title="Compliance">
-                  <FileCheck className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Compliance' : ''}
+            <NavLink replace={true} to="/compliance" className={getNavClasses} title="Audit Logs">
+                  <FileCheck className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Audit Logs' : ''}
                 </NavLink>
               </div>
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Trilogy Care</div>
