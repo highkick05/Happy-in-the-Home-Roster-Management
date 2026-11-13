@@ -40,7 +40,10 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isDraggingStep, setIsDraggingStep] = useState<Record<string, boolean>>({});
   const [sessionUploadedFiles, setSessionUploadedFiles] = useState<Record<string, boolean>>({});
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File | null>>({});
+  const [uploadingStep, setUploadingStep] = useState<Record<string, boolean>>({});
   const [dynamicSteps, setDynamicSteps] = useState<Step[]>([]);
+  const fileInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
   
 
   
@@ -138,7 +141,12 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     }
 
     if (fileAction?.type === 'add') {
-      newFiles.push(fileAction.file);
+      const existingIdx = newFiles.findIndex(f => f.id === fileAction.file.id);
+      if (existingIdx >= 0) {
+        newFiles[existingIdx] = fileAction.file;
+      } else {
+        newFiles.push(fileAction.file);
+      }
     } else if (fileAction?.type === 'remove') {
       newFiles = newFiles.filter(f => f.id !== fileAction.file.id);
     }
@@ -148,6 +156,8 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     const stepDef = dynamicSteps.find(s => s.id === stepId);
     if (stepDef?.type === 'upload') {
       finalStatus = newFiles.length > 0 ? 'completed' : 'pending';
+    } else if (fileAction?.type === 'add') {
+      finalStatus = 'completed';
     }
 
     const newData = { 
@@ -180,12 +190,12 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     }
   };
 
-  const uploadFileAndSave = async (file: File, stepId: string) => {
+  const uploadFileAndSave = async (file: File, stepId: string, overrideDates?: { issued?: string; expires?: string }) => {
     // Reset error
     setUploadError(prev => ({ ...prev, [stepId]: '' }));
 
-    let issued = formDates[stepId]?.issued || '';
-    let expires = formDates[stepId]?.expires || '';
+    let issued = (overrideDates?.issued !== undefined ? overrideDates.issued : formDates[stepId]?.issued) || '';
+    let expires = (overrideDates?.expires !== undefined ? overrideDates.expires : formDates[stepId]?.expires) || '';
     
     const currentStep = dynamicSteps.find(s => s.id === stepId);
     
@@ -193,7 +203,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     const today = new Date();
 
     if (currentStep?.requires_expiry === 1 && !issued && !expires) {
-      setUploadError(prev => ({ ...prev, [stepId]: 'Please provide either an Issue Date or an Expiry Date.' }));
+      setExpandedStep(stepId);
+      setPendingFiles(prev => ({ ...prev, [stepId]: file }));
+      setUploadError(prev => ({ ...prev, [stepId]: 'File selected! Please enter either an Issue Date or an Expiry Date above to complete the upload.' }));
       return;
     }
     
@@ -206,7 +218,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     
     if (stepId === 'ndis_screening') {
       if (!issued) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
+        setExpandedStep(stepId);
+        setPendingFiles(prev => ({ ...prev, [stepId]: file }));
+        setUploadError(prev => ({ ...prev, [stepId]: 'File selected! Date issued is required above to complete the upload.' }));
         return;
       }
       if (!expires) {
@@ -218,7 +232,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     
     if (stepId === 'wwcc') {
       if (!expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Expiry date is required.' }));
+        setExpandedStep(stepId);
+        setPendingFiles(prev => ({ ...prev, [stepId]: file }));
+        setUploadError(prev => ({ ...prev, [stepId]: 'File selected! Expiry date is required above to complete the upload.' }));
         return;
       }
     }
@@ -238,14 +254,18 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
     if (stepId === 'driver_license' || stepId === 'car_insurance') {
       if (!expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
+        setExpandedStep(stepId);
+        setPendingFiles(prev => ({ ...prev, [stepId]: file }));
+        setUploadError(prev => ({ ...prev, [stepId]: 'File selected! Date expires is required above to complete the upload.' }));
         return;
       }
     }
 
     if (stepId === 'cpr' || stepId === 'manual_handling' || stepId === 'flu_shot') {
       if (!issued && !expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued or expires is required.' }));
+        setExpandedStep(stepId);
+        setPendingFiles(prev => ({ ...prev, [stepId]: file }));
+        setUploadError(prev => ({ ...prev, [stepId]: 'File selected! Date issued or expires is required above to complete the upload.' }));
         return;
       }
       if (issued && !expires) {
@@ -257,7 +277,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
     if (stepId === 'police_check' || stepId === 'first_aid') {
       if (!issued && !expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued or expires is required.' }));
+        setExpandedStep(stepId);
+        setPendingFiles(prev => ({ ...prev, [stepId]: file }));
+        setUploadError(prev => ({ ...prev, [stepId]: 'File selected! Date issued or expires is required above to complete the upload.' }));
         return;
       }
       if (issued && !expires) {
@@ -275,8 +297,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     if (contextUserId) formData.append('targetUserId', contextUserId.toString());
 
     const stepDef = dynamicSteps.find(s => s.id === stepId);
-    const customNameStr = stepDef ? encodeURIComponent(stepDef.title) : stepId;
+    const existingFilesCount = (progressData[stepId]?.files || []).length;
+    const nameWithIndex = stepDef
+      ? (existingFilesCount > 0 ? `${stepDef.title} (${existingFilesCount + 1})` : stepDef.title)
+      : stepId;
+    const customNameStr = encodeURIComponent(nameWithIndex);
     
+    setUploadingStep(prev => ({ ...prev, [stepId]: true }));
     try {
       const res = await fetch(`/api/files?context=STAFF_ONBOARDING&targetUserId=${contextUserId || ''}&customName=${customNameStr}`, {
         method: 'POST',
@@ -296,6 +323,8 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
             body: JSON.stringify({ fileId: data.id, subfolder: 'Onboarding' })
           }).catch(err => console.warn('[SharePoint Onboarding Mirror] Background sync warning:', err));
         }
+        setPendingFiles(prev => ({ ...prev, [stepId]: null }));
+        setUploadError(prev => ({ ...prev, [stepId]: '' }));
         await updateProgress(stepId, 'completed', { type: 'add', file: { id: data.id, name: data.name || file.name } });
         setSessionUploadedFiles(prev => ({ ...prev, [stepId]: true }));
       } else {
@@ -303,6 +332,8 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       }
     } catch (err) {
       setUploadError(prev => ({ ...prev, [stepId]: 'Upload failed due to network error' }));
+    } finally {
+      setUploadingStep(prev => ({ ...prev, [stepId]: false }));
     }
   };
 
@@ -471,10 +502,10 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
               ? 'border-brand-teal/50 bg-[#121214]/50 z-50' 
               : 'border-white/[0.08] bg-[#121214]/30 z-0 hover:border-white/15'
         }`}
-        onDragOver={(e) => step.type === 'upload' && handleDragOver(e, step.id)}
-        onDragEnter={(e) => step.type === 'upload' && handleDragEnter(e, step.id)}
-        onDragLeave={(e) => step.type === 'upload' && handleDragLeave(e, step.id)}
-        onDrop={(e) => step.type === 'upload' && handleDrop(e, step.id)}
+        onDragOver={(e) => handleDragOver(e, step.id)}
+        onDragEnter={(e) => handleDragEnter(e, step.id)}
+        onDragLeave={(e) => handleDragLeave(e, step.id)}
+        onDrop={(e) => handleDrop(e, step.id)}
       >
         {/* Drag and Drop visual shield overlay */}
         {isDraggingStep[step.id] && (
@@ -528,13 +559,32 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
             ) : (
               <div className="hidden md:flex">
                 {step.type === 'upload' ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-800 text-zinc-300 text-xs font-semibold rounded uppercase">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedStep(step.id);
+                      setTimeout(() => {
+                        fileInputRefs.current[step.id]?.click();
+                      }, 50);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-zinc-800 hover:bg-brand-teal hover:text-zinc-950 text-zinc-200 text-xs font-semibold rounded uppercase transition-colors cursor-pointer"
+                    title="Expand and choose file to upload"
+                  >
                     <Upload className="w-3 h-3" /> UPLOAD
-                  </div>
+                  </button>
                 ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-800 text-zinc-300 text-xs font-semibold rounded uppercase">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedStep(step.id);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-zinc-800 hover:bg-brand-teal hover:text-zinc-950 text-zinc-200 text-xs font-semibold rounded uppercase transition-colors cursor-pointer"
+                    title="Expand to review and confirm"
+                  >
                     <CheckCircle2 className="w-3 h-3" /> CONFIRM
-                  </div>
+                  </button>
                 )}
               </div>
             )}
@@ -788,7 +838,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                     {(['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) || (step.id.startsWith('dynamic_') && step.requires_expiry === 1)) && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-xs text-zinc-400">Issue Date</label>
+                          <label className="block text-xs text-zinc-400">
+                            Issue Date <span className="text-[10px] text-zinc-500">(Provide Issue or Expiry Date)</span>
+                          </label>
                           {progressData[step.id]?.files?.[0]?.date_expires && (
                             <span className="text-[10px] text-brand-teal font-medium">
                               Current expires: {progressData[step.id].files![0].date_expires}
@@ -798,14 +850,23 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <CustomDatePicker 
                           className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded px-2.5 py-1.5 text-zinc-200 text-xs"
                           value={formDates[step.id]?.issued || ''}
-                          onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], issued: e.target.value } }))}
+                          onChange={(e: any) => {
+                            const newIssued = e.target.value;
+                            const currExpires = formDates[step.id]?.expires || '';
+                            setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], issued: newIssued } }));
+                            if (newIssued && pendingFiles[step.id]) {
+                              uploadFileAndSave(pendingFiles[step.id]!, step.id, { issued: newIssued, expires: currExpires });
+                            }
+                          }}
                         />
                       </div>
                     )}
                     {(['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot', 'police_check'].includes(step.id) || (step.id.startsWith('dynamic_') && step.requires_expiry === 1)) && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-xs text-zinc-400">Expiry Date</label>
+                          <label className="block text-xs text-zinc-400">
+                            Expiry Date <span className="text-[10px] text-zinc-500">(Provide Issue or Expiry Date)</span>
+                          </label>
                           {!['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
                             <span className="text-[10px] text-brand-teal font-medium">
                               Current expires: {progressData[step.id].files![0].date_expires}
@@ -815,14 +876,59 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <CustomDatePicker 
                           className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded px-2.5 py-1.5 text-zinc-200 text-xs"
                           value={formDates[step.id]?.expires || ''}
-                          onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], expires: e.target.value } }))}
+                          onChange={(e: any) => {
+                            const newExpires = e.target.value;
+                            const currIssued = formDates[step.id]?.issued || '';
+                            setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], expires: newExpires } }));
+                            if (newExpires && pendingFiles[step.id]) {
+                              uploadFileAndSave(pendingFiles[step.id]!, step.id, { issued: currIssued, expires: newExpires });
+                            }
+                          }}
                         />
                       </div>
                     )}
                     {uploadError[step.id] && (
-                      <p className="text-red-500 text-xs mt-1">{uploadError[step.id]}</p>
+                      <p className={`text-xs mt-1 font-medium ${pendingFiles[step.id] ? 'text-amber-400' : 'text-red-500'}`}>
+                        {uploadError[step.id]}
+                      </p>
                     )}
                   </div>
+
+                  {pendingFiles[step.id] && (
+                    <div className="mb-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FileIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-white truncate">
+                            Selected File: {pendingFiles[step.id]!.name}
+                          </p>
+                          <p className="text-[11px] text-amber-300/90">
+                            Select an Issue Date or Expiry Date above — or click Upload Now once entered.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={uploadingStep[step.id]}
+                          onClick={() => uploadFileAndSave(pendingFiles[step.id]!, step.id)}
+                          className="px-3 py-1.5 bg-brand-teal hover:bg-[#119e8e] text-zinc-950 text-xs font-bold rounded-md transition-colors cursor-pointer"
+                        >
+                          {uploadingStep[step.id] ? 'Uploading...' : 'Upload Now'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingFiles(prev => ({ ...prev, [step.id]: null }));
+                            setUploadError(prev => ({ ...prev, [step.id]: '' }));
+                          }}
+                          className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-md transition-colors cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-3">
                     <label 
@@ -837,11 +943,16 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                       </div>
                       <div className="space-y-1">
                         <p className="font-medium text-xs text-zinc-300">
-                          Drag & drop document here, or <span className="text-brand-teal font-semibold hover:underline">browse files</span>
+                          {uploadingStep[step.id] ? (
+                            <span className="text-brand-teal font-semibold">Uploading document...</span>
+                          ) : (
+                            <>Drag & drop document here, or <span className="text-brand-teal font-semibold hover:underline">browse files</span></>
+                          )}
                         </p>
-                        <p className="text-[10px] text-zinc-500">Supports standard document & image formats</p>
+                        <p className="text-[10px] text-zinc-500">Supports standard document & image formats (you can upload multiple files if needed)</p>
                       </div>
                       <input 
+                        ref={(el) => { fileInputRefs.current[step.id] = el; }}
                         type="file" 
                         className="hidden" 
                         onChange={(e) => handleFileUpload(e, step.id)}
@@ -925,7 +1036,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                   )}
                 </div>
               ) : (
-                <div className="pt-2">
+                <div className="pt-2 space-y-3">
                   <div 
                     onClick={() => updateProgress(step.id, isCompleted ? 'pending' : 'completed')}
                     className={`flex items-start sm:items-center gap-3.5 p-4 rounded-xl border cursor-pointer select-none transition-all group ${
@@ -958,6 +1069,63 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                           : 'Check this box to confirm you have read and understood the instructions above and acknowledge this requirement.'}
                       </p>
                     </div>
+                  </div>
+
+                  {/* Optional supporting document upload on confirmation steps */}
+                  <div className="pt-1">
+                    <label 
+                      className={`flex items-center justify-center gap-2.5 p-3 border border-dashed rounded-lg transition-all cursor-pointer ${
+                        isDraggingStep[step.id]
+                          ? 'border-brand-teal bg-brand-teal/5 text-white'
+                          : 'border-white/[0.1] bg-[#161618] hover:border-brand-teal/40 hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      <Upload className="w-4 h-4 text-brand-teal shrink-0" />
+                      <span className="text-xs">
+                        {uploadingStep[step.id] ? (
+                          <span className="text-brand-teal font-semibold">Uploading document...</span>
+                        ) : (
+                          <>Optional: Drag & drop a signed copy or supporting document here, or <span className="text-brand-teal font-semibold hover:underline">browse files</span></>
+                        )}
+                      </span>
+                      <input 
+                        ref={(el) => { fileInputRefs.current[step.id] = el; }}
+                        type="file" 
+                        className="hidden" 
+                        onChange={(e) => handleFileUpload(e, step.id)}
+                      />
+                    </label>
+                    {uploadError[step.id] && (
+                      <p className="text-red-500 text-xs mt-1">{uploadError[step.id]}</p>
+                    )}
+                    {progressData[step.id]?.files && progressData[step.id].files!.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {progressData[step.id].files!.map((file: any) => (
+                          <div key={file.id} className="flex items-center justify-between p-2.5 bg-zinc-800/80 rounded border border-white/[0.08] gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <FileIcon className="w-4 h-4 text-brand-teal shrink-0" />
+                              <span className="text-xs font-medium text-zinc-200 break-all">{file.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => downloadFile(file.id, file.name)}
+                                className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+                                title="Download File"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFile(step.id, file)}
+                                className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-zinc-700 rounded transition-colors"
+                                title="Delete File"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

@@ -170,12 +170,64 @@ export function CustomDatePicker({
     setShow(state);
   };
 
+  const [inputText, setInputText] = useState<string>("");
+
+  useEffect(() => {
+    if (dateValue) {
+      setInputText(dateValue.toLocaleDateString("en-GB"));
+    } else {
+      setInputText("");
+    }
+  }, [dateValue]);
+
+  const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setInputText(raw);
+
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setDateValue(null);
+      if (onDateChange) onDateChange(null);
+      if (onChange) onChange({ target: { value: '', name: name || '' } });
+      return;
+    }
+
+    // Match dd/mm/yyyy or dd-mm-yyyy
+    const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10);
+      const year = parseInt(dmyMatch[3], 10);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
+        const parsed = new Date(year, month - 1, day);
+        if (parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day) {
+          handleChange(parsed);
+        }
+      }
+      return;
+    }
+
+    // Match yyyy-mm-dd
+    const ymdMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymdMatch) {
+      const year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10);
+      const day = parseInt(ymdMatch[3], 10);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
+        const parsed = new Date(year, month - 1, day);
+        if (parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day) {
+          handleChange(parsed);
+        }
+      }
+    }
+  };
+
   const options: any = {
     title: "",
     autoHide: true,
     todayBtn: false,
     clearBtn: false,
-    maxDate: maxDate || new Date("2030-01-01"),
+    maxDate: maxDate || new Date("2050-12-31"),
     minDate: minDate || new Date("1900-01-01"),
     theme: {
       background: "bg-[#1A1A1A] border-white/[0.1] w-full",
@@ -220,12 +272,19 @@ export function CustomDatePicker({
             type="text"
             className={className + " w-full pl-1 pr-6 cursor-pointer py-0 h-full !border-0 bg-transparent"}
             placeholder={placeholderText || "dd/mm/yyyy"}
-            value={dateValue ? dateValue.toLocaleDateString("en-GB") : ""}
+            value={inputText}
+            onChange={handleManualInputChange}
+            onBlur={() => {
+              if (dateValue) {
+                setInputText(dateValue.toLocaleDateString("en-GB"));
+              } else {
+                setInputText("");
+              }
+            }}
             onClick={() => {
               setShow(true);
               window.dispatchEvent(new CustomEvent('datepicker_open', { detail: { id: uniqueId } }));
             }}
-            readOnly
             name={name}
             id={id}
             required={required}
@@ -237,6 +296,7 @@ export function CustomDatePicker({
                  onClick={(e) => {
                    e.stopPropagation();
                    setDateValue(null);
+                   setInputText("");
                    if (onDateChange) onDateChange(null);
                    if (onChange) onChange({ target: { value: '', name: name || '' } });
                  }} 
