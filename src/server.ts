@@ -16609,30 +16609,29 @@ app.get("/api/health", (req, res) => {
             dayShifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
           });
 
-          const initialY = doc.y;
-          doc.fontSize(15).fillColor('#000000').font('Helvetica-Bold').text(titleText, 30, initialY, { align: 'center', width: doc.page.width - 60 });
-          doc.fontSize(10.5).fillColor('#4b5563').font('Helvetica').text(
+          const prevBottomMargin = doc.page.margins.bottom;
+          doc.page.margins.bottom = 0;
+
+          const initialY = 22;
+          doc.fontSize(14).fillColor('#000000').font('Helvetica-Bold').text(titleText, 30, initialY, { align: 'center', width: doc.page.width - 60, lineBreak: false });
+          doc.fontSize(9.5).fillColor('#4b5563').font('Helvetica').text(
             `${w.monthDisplay.toUpperCase()}  •  ${w.days[0].dateFormatted} to ${w.days[6].dateFormatted}`, 
             30, 
-            doc.y + 3, 
-            { align: 'center', width: doc.page.width - 60 }
+            initialY + 17, 
+            { align: 'center', width: doc.page.width - 60, lineBreak: false }
           );
 
           if (weeks.length > 1) {
-            doc.fontSize(10).fillColor('#111827').font('Helvetica-Bold')
-              .text(`Week Hours: ${weekTotalHours.toFixed(2)}`, 30, initialY, { align: 'right', width: doc.page.width - 60 });
-            doc.fontSize(8.5).fillColor('#4b5563').font('Helvetica')
-              .text(`Overall Total: ${totalOverallHours.toFixed(2)}`, 30, initialY + 14, { align: 'right', width: doc.page.width - 60 });
+            doc.fontSize(9.5).fillColor('#111827').font('Helvetica-Bold')
+              .text(`Week Hours: ${weekTotalHours.toFixed(2)}`, 30, initialY, { align: 'right', width: doc.page.width - 60, lineBreak: false });
+            doc.fontSize(8).fillColor('#4b5563').font('Helvetica')
+              .text(`Overall Total: ${totalOverallHours.toFixed(2)}`, 30, initialY + 13, { align: 'right', width: doc.page.width - 60, lineBreak: false });
           } else {
-            doc.fontSize(11).fillColor('#000000').font('Helvetica-Bold')
-              .text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY + 4, { align: 'right', width: doc.page.width - 60 });
+            doc.fontSize(10.5).fillColor('#000000').font('Helvetica-Bold')
+              .text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY + 3, { align: 'right', width: doc.page.width - 60, lineBreak: false });
           }
 
           const drawFooterLegend = () => {
-            const prevBottomMargin = doc.page.margins.bottom;
-            const prevY = doc.y;
-            doc.page.margins.bottom = 0;
-
             const legendItems = [
               { label: 'Published', color: '#0ea5e9' },
               { label: 'Completed', color: '#16a34a' },
@@ -16642,13 +16641,13 @@ app.get("/api/health", (req, res) => {
               { label: 'Pending Sync', color: '#ea580c' },
               { label: 'Respite / STA', color: '#7c3aed' },
             ];
-            const legendY = doc.page.height - 26;
+            const legendY = doc.page.height - 22;
             const swatchSize = 8;
             const swatchTextGap = 4;
             const itemGap = 14;
 
             doc.save();
-            doc.moveTo(30, legendY - 6).lineTo(doc.page.width - 30, legendY - 6).strokeColor('#e5e7eb').lineWidth(0.75).stroke();
+            doc.moveTo(30, legendY - 5).lineTo(doc.page.width - 30, legendY - 5).strokeColor('#e5e7eb').lineWidth(0.75).stroke();
             doc.restore();
 
             doc.fontSize(8).font('Helvetica-Bold');
@@ -16666,52 +16665,53 @@ app.get("/api/health", (req, res) => {
               doc.text(item.label, legendCursorX, legendY + 0.5, { lineBreak: false });
               legendCursorX += doc.widthOfString(item.label) + itemGap;
             });
-
-            doc.y = prevY;
-            doc.page.margins.bottom = prevBottomMargin;
           };
-
-          doc.y = initialY + 42;
-          doc.moveDown(0.5);
 
           const timeColWidth = 46;
           const gridStartX = 30 + timeColWidth;
           const colWidth = (doc.page.width - 60 - timeColWidth) / 7;
-          let startY = doc.y;
+          const headerY = 56;
 
-          const drawHeader = () => {
-            doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica-Bold');
-            doc.text('Time', 30, startY + 6, { width: timeColWidth - 6, align: 'right' });
+          // Draw Day Column Headers
+          doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica-Bold');
+          doc.text('Time', 30, headerY + 6, { width: timeColWidth - 6, align: 'right', lineBreak: false });
 
-            w.days.forEach((dayInfo, i) => {
-              const colX = gridStartX + i * colWidth;
-              doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-              doc.text(dayInfo.dayName, colX, startY, { width: colWidth, align: 'center' });
-              doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica');
-              doc.text(dayInfo.dateFormatted, colX, startY + 12, { width: colWidth, align: 'center' });
-            });
-            doc.save();
-            doc.moveTo(30, startY + 26).lineTo(doc.page.width - 30, startY + 26).strokeColor('#cccccc').lineWidth(1).stroke();
-            doc.restore();
-            startY += 30;
-          };
+          w.days.forEach((dayInfo, i) => {
+            const colX = gridStartX + i * colWidth;
+            doc.fillColor('#000000').fontSize(9.5).font('Helvetica-Bold');
+            doc.text(dayInfo.dayName, colX, headerY, { width: colWidth, align: 'center', lineBreak: false });
+            doc.fillColor('#4b5563').fontSize(8).font('Helvetica');
+            doc.text(dayInfo.dateFormatted, colX, headerY + 11, { width: colWidth, align: 'center', lineBreak: false });
+          });
 
-          drawHeader();
+          const gridTopY = headerY + 24;
+          const totalsY = doc.page.height - 43;
+          const gridBottomY = totalsY - 6;
+          const gridTotalHeight = gridBottomY - gridTopY;
 
-          const getShiftStartHour = (shift: any): number => {
+          doc.save();
+          doc.moveTo(30, gridTopY).lineTo(doc.page.width - 30, gridTopY).strokeColor('#cccccc').lineWidth(1).stroke();
+          doc.restore();
+
+          const getShiftDecimalHours = (dateObj: Date): number => {
             const parts = new Intl.DateTimeFormat('en-US', {
               timeZone: tz,
               hour: 'numeric',
+              minute: 'numeric',
               hour12: false,
-            }).formatToParts(new Date(shift.start));
-            const hourPart = parts.find(p => p.type === 'hour')?.value || '8';
-            const parsed = parseInt(hourPart, 10);
-            return isNaN(parsed) ? 8 : parsed % 24;
+            }).formatToParts(dateObj);
+            const hrRaw = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+            const minRaw = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+            const hr = isNaN(hrRaw) ? 0 : hrRaw % 24;
+            const min = isNaN(minRaw) ? 0 : minRaw;
+            return hr + min / 60;
           };
 
-          const getShiftDisplayInfo = (shift: any) => {
-            const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.start));
-            const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.end));
+          const getShiftCardData = (shift: any) => {
+            const startD = new Date(shift.start);
+            const endD = new Date(shift.end);
+            const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(startD);
+            const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(endD);
             const timeText = `${sStart} - ${sEnd}`;
 
             let namesText = groupBy === 'STAFF' 
@@ -16755,142 +16755,191 @@ app.get("/api/health", (req, res) => {
             if (shift.status === 'CANCELLED') bgColor = '#dc2626';
             if (shift.isRespiteWrapper) bgColor = '#7c3aed';
 
-            doc.fontSize(8).font('Helvetica-Bold');
-            const tHeight = doc.heightOfString(timeText, { width: colWidth - 8 });
-            doc.font('Helvetica');
-            const nHeight = doc.heightOfString(namesText, { width: colWidth - 8 });
-            doc.fontSize(7.5).font('Helvetica-Bold');
-            const sHeight = serviceText ? doc.heightOfString(serviceText, { width: colWidth - 8 }) : 0;
-            const boxH = tHeight + nHeight + (serviceText ? sHeight + 3 : 0) + 8;
+            const startDec = getShiftDecimalHours(startD);
+            let endDec = getShiftDecimalHours(endD);
+            const durationHours = (endD.getTime() - startD.getTime()) / (1000 * 60 * 60);
+            if (endDec <= startDec) {
+              endDec = Math.min(24, startDec + Math.max(0.5, durationHours));
+            }
 
-            return { timeText, namesText, serviceText, bgColor, boxH };
+            return { timeText, namesText, serviceText, bgColor, startDec, endDec };
           };
 
           let minHour = 7;
-          let maxHour = 18;
-          const shiftsByDayAndHour: Record<number, any[][]> = {};
+          let maxHour = 17;
+          let earliestFound = 24;
+          let latestFound = 0;
+          const preparedShiftsByDay: any[][] = Array(7).fill(null).map(() => []);
 
           for (let d = 0; d < 7; d++) {
             shiftsByDay[d].forEach((shift: any) => {
-              const hr = getShiftStartHour(shift);
-              if (hr < minHour) minHour = hr;
-              if (hr > maxHour) maxHour = hr;
-              if (!shiftsByDayAndHour[hr]) {
-                shiftsByDayAndHour[hr] = Array(7).fill(null).map(() => []);
-              }
-              shiftsByDayAndHour[hr][d].push(shift);
+              const card = getShiftCardData(shift);
+              preparedShiftsByDay[d].push(card);
+              if (card.startDec < earliestFound) earliestFound = card.startDec;
+              if (card.endDec > latestFound) latestFound = card.endDec;
             });
           }
 
+          if (earliestFound < 24) {
+            minHour = Math.max(0, Math.min(7, Math.floor(earliestFound)));
+            maxHour = Math.min(24, Math.max(minHour + 9, Math.ceil(latestFound) + 1));
+          }
+
+          const totalHours = Math.max(1, maxHour - minHour);
+          const hourHeight = gridTotalHeight / totalHours;
+
           const formatHourLabel = (h: number) => {
-            const suffix = h >= 12 ? 'PM' : 'AM';
-            const h12 = h % 12 === 0 ? 12 : h % 12;
+            const hNorm = h % 24;
+            const suffix = hNorm >= 12 ? 'PM' : 'AM';
+            const h12 = hNorm % 12 === 0 ? 12 : hNorm % 12;
             return `${h12}:00 ${suffix}`;
           };
 
-          let currentY = startY;
-          const emptyHourHeight = 14;
+          // Draw vertical day dividers across the full grid height
+          doc.save();
+          doc.moveTo(gridStartX, gridTopY).lineTo(gridStartX, gridBottomY).strokeColor('#d1d5db').lineWidth(0.75).stroke();
+          for (let d = 1; d < 7; d++) {
+            const vx = gridStartX + d * colWidth;
+            doc.moveTo(vx, gridTopY).lineTo(vx, gridBottomY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+          }
+          doc.restore();
 
+          // Draw proportional hourly and half-hourly grid lines + left-side hour labels
           for (let hr = minHour; hr <= maxHour; hr++) {
-            const dayBuckets = shiftsByDayAndHour[hr];
-            let hourRowHeight = emptyHourHeight;
-            const preparedByDay: any[][] = Array(7).fill(null).map(() => []);
+            const lineY = gridTopY + (hr - minHour) * hourHeight;
 
-            if (dayBuckets) {
-              for (let d = 0; d < 7; d++) {
-                const list = dayBuckets[d] || [];
-                if (list.length > 0) {
-                  let colTotalH = 0;
-                  list.forEach((sh: any, idx: number) => {
-                    const info = getShiftDisplayInfo(sh);
-                    preparedByDay[d].push(info);
-                    colTotalH += info.boxH + (idx > 0 ? 3 : 0);
-                  });
-                  if (colTotalH + 4 > hourRowHeight) {
-                    hourRowHeight = colTotalH + 4;
-                  }
-                }
-              }
-            }
-
-            if (currentY + hourRowHeight > doc.page.height - 55) {
-              drawFooterLegend();
-              doc.addPage();
-              startY = 30;
-              drawHeader();
-              currentY = startY;
-            }
-
-            // Subtle horizontal hour line and vertical day dividers
             doc.save();
-            doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
-            doc.moveTo(gridStartX, currentY).lineTo(gridStartX, currentY + hourRowHeight).strokeColor('#d1d5db').lineWidth(0.75).stroke();
-            for (let d = 1; d < 7; d++) {
-              const vx = gridStartX + d * colWidth;
-              doc.moveTo(vx, currentY).lineTo(vx, currentY + hourRowHeight).strokeColor('#f1f5f9').lineWidth(0.5).stroke();
+            doc.moveTo(30, lineY).lineTo(doc.page.width - 30, lineY).strokeColor('#e5e7eb').lineWidth(0.6).stroke();
+            if (hr < maxHour) {
+              const halfY = lineY + hourHeight / 2;
+              doc.moveTo(gridStartX, halfY).lineTo(doc.page.width - 30, halfY).strokeColor('#f3f4f6').lineWidth(0.4).dash(2, { space: 2 }).stroke();
+              doc.undash();
             }
             doc.restore();
 
-            // Left-side hour label
-            doc.fillColor('#4b5563').fontSize(7.5).font('Helvetica-Bold');
-            doc.text(formatHourLabel(hr), 30, currentY + 3, { width: timeColWidth - 6, align: 'right', lineBreak: false });
-
-            // Render shift cards for this hour across the 7 days
-            for (let d = 0; d < 7; d++) {
-              const cards = preparedByDay[d];
-              let cardY = currentY + 2;
-              cards.forEach((info: any) => {
-                const cellX = gridStartX + d * colWidth;
-                doc.save();
-                doc.roundedRect(cellX + 2, cardY, colWidth - 4, info.boxH, 2).fillColor(info.bgColor).fill();
-                doc.restore();
-
-                let textCursorY = cardY + 3;
-                doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
-                doc.text(info.timeText, cellX + 4, textCursorY, { width: colWidth - 8 });
-                textCursorY += doc.heightOfString(info.timeText, { width: colWidth - 8 });
-
-                doc.font('Helvetica');
-                doc.text(info.namesText, cellX + 4, textCursorY, { width: colWidth - 8 });
-                textCursorY += doc.heightOfString(info.namesText, { width: colWidth - 8 });
-
-                if (info.serviceText) {
-                  doc.fontSize(7.5).fillColor('#f8fafc').font('Helvetica-Bold');
-                  doc.text(info.serviceText, cellX + 4, textCursorY + 1, { width: colWidth - 8 });
-                  doc.font('Helvetica');
-                }
-
-                cardY += info.boxH + 3;
-              });
+            if (hr < maxHour) {
+              doc.fillColor('#4b5563').fontSize(7.5).font('Helvetica-Bold');
+              doc.text(formatHourLabel(hr), 30, lineY + 2, { width: timeColWidth - 6, align: 'right', lineBreak: false });
+            } else {
+              doc.fillColor('#4b5563').fontSize(7.5).font('Helvetica-Bold');
+              doc.text(formatHourLabel(hr), 30, lineY - 9, { width: timeColWidth - 6, align: 'right', lineBreak: false });
             }
-
-            currentY += hourRowHeight;
           }
 
-          // --- Add Daily Subtotals ---
-          if (currentY + 35 > doc.page.height - 45) {
-            drawFooterLegend();
-            doc.addPage();
-            currentY = 30;
-          } else {
-            currentY += 4;
+          // Render shifts on each day positioned by their exact start and end times
+          for (let d = 0; d < 7; d++) {
+            const dayCards = preparedShiftsByDay[d];
+            if (dayCards.length === 0) continue;
+
+            // Assign side-by-side lanes for overlapping shifts on the same day
+            const clusters: any[][] = [];
+            let currentCluster: any[] = [];
+            let clusterMaxEnd = -1;
+
+            dayCards.forEach((card: any) => {
+              if (currentCluster.length === 0 || card.startDec < clusterMaxEnd - 0.01) {
+                currentCluster.push(card);
+                if (card.endDec > clusterMaxEnd) clusterMaxEnd = card.endDec;
+              } else {
+                clusters.push(currentCluster);
+                currentCluster = [card];
+                clusterMaxEnd = card.endDec;
+              }
+            });
+            if (currentCluster.length > 0) clusters.push(currentCluster);
+
+            clusters.forEach((cluster: any[]) => {
+              const laneEnds: number[] = [];
+              cluster.forEach((card: any) => {
+                let assignedLane = -1;
+                for (let l = 0; l < laneEnds.length; l++) {
+                  if (card.startDec >= laneEnds[l] - 0.01) {
+                    assignedLane = l;
+                    laneEnds[l] = card.endDec;
+                    break;
+                  }
+                }
+                if (assignedLane === -1) {
+                  assignedLane = laneEnds.length;
+                  laneEnds.push(card.endDec);
+                }
+                card.laneIdx = assignedLane;
+              });
+              const totalLanes = Math.max(1, laneEnds.length);
+              cluster.forEach((card: any) => {
+                card.totalLanes = totalLanes;
+              });
+            });
+
+            dayCards.forEach((card: any) => {
+              const clampedStart = Math.max(minHour, Math.min(maxHour, card.startDec));
+              const clampedEnd = Math.max(clampedStart + 0.25, Math.min(maxHour, card.endDec));
+
+              const topY = gridTopY + (clampedStart - minHour) * hourHeight;
+              const bottomY = gridTopY + (clampedEnd - minHour) * hourHeight;
+              const boxH = Math.max(11, bottomY - topY);
+
+              const usableColW = colWidth - 4;
+              const laneW = usableColW / (card.totalLanes || 1);
+              const cardX = gridStartX + d * colWidth + 2 + (card.laneIdx || 0) * laneW;
+              const cardW = Math.max(16, laneW - ((card.totalLanes || 1) > 1 ? 1.5 : 0));
+
+              doc.save();
+              doc.roundedRect(cardX, topY + 0.5, cardW, Math.max(10, boxH - 1), 2).fillColor(card.bgColor).fill();
+              doc.restore();
+
+              // Draw thin white top border to clearly distinguish back-to-back shifts
+              doc.save();
+              doc.moveTo(cardX, topY + 0.5).lineTo(cardX + cardW, topY + 0.5).strokeColor('#ffffff').lineWidth(0.75).stroke();
+              doc.restore();
+
+              // Clip text strictly inside the shift box so it never overflows
+              doc.save();
+              doc.roundedRect(cardX, topY + 0.5, cardW, Math.max(10, boxH - 1), 2).clip();
+
+              const innerW = Math.max(10, cardW - 6);
+              const isCompact = boxH < 30;
+              const isVeryCompact = boxH < 20;
+              const timeFontSize = isVeryCompact ? 5.8 : (isCompact ? 6.5 : 7.5);
+              const nameFontSize = isVeryCompact ? 5.5 : (isCompact ? 6.2 : 7);
+              const serviceFontSize = isVeryCompact ? 5.2 : (isCompact ? 5.8 : 6.5);
+
+              let textCursorY = topY + (isVeryCompact ? 1.5 : 2.5);
+              doc.fillColor('#ffffff').fontSize(timeFontSize).font('Helvetica-Bold');
+              doc.text(card.timeText, cardX + 3, textCursorY, { width: innerW, lineBreak: true });
+              textCursorY += doc.heightOfString(card.timeText, { width: innerW });
+
+              if (textCursorY < topY + boxH - 4) {
+                doc.fontSize(nameFontSize).font('Helvetica').fillColor('#ffffff');
+                doc.text(card.namesText, cardX + 3, textCursorY, { width: innerW, lineBreak: true });
+                textCursorY += doc.heightOfString(card.namesText, { width: innerW });
+              }
+
+              if (card.serviceText && textCursorY < topY + boxH - 4) {
+                doc.fontSize(serviceFontSize).fillColor('#f8fafc').font('Helvetica-Bold');
+                doc.text(card.serviceText, cardX + 3, textCursorY + 0.5, { width: innerW, lineBreak: true });
+              }
+
+              doc.restore();
+            });
           }
 
+          // --- Add Daily Subtotals Row at Bottom of Grid ---
           doc.save();
-          doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#cccccc').lineWidth(1).stroke();
+          doc.moveTo(30, gridBottomY).lineTo(doc.page.width - 30, gridBottomY).strokeColor('#cccccc').lineWidth(1).stroke();
           doc.restore();
-          currentY += 6;
 
           doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica-Bold');
-          doc.text('Total', 30, currentY + 1, { width: timeColWidth - 6, align: 'right', lineBreak: false });
+          doc.text('Total', 30, totalsY + 1, { width: timeColWidth - 6, align: 'right', lineBreak: false });
 
           doc.fillColor('#111827').fontSize(9.5).font('Helvetica-Bold');
           for (let d = 0; d < 7; d++) {
             const hrs = dailyTotalHours[d] > 0 ? dailyTotalHours[d].toFixed(2) + ' hrs' : '-';
-            doc.text(hrs, gridStartX + d * colWidth, currentY, { width: colWidth, align: 'center' });
+            doc.text(hrs, gridStartX + d * colWidth, totalsY, { width: colWidth, align: 'center', lineBreak: false });
           }
 
           drawFooterLegend();
+          doc.page.margins.bottom = prevBottomMargin;
         });
 
         doc.end();
