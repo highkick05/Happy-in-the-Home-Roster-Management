@@ -16628,8 +16628,38 @@ app.get("/api/health", (req, res) => {
               .text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY + 4, { align: 'right', width: doc.page.width - 60 });
           }
 
-          doc.y = initialY + 42;
-          doc.moveDown(0.5);
+          // --- Shift Status Colour Legend ---
+          const legendItems = [
+            { label: 'Published', color: '#0ea5e9' },
+            { label: 'Completed', color: '#16a34a' },
+            { label: 'In Progress', color: '#d97706' },
+            { label: 'Cancelled', color: '#dc2626' },
+            { label: 'Draft', color: '#52525b' },
+            { label: 'Pending Sync', color: '#ea580c' },
+            { label: 'Respite / STA', color: '#7c3aed' },
+          ];
+          const legendY = initialY + 36;
+          const swatchSize = 8;
+          const swatchTextGap = 4;
+          const itemGap = 14;
+          doc.fontSize(8).font('Helvetica-Bold');
+          const totalLegendWidth = legendItems.reduce((acc, item, idx) => {
+            const labelW = doc.widthOfString(item.label);
+            return acc + swatchSize + swatchTextGap + labelW + (idx < legendItems.length - 1 ? itemGap : 0);
+          }, 0);
+          let legendCursorX = (doc.page.width - totalLegendWidth) / 2;
+          legendItems.forEach((item) => {
+            doc.save();
+            doc.roundedRect(legendCursorX, legendY, swatchSize, swatchSize, 1.5).fillColor(item.color).fill();
+            doc.restore();
+            legendCursorX += swatchSize + swatchTextGap;
+            doc.fillColor('#374151').fontSize(8).font('Helvetica-Bold');
+            doc.text(item.label, legendCursorX, legendY + 0.5, { lineBreak: false });
+            legendCursorX += doc.widthOfString(item.label) + itemGap;
+          });
+
+          doc.y = initialY + 54;
+          doc.moveDown(0.3);
 
           const colWidth = (doc.page.width - 60) / 7;
           let startY = doc.y;
