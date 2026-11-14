@@ -431,6 +431,9 @@ async function startServer() {
           if (!remCols.some(c => c.name === 'activity_name')) {
             db.prepare("ALTER TABLE remittances ADD COLUMN activity_name TEXT").run();
           }
+          if (!remCols.some(c => c.name === 'custom_business_name')) {
+            db.prepare("ALTER TABLE remittances ADD COLUMN custom_business_name TEXT").run();
+          }
         }
         
         const invCols = db.prepare("PRAGMA table_info(invoices)").all();
@@ -24413,8 +24416,11 @@ app.get("/api/health", (req, res) => {
 
   app.post("/api/remittances/historical", authenticateToken, requireAdmin, upload.array("attachments"), (req: any, res: any) => {
     try {
-      const { clientId, date, activity } = req.body;
+      const { clientId, customBusinessName, date, activity } = req.body;
       const amount = req.body.amount || 0;
+      const isBusiness = clientId === "business" || (!clientId && Boolean(customBusinessName));
+      const finalClientId = isBusiness ? null : (clientId || null);
+      const finalBusinessName = isBusiness ? (String(customBusinessName || "").trim() || null) : null;
       
       const files = (req.files as Express.Multer.File[]) || [];
       const attachmentsJson = JSON.stringify(files.map(f => ({
@@ -24428,9 +24434,9 @@ app.get("/api/health", (req, res) => {
       const remittanceNumber = `REM-HIST-${now.getTime()}`;
       
       db.prepare(`
-        INSERT INTO remittances (remittance_number, client_id, amount, status, attachments_json, activity_name)
-        VALUES (?, ?, ?, 'HISTORICAL', ?, ?)
-      `).run(remittanceNumber, clientId || null, amount, attachmentsJson, activity || 'Historical Remittance');
+        INSERT INTO remittances (remittance_number, client_id, custom_business_name, amount, status, attachments_json, activity_name)
+        VALUES (?, ?, ?, ?, 'HISTORICAL', ?, ?)
+      `).run(remittanceNumber, finalClientId, finalBusinessName, amount, attachmentsJson, activity || 'Historical Remittance');
       
       res.json({ success: true, message: "Historical remittance uploaded" });
     } catch (e: any) {
@@ -24487,10 +24493,11 @@ app.get("/api/health", (req, res) => {
       ? (db.prepare("SELECT * FROM clients WHERE id = ?").get(rem.client_id) as any)
       : null;
 
+    const fallbackPayee = rem.custom_payee_name || rem.custom_business_name || "Contractor";
     let contractor: any = {
-      first_name: rem.custom_payee_name || "Contractor",
+      first_name: fallbackPayee,
       last_name: "",
-      custom_payee_name: rem.custom_payee_name || "Contractor",
+      custom_payee_name: fallbackPayee,
     };
     if (rem.staff_id) {
       const dbStaff = db.prepare("SELECT * FROM users WHERE id = ?").get(rem.staff_id) as any;
@@ -24639,6 +24646,7 @@ app.get("/api/health", (req, res) => {
       gstAmount,
       totalAmount,
       client,
+      customBusinessName: rem.custom_business_name || "",
       contractor,
       invoiceReference: rem.invoice_reference || "",
       transactionReference: rem.transaction_reference || "",
@@ -24788,13 +24796,16 @@ app.post(
     requireAdmin,
     upload.array("attachments"),
     (req: any, res: any) => {
-      let { clientId, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber, gstType, invoiceReference, transactionReference } = req.body;
+      let { clientId, customBusinessName, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber, gstType, invoiceReference, transactionReference } = req.body;
       
       if (typeof services === 'string') {
         try { services = JSON.parse(services); } catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
       }
       
-      if (!clientId || !staffId || !services || !date) {
+      const isBusiness = clientId === 'business' || (!clientId && Boolean(customBusinessName && String(customBusinessName).trim()));
+      const hasRecipient = isBusiness ? Boolean(customBusinessName && String(customBusinessName).trim()) : Boolean(clientId);
+
+      if (!hasRecipient || (!isBusiness && !staffId) || !services || !date) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -24897,14 +24908,20 @@ app.post(
         }
         const totalAmount = calculatedAmount + calculatedGst;
 
-        const c = db.prepare("SELECT first_name FROM clients WHERE id = ?").get(clientId) as any;
-        const cInitial = (c && c.first_name) ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
+        const finalClientId = isBusiness ? null : clientId;
+        const finalBusinessName = isBusiness ? String(customBusinessName || "").trim() : null;
+
+        const c = finalClientId ? (db.prepare("SELECT first_name FROM clients WHERE id = ?").get(finalClientId) as any) : null;
+        const cleanBizInitial = finalBusinessName ? finalBusinessName.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3).toUpperCase() : "";
+        const cInitial = (c && c.first_name)
+          ? c.first_name.substring(0, 3).toUpperCase()
+          : (cleanBizInitial || "BIZ");
         const dateStr = date.replace(/-/g, "").substring(4, 8);
         const timestampPart = Date.now().toString().slice(-3);
         const remittanceNumber = req.body.remittanceNumber || `REM-${cInitial}-${dateStr}-${timestampPart}`;
 
         const isCustomStaff = staffId === "custom";
-        const finalStaffId = isCustomStaff ? null : staffId;
+        const finalStaffId = (!staffId || isCustomStaff) ? null : staffId;
         const finalCustomStaffName = isCustomStaff ? (customStaffName || "Generic Staff") : null;
 
         const attachments = (req.files as any[])?.map(f => ({
@@ -24989,9 +25006,10 @@ app.post(
         let remittanceId = req.body.remittanceId;
         if (remittanceId) {
           db.prepare(
-            `UPDATE remittances SET client_id=?, staff_id=?, custom_payee_name=?, amount=?, services_json=?, invoice_reference=?, transaction_reference=?, activity_name=? WHERE id=?`
+            `UPDATE remittances SET client_id=?, custom_business_name=?, staff_id=?, custom_payee_name=?, amount=?, services_json=?, invoice_reference=?, transaction_reference=?, activity_name=? WHERE id=?`
           ).run(
-            clientId,
+            finalClientId,
+            finalBusinessName,
             finalStaffId,
             finalCustomStaffName,
             calculatedAmount,
@@ -25007,11 +25025,12 @@ app.post(
           }
         } else {
           const insertResult = db.prepare(
-            `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json, invoice_reference, transaction_reference, activity_name)
-             VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?, ?, ?, ?)`
+            `INSERT INTO remittances (remittance_number, client_id, custom_business_name, staff_id, custom_payee_name, amount, status, services_json, attachments_json, invoice_reference, transaction_reference, activity_name)
+             VALUES (?, ?, ?, ?, ?, ?, 'GENERATED', ?, ?, ?, ?, ?)`
           ).run(
             remittanceNumber,
-            clientId,
+            finalClientId,
+            finalBusinessName,
             finalStaffId,
             finalCustomStaffName,
             calculatedAmount,
@@ -25045,8 +25064,8 @@ app.post(
         const writeStream = fsLib.createWriteStream(filePath);
         doc.pipe(writeStream);
         
-        const clientRow = db.prepare("SELECT * FROM clients WHERE id = ?").get(clientId) as any;
-        let staffRow = { first_name: finalCustomStaffName || "Contractor", last_name: "" };
+        const clientRow = finalClientId ? (db.prepare("SELECT * FROM clients WHERE id = ?").get(finalClientId) as any) : null;
+        let staffRow = { first_name: finalCustomStaffName || finalBusinessName || "Contractor", last_name: "" };
         if (!isCustomStaff && finalStaffId) {
            const dbStaff = db.prepare("SELECT * FROM users WHERE id = ?").get(finalStaffId) as any;
            if (dbStaff) staffRow = dbStaff;
@@ -25062,6 +25081,7 @@ app.post(
            totalAmount: totalAmount,
            gstAmount: calculatedGst,
            client: clientRow,
+           customBusinessName: finalBusinessName || "",
            contractor: staffRow,
            invoiceReference,
            transactionReference
@@ -26110,6 +26130,7 @@ app.post(
       gstAmount = 0,
       contractor,
       client,
+      customBusinessName,
       invoiceReference,
       transactionReference,
     } = data;
@@ -26357,6 +26378,8 @@ app.post(
     const clientName = client
       ? `${client.first_name || ""} ${client.last_name || ""}`.trim()
       : `${shift?.c_fn || ""} ${shift?.c_ln || ""}`.trim();
+    const businessNameRef = String(customBusinessName || "").trim();
+    const showBusinessRegarding = Boolean(businessNameRef && businessNameRef.toLowerCase() !== billToName.toLowerCase());
     const ndisLabel = isHomeCare ? "Home Care ID:" : "NDIS No:";
     const ndisVal =
       client?.aged_care_id ||
@@ -26365,7 +26388,7 @@ app.post(
       shift?.my_aged_care_id ||
       shift?.ndis_number;
 
-    if (clientName || invoiceReference || transactionReference) {
+    if (clientName || showBusinessRegarding || invoiceReference || transactionReference) {
       colRightY += 3;
       doc
         .strokeColor("#E5E7EB")
@@ -26396,6 +26419,19 @@ app.post(
             .text(`${ndisLabel} ${ndisVal}`, 330, colRightY);
           colRightY += 12;
         }
+      } else if (showBusinessRegarding) {
+        doc
+          .fillColor("#9CA3AF")
+          .font("Helvetica-Bold")
+          .fontSize(6.5)
+          .text("REGARDING BUSINESS", 330, colRightY);
+        colRightY += 9;
+        doc
+          .fillColor("#111827")
+          .font("Helvetica-Bold")
+          .fontSize(8.5)
+          .text(businessNameRef, 330, colRightY);
+        colRightY += 11;
       }
 
       if (invoiceReference) {

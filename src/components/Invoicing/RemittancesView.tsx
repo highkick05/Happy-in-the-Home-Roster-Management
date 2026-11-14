@@ -10,8 +10,19 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
   const [formData, setFormData] = useState({
-    clientId: editData ? String(editData.client_id || '') : '',
-    staffId: editData ? (editData.staff_id ? String(editData.staff_id) : 'custom') : '',
+    clientId: editData
+      ? editData.custom_business_name && !editData.client_id
+        ? 'business'
+        : String(editData.client_id || '')
+      : '',
+    customBusinessName: editData ? (editData.custom_business_name || '') : '',
+    staffId: editData
+      ? editData.staff_id
+        ? String(editData.staff_id)
+        : editData.custom_payee_name
+          ? 'custom'
+          : ''
+      : '',
     customStaffName: editData ? (editData.custom_payee_name || '') : '',
     date: editData ? (editData.created_at ? editData.created_at.split(' ')[0] : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
     startTime: '09:00',
@@ -200,6 +211,11 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
       return;
     }
 
+    if (formData.clientId === 'business' && !formData.customBusinessName.trim()) {
+      alert("Please enter a business name.");
+      return;
+    }
+
     if (formData.staffId === 'custom' && !formData.customStaffName.trim()) {
       alert("Please enter a custom staff member name.");
       return;
@@ -213,6 +229,12 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
       Object.entries(formData).forEach(([key, val]) => {
         submitData.append(key, val);
       });
+      if (editData?.id) {
+        submitData.append('remittanceId', String(editData.id));
+        if (editData.remittance_number) {
+          submitData.append('remittanceNumber', String(editData.remittance_number));
+        }
+      }
       const enrichedValidServices = validServices.map(s => {
         const details = getServiceDetails(s.serviceId);
         const resolvedName = s.customName || details.name || (s.serviceId === 'orientation' ? 'Orientation' : 'Service Item');
@@ -257,32 +279,52 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
     <form onSubmit={handleSubmit} className="p-5 space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client / Business</label>
           <select
             required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none"
             value={formData.clientId}
             onChange={e => {
-              setFormData({ ...formData, clientId: e.target.value });
+              const nextVal = e.target.value;
+              setFormData({
+                ...formData,
+                clientId: nextVal,
+                customBusinessName: nextVal === 'business' ? formData.customBusinessName : ''
+              });
               setSelectedServices([{ serviceId: '', qtyOverride: '', rateOverride: '' }]);
             }}
           >
-            <option value="">Select Client</option>
+            <option value="">Select Client or Business</option>
+            <option value="business">-- Custom Business / Organization --</option>
             {options.clients.map(c => (
               <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
             ))}
           </select>
+          {formData.clientId === 'business' && (
+            <input
+              type="text"
+              required
+              placeholder="Enter Business Name (e.g. Trilogy Care / Allied Health Pty Ltd)"
+              className="mt-1.5 w-full bg-[#121214] border border-white/[0.08] rounded-md py-1.5 px-3 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
+              value={formData.customBusinessName}
+              onChange={e => setFormData({ ...formData, customBusinessName: e.target.value })}
+            />
+          )}
         </div>
         
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Staff Member</label>
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+            {formData.clientId === 'business' ? 'Staff Member (Optional)' : 'Staff Member'}
+          </label>
           <select
-            required
+            required={formData.clientId !== 'business'}
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none"
             value={formData.staffId}
             onChange={e => setFormData({ ...formData, staffId: e.target.value })}
           >
-            <option value="">Select Staff</option>
+            <option value="">
+              {formData.clientId === 'business' ? 'No Staff Member (Business Only)' : 'Select Staff'}
+            </option>
             <option value="custom">-- Custom Staff Member Name --</option>
             {options.staff.map(s => (
               <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
@@ -764,6 +806,7 @@ export default function RemittancesView() {
   
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadClientId, setUploadClientId] = useState('');
+  const [uploadBusinessName, setUploadBusinessName] = useState('');
   const [uploadDate, setUploadDate] = useState('');
   const [uploadActivity, setUploadActivity] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -791,7 +834,7 @@ export default function RemittancesView() {
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadClientId || !uploadDate || !uploadFile) {
+    if (!uploadClientId || (uploadClientId === 'business' && !uploadBusinessName.trim()) || !uploadDate || !uploadFile) {
       alert("Please fill all fields and select a file.");
       return;
     }
@@ -799,8 +842,11 @@ export default function RemittancesView() {
     setIsUploading(true);
     const formData = new FormData();
     formData.append('clientId', uploadClientId);
+    if (uploadClientId === 'business') {
+      formData.append('customBusinessName', uploadBusinessName.trim());
+    }
     formData.append('date', uploadDate);
-    formData.append('file', uploadFile);
+    formData.append('attachments', uploadFile);
     if (uploadActivity) formData.append('activity', uploadActivity);
 
     try {
@@ -814,6 +860,7 @@ export default function RemittancesView() {
       if (!res.ok) throw new Error('Failed to upload historical remittance');
       setShowUploadModal(false);
       setUploadClientId('');
+      setUploadBusinessName('');
       setUploadDate('');
       setUploadActivity('');
       setUploadFile(null);
@@ -870,7 +917,7 @@ export default function RemittancesView() {
     if (!s) return true;
     const cleanAmount = s.replace(/[\$,]/g, '');
 
-    const nameStr = `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim().toLowerCase();
+    const nameStr = `${q.custom_business_name || ''} ${q.client_first_name || ''} ${q.client_last_name || ''}`.trim().toLowerCase();
     const idStr = (q.remittance_number || '').toLowerCase();
     const invRefStr = (q.invoice_reference || '').toLowerCase();
     const staffStr = `${q.staff_first_name || ''} ${q.staff_last_name || ''} ${q.custom_payee_name || ''}`.trim().toLowerCase();
@@ -895,8 +942,8 @@ export default function RemittancesView() {
       valA = new Date(a.activity_date || a.created_at).getTime();
       valB = new Date(b.activity_date || b.created_at).getTime();
     } else if (sortField === 'client') {
-      valA = `${a.client_first_name} ${a.client_last_name}`.toLowerCase();
-      valB = `${b.client_first_name} ${b.client_last_name}`.toLowerCase();
+      valA = (a.custom_business_name || `${a.client_first_name || ''} ${a.client_last_name || ''}`).trim().toLowerCase();
+      valB = (b.custom_business_name || `${b.client_first_name || ''} ${b.client_last_name || ''}`).trim().toLowerCase();
     } else if (sortField === 'id') {
       valA = (a.remittance_number || '').toLowerCase();
       valB = (b.remittance_number || '').toLowerCase();
@@ -1006,18 +1053,29 @@ export default function RemittancesView() {
             </div>
             <form onSubmit={handleUploadSubmit} className="p-5 space-y-3 bg-[#09090b]">
               <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Client</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Client / Business</label>
                 <select
                   required
                   value={uploadClientId}
                   onChange={e => setUploadClientId(e.target.value)}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
                 >
-                  <option value="">Select Client</option>
+                  <option value="">Select Client or Business</option>
+                  <option value="business">-- Custom Business / Organization --</option>
                   {allDbClients.map(c => (
                     <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
                   ))}
                 </select>
+                {uploadClientId === 'business' && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter Business Name"
+                    value={uploadBusinessName}
+                    onChange={e => setUploadBusinessName(e.target.value)}
+                    className="mt-1.5 w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
@@ -1142,7 +1200,7 @@ export default function RemittancesView() {
                   </th>
                   {renderSortableHeader('date', 'Date')}
                   {renderSortableHeader('id', 'Remittance ID')}
-                  {renderSortableHeader('client', 'Client')}
+                  {renderSortableHeader('client', 'Client / Business')}
                   {renderSortableHeader('activity', 'Activity')}
                   {renderSortableHeader('amount', 'Amount')}
                   {renderSortableHeader('status', 'Status')}
@@ -1152,7 +1210,11 @@ export default function RemittancesView() {
               <tbody className="divide-y divide-border-subtle">
                 {paginatedRemittances.length === 0 ? (
                   <tr><td colSpan={8} className="p-8 text-center text-[#8B949E]">No remittances found.</td></tr>
-                ) : paginatedRemittances.map(q => (
+                ) : paginatedRemittances.map(q => {
+                  const recipientDisplayName = q.custom_business_name
+                    ? q.custom_business_name
+                    : `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim();
+                  return (
                   <tr key={q.id} className="hover:bg-brand-bg/50 transition-colors group">
                     <td className="px-3 py-1.5 whitespace-nowrap">
                       <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedIds.includes(q.id)} onChange={() => toggleSelection(q.id)} />
@@ -1176,10 +1238,12 @@ export default function RemittancesView() {
                     </td>
                     <td className="px-3 py-1.5 text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
-                        <span>{q.client_first_name} {q.client_last_name}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(`${q.client_first_name || ''} ${q.client_last_name || ''}`.trim()); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
-                          {copiedText === `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim() ? <CheckCircle className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
+                        <span>{recipientDisplayName}</span>
+                        {recipientDisplayName && (
+                          <button onClick={(e) => { e.stopPropagation(); handleCopy(recipientDisplayName); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
+                            {copiedText === recipientDisplayName ? <CheckCircle className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-1.5 text-[#E6EDF3]">
@@ -1213,7 +1277,8 @@ export default function RemittancesView() {
                       <button title="Delete Remittance" onClick={() => handleDeleteSingle(q.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
 
               </tbody>
             </table>

@@ -187,6 +187,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
     remittanceStatus,
     contractor,
     client,
+    customBusinessName,
     invoiceReference,
     transactionReference
   } = data;
@@ -196,9 +197,11 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
   const clientName = client
     ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
     : `${shift?.c_fn || ''} ${shift?.c_ln || ''}`.trim();
+  const businessNameRef = String(customBusinessName || '').trim();
   const payeeName = contractor?.first_name
     ? `${contractor.first_name} ${contractor.last_name || ''}`.trim()
-    : (contractor?.custom_payee_name || 'Contractor');
+    : (contractor?.custom_payee_name || businessNameRef || 'Contractor');
+  const showBusinessRegarding = Boolean(businessNameRef && businessNameRef.toLowerCase() !== payeeName.toLowerCase());
   const payeeEmail = contractor?.email || '';
   const payeePhone = contractor?.mobile || contractor?.phone || '';
 
@@ -228,7 +231,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400 mt-0.5">
-                {payeeName}{clientName ? ` • Client: ${clientName}` : ''} • Issued {invoiceDate}
+                {payeeName}{clientName ? ` • Client: ${clientName}` : showBusinessRegarding ? ` • Business: ${businessNameRef}` : ''} • Issued {invoiceDate}
               </p>
             </div>
           </div>
@@ -404,37 +407,46 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
                     {payeePhone && <p>Tel: {payeePhone}</p>}
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-zinc-200/70 space-y-1">
-                    {clientName && (
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                          Regarding Client
+                  {(clientName || showBusinessRegarding || invoiceReference || transactionReference) && (
+                    <div className="mt-3 pt-2.5 border-t border-zinc-200/70 space-y-1">
+                      {clientName ? (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            Regarding Client
+                          </div>
+                          <div className="font-semibold text-zinc-800">{clientName}</div>
+                          {ndisVal && (
+                            <div className={`text-[11px] font-medium ${isHomeCare ? 'text-purple-800' : 'text-teal-800'}`}>
+                              {ndisLabel} {ndisVal}
+                            </div>
+                          )}
                         </div>
-                        <div className="font-semibold text-zinc-800">{clientName}</div>
-                        {ndisVal && (
-                          <div className={`text-[11px] font-medium ${isHomeCare ? 'text-purple-800' : 'text-teal-800'}`}>
-                            {ndisLabel} {ndisVal}
+                      ) : showBusinessRegarding ? (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            Regarding Business
                           </div>
-                        )}
-                      </div>
-                    )}
-                    {(invoiceReference || transactionReference) && (
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-[11px] text-zinc-600">
-                        {invoiceReference && (
-                          <div>
-                            <span className="text-zinc-400 font-medium">Invoice Ref: </span>
-                            <span className="font-semibold text-zinc-800 font-mono">{invoiceReference}</span>
-                          </div>
-                        )}
-                        {transactionReference && (
-                          <div>
-                            <span className="text-zinc-400 font-medium">Transaction Ref: </span>
-                            <span className="font-semibold text-zinc-800 font-mono">{transactionReference}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          <div className="font-semibold text-zinc-800">{businessNameRef}</div>
+                        </div>
+                      ) : null}
+                      {(invoiceReference || transactionReference) && (
+                        <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-[11px] text-zinc-600">
+                          {invoiceReference && (
+                            <div>
+                              <span className="text-zinc-400 font-medium">Invoice Ref: </span>
+                              <span className="font-semibold text-zinc-800 font-mono">{invoiceReference}</span>
+                            </div>
+                          )}
+                          {transactionReference && (
+                            <div>
+                              <span className="text-zinc-400 font-medium">Transaction Ref: </span>
+                              <span className="font-semibold text-zinc-800 font-mono">{transactionReference}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
