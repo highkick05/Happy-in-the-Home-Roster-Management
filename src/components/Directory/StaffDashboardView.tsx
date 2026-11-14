@@ -21,11 +21,16 @@ import {
   Users,
   Layers,
   ExternalLink,
-  Loader2
+  Loader2,
+  GraduationCap,
+  Upload,
+  Download,
+  X
 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import AvatarSelector from '../ui/AvatarSelector';
 import EmploymentContractModal from './EmploymentContractModal';
+import OnboardingView from '../Onboarding/OnboardingView';
 import { getAvatarUrl } from '../../utils/avatar';
 
 const parseAdditionalPositions = (val: any): string[] => {
@@ -52,7 +57,7 @@ export default function StaffDashboardView() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'general' | 'personal' | 'financial' | 'xero' | 'all'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'personal' | 'financial' | 'xero' | 'compliance' | 'training' | 'all'>('general');
   const [positions, setPositions] = useState<any[]>([]);
   const [payCategories, setPayCategories] = useState<any[]>([]);
   const [payItems, setPayItems] = useState<any[]>([]);
@@ -62,6 +67,17 @@ export default function StaffDashboardView() {
   const [xeroError, setXeroError] = useState<string>('');
   const [isManualXero, setIsManualXero] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+
+  // Compliance & Training state
+  const [complianceSteps, setComplianceSteps] = useState<any[]>([]);
+  const [complianceProgress, setComplianceProgress] = useState<Record<string, any>>({});
+  const [trainingModules, setTrainingModules] = useState<any[]>([]);
+  const [staffTrainingList, setStaffTrainingList] = useState<any[]>([]);
+  const [uploadingModuleId, setUploadingModuleId] = useState<number | null>(null);
+  const [trainingUploadDate, setTrainingUploadDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [trainingUploadExpiry, setTrainingUploadExpiry] = useState<string>('');
+  const [trainingUploadFile, setTrainingUploadFile] = useState<File | null>(null);
+  const [savingTraining, setSavingTraining] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -221,9 +237,86 @@ export default function StaffDashboardView() {
     }
   };
 
+  const fetchComplianceAndTraining = async () => {
+    if (!token || !id) return;
+    try {
+      const [dynRes, progRes, modRes, trainRes] = await Promise.all([
+        fetch(`/api/users/onboarding/dynamic-steps?userId=${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/users/onboarding?userId=${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/training/modules', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/training/staff', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      if (dynRes.ok) {
+        const dynData = await dynRes.json();
+        if (Array.isArray(dynData)) setComplianceSteps(dynData);
+      }
+      if (progRes.ok) {
+        const progData = await progRes.json();
+        setComplianceProgress(progData || {});
+      }
+      if (modRes.ok) {
+        const modData = await modRes.json();
+        if (Array.isArray(modData)) setTrainingModules(modData);
+      }
+      if (trainRes.ok) {
+        const trainData = await trainRes.json();
+        if (Array.isArray(trainData)) {
+          setStaffTrainingList(trainData.filter((r: any) => Number(r.staff_id) === Number(id)));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load compliance and training summary:', err);
+    }
+  };
+
+  const handleStaffTrainingUpload = async (moduleId: number) => {
+    if (!token || !id || !trainingUploadDate) return;
+    setSavingTraining(true);
+    try {
+      const fd = new FormData();
+      fd.append('staff_id', String(id));
+      fd.append('training_module_id', String(moduleId));
+      fd.append('completion_date', trainingUploadDate);
+      if (trainingUploadExpiry) fd.append('expiry_date', trainingUploadExpiry);
+      if (trainingUploadFile) fd.append('certificate', trainingUploadFile);
+
+      const mod = trainingModules.find(m => Number(m.id) === Number(moduleId));
+      const customNameStr = mod ? encodeURIComponent(mod.title) : 'Training_Certificate';
+
+      const res = await fetch(`/api/training/staff/upload?customName=${customNameStr}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (data.fileId) {
+          fetch(`/api/staff/${id}/sharepoint/mirror-local-file`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ fileId: data.fileId, category: 'Training' })
+          }).catch(() => {});
+        }
+        setUploadingModuleId(null);
+        setTrainingUploadFile(null);
+        setTrainingUploadExpiry('');
+        await fetchComplianceAndTraining();
+      }
+    } catch (err) {
+      console.error('Failed to upload training certificate:', err);
+    } finally {
+      setSavingTraining(false);
+    }
+  };
+
   useEffect(() => {
     fetchStaffAndMetadata();
     fetchXeroEmployees();
+    fetchComplianceAndTraining();
   }, [id, token]);
 
   const suggestedXeroMatch = useMemo(() => {
@@ -425,6 +518,50 @@ export default function StaffDashboardView() {
   const showPersonal = activeTab === 'personal' || activeTab === 'all';
   const showFinancial = !formData.isExternal && (activeTab === 'financial' || activeTab === 'all');
   const showXero = !formData.isExternal && (activeTab === 'xero' || activeTab === 'all');
+  const showCompliance = !formData.isExternal && (activeTab === 'compliance' || activeTab === 'all');
+  const showTraining = !formData.isExternal && (activeTab === 'training' || activeTab === 'all');
+
+  // Compute Mandatory Documents Summary Badge
+  const mandatorySteps = complianceSteps.filter((s: any) => Boolean(s.is_mandatory));
+  const mandatoryTotal = mandatorySteps.length;
+  let mandatoryCompleted = 0;
+  let mandatoryExpired = 0;
+  let mandatoryExpiringSoon = 0;
+  const nowTime = Date.now();
+
+  mandatorySteps.forEach((s: any) => {
+    const stepKey = `dynamic_${s.id}`;
+    const entry = complianceProgress[stepKey];
+    if (entry?.status === 'completed') {
+      mandatoryCompleted++;
+      const expStr = entry?.files?.[0]?.date_expires;
+      if (expStr) {
+        const diffDays = Math.ceil((new Date(expStr).getTime() - nowTime) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) mandatoryExpired++;
+        else if (diffDays <= 30) mandatoryExpiringSoon++;
+      }
+    }
+  });
+  const mandatoryPct = mandatoryTotal > 0 ? Math.round((mandatoryCompleted / mandatoryTotal) * 100) : 100;
+
+  // Compute Training Completion Summary Badge
+  const trainingTotal = trainingModules.length;
+  let trainingCompleted = 0;
+  let trainingExpired = 0;
+  let trainingExpiringSoon = 0;
+
+  trainingModules.forEach((mod: any) => {
+    const rec = staffTrainingList.find((r: any) => Number(r.training_module_id) === Number(mod.id));
+    if (rec && rec.status === 'COMPLETED') {
+      trainingCompleted++;
+      if (rec.expiry_date) {
+        const diffDays = Math.ceil((new Date(rec.expiry_date).getTime() - nowTime) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) trainingExpired++;
+        else if (diffDays <= 30) trainingExpiringSoon++;
+      }
+    }
+  });
+  const trainingPct = trainingTotal > 0 ? Math.round((trainingCompleted / trainingTotal) * 100) : 100;
 
   return (
     <div className="w-full flex flex-col h-full space-y-3">
@@ -513,6 +650,47 @@ export default function StaffDashboardView() {
                 <>
                   <span>•</span>
                   <span>Joined {new Date(formData.joinedDate).toLocaleDateString()}</span>
+                </>
+              )}
+              {!formData.isExternal && (
+                <>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('compliance')}
+                    title="View Mandatory Documents (Compliance)"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                      mandatoryExpired > 0
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                        : mandatoryCompleted === mandatoryTotal && mandatoryTotal > 0 && mandatoryExpiringSoon === 0
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                    }`}
+                  >
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>
+                      Docs: {mandatoryCompleted}/{mandatoryTotal} ({mandatoryPct}%)
+                      {mandatoryExpired > 0 ? ` • ${mandatoryExpired} Exp` : ''}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('training')}
+                    title="View Staff Training Completion"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                      trainingExpired > 0
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                        : trainingCompleted === trainingTotal && trainingTotal > 0 && trainingExpiringSoon === 0
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                    }`}
+                  >
+                    <GraduationCap className="w-3 h-3" />
+                    <span>
+                      Training: {trainingCompleted}/{trainingTotal} ({trainingPct}%)
+                      {trainingExpired > 0 ? ` • ${trainingExpired} Exp` : ''}
+                    </span>
+                  </button>
                 </>
               )}
             </div>
@@ -622,6 +800,8 @@ export default function StaffDashboardView() {
                   ? [
                       { id: 'financial', label: 'Financial & Tax', icon: Landmark },
                       { id: 'xero', label: 'Xero Payroll', icon: DollarSign },
+                      { id: 'compliance', label: 'Compliance', icon: ShieldCheck },
+                      { id: 'training', label: 'Training', icon: GraduationCap },
                     ]
                   : []),
                 { id: 'all', label: 'All Sections', icon: Layers },
@@ -1335,6 +1515,242 @@ export default function StaffDashboardView() {
               </div>
             )}
 
+            {/* SECTION 5: Compliance (Mandatory Documents) */}
+            {showCompliance && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-brand-teal" />
+                    <h3 className="text-sm font-semibold text-white">Compliance &amp; Mandatory Documents</h3>
+                  </div>
+                  <span className="text-xs text-zinc-400">
+                    {mandatoryCompleted} of {mandatoryTotal} Mandatory Completed ({mandatoryPct}%)
+                  </span>
+                </div>
+                <OnboardingView
+                  targetUserId={Number(id)}
+                  embedded={true}
+                  onProgressChange={fetchComplianceAndTraining}
+                />
+              </div>
+            )}
+
+            {/* SECTION 6: Training */}
+            {showTraining && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-brand-teal" />
+                    <h3 className="text-sm font-semibold text-white">Staff Training &amp; Certifications</h3>
+                  </div>
+                  <span className="text-xs text-zinc-400">
+                    {trainingCompleted} of {trainingTotal} Modules Completed ({trainingPct}%)
+                  </span>
+                </div>
+
+                <div className="bg-[#111111] border border-white/[0.05] rounded-lg p-3 shadow-sm">
+                  <div className="flex justify-between text-[11px] font-medium mb-2">
+                    <span className="text-zinc-500 uppercase tracking-wider font-semibold">TRAINING COMPLETION PROGRESS</span>
+                    <span className="text-brand-teal">{trainingPct}% COMPLETE</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-brand-teal transition-all duration-500"
+                      style={{ width: `${trainingPct}%` }}
+                    />
+                  </div>
+                </div>
+
+                {trainingModules.length === 0 ? (
+                  <div className="p-8 bg-black/40 border border-white/[0.08] rounded-xl text-center text-xs text-zinc-500">
+                    No training modules have been configured yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {trainingModules.map((mod: any, idx: number) => {
+                      const rec = staffTrainingList.find((r: any) => Number(r.training_module_id) === Number(mod.id));
+                      const isCompleted = rec && rec.status === 'COMPLETED';
+                      let expDiffDays: number | null = null;
+                      if (isCompleted && rec?.expiry_date) {
+                        expDiffDays = Math.ceil((new Date(rec.expiry_date).getTime() - nowTime) / (1000 * 60 * 60 * 24));
+                      }
+                      const isExpired = expDiffDays !== null && expDiffDays < 0;
+                      const isExpiringSoon = expDiffDays !== null && expDiffDays >= 0 && expDiffDays <= 30;
+                      const isUploadingThis = uploadingModuleId === Number(mod.id);
+
+                      return (
+                        <div
+                          key={mod.id}
+                          className="p-3.5 bg-[#121214]/40 border border-white/[0.08] rounded-lg space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`w-8 h-8 rounded text-sm flex items-center justify-center shrink-0 border mt-0.5 ${
+                                  isCompleted && !isExpired
+                                    ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                                    : isExpired
+                                      ? 'bg-rose-500/10 border-rose-500/25 text-rose-400'
+                                      : 'bg-zinc-800 border-white/[0.12] text-zinc-400'
+                                }`}
+                              >
+                                <GraduationCap className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm font-medium text-white">
+                                    {idx + 1}. {mod.title}
+                                  </h4>
+                                  {Number(mod.hours) > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                                      {mod.hours} {Number(mod.hours) === 1 ? 'hr' : 'hrs'}
+                                    </span>
+                                  )}
+                                  {Number(mod.expiry_months) > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] text-zinc-400 bg-white/[0.03] border border-white/[0.08]">
+                                      Valid {mod.expiry_months} mos
+                                    </span>
+                                  )}
+                                </div>
+                                {mod.description && (
+                                  <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{mod.description}</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-1.5 flex-wrap text-[11px] text-zinc-400">
+                                  {mod.url && (
+                                    <a
+                                      href={mod.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-brand-teal hover:underline"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      <span>Launch Module</span>
+                                    </a>
+                                  )}
+                                  {isCompleted && rec?.completion_date && (
+                                    <span>
+                                      Completed: <strong className="text-zinc-200">{new Date(rec.completion_date).toLocaleDateString()}</strong>
+                                    </span>
+                                  )}
+                                  {isCompleted && rec?.expiry_date && (
+                                    <span className={isExpired ? 'text-rose-400 font-semibold' : isExpiringSoon ? 'text-amber-400 font-semibold' : ''}>
+                                      Expires: <strong>{new Date(rec.expiry_date).toLocaleDateString()}</strong>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                              {isCompleted ? (
+                                <span
+                                  className={`px-2.5 py-1 rounded text-[11px] font-semibold uppercase ${
+                                    isExpired
+                                      ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                      : isExpiringSoon
+                                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                        : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  }`}
+                                >
+                                  {isExpired ? 'Expired' : isExpiringSoon ? `Expires in ${expDiffDays}d` : 'Completed'}
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded text-[11px] font-semibold uppercase bg-zinc-800 text-zinc-400 border border-white/[0.08]">
+                                  Pending
+                                </span>
+                              )}
+
+                              {rec?.certificate_file_path && (
+                                <a
+                                  href={`${rec.certificate_file_path}${rec.certificate_file_path.includes('?') ? '&' : '?'}token=${token}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Certificate</span>
+                                </a>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isUploadingThis) {
+                                    setUploadingModuleId(null);
+                                  } else {
+                                    setUploadingModuleId(Number(mod.id));
+                                    setTrainingUploadDate(
+                                      rec?.completion_date
+                                        ? String(rec.completion_date).split('T')[0]
+                                        : new Date().toISOString().split('T')[0]
+                                    );
+                                    setTrainingUploadExpiry(rec?.expiry_date ? String(rec.expiry_date).split('T')[0] : '');
+                                    setTrainingUploadFile(null);
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/[0.1] rounded text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{isCompleted ? 'Update' : 'Upload'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {isUploadingThis && (
+                            <div className="pt-3 border-t border-white/[0.08] bg-black/40 p-3 rounded-lg space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                <div>
+                                  <label className="block text-xs text-zinc-400 mb-1">Completion Date *</label>
+                                  <CustomDatePicker
+                                    value={trainingUploadDate}
+                                    onChange={val => setTrainingUploadDate(val)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-zinc-400 mb-1">Expiry Date (Optional)</label>
+                                  <CustomDatePicker
+                                    value={trainingUploadExpiry}
+                                    onChange={val => setTrainingUploadExpiry(val)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-zinc-400 mb-1">Certificate File (PDF/Image)</label>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                                    onChange={e => setTrainingUploadFile(e.target.files?.[0] || null)}
+                                    className="w-full text-xs text-zinc-300 file:mr-2 file:py-1.5 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-medium file:bg-brand-teal/20 file:text-brand-teal hover:file:bg-brand-teal/30 cursor-pointer"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setUploadingModuleId(null)}
+                                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs font-medium cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={savingTraining || !trainingUploadDate}
+                                  onClick={() => handleStaffTrainingUpload(Number(mod.id))}
+                                  className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-black font-semibold rounded text-xs inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                >
+                                  {savingTraining && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                  <span>{savingTraining ? 'Uploading...' : 'Save Completion'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Page Footer Controls */}
             <div className="pt-4 border-t border-white/[0.08] flex items-center justify-between">
               <button
@@ -1350,7 +1766,9 @@ export default function StaffDashboardView() {
                   <button
                     type="button"
                     onClick={() => {
-                      const tabKeys = ['general', 'personal', 'financial', 'xero'] as const;
+                      const tabKeys = formData.isExternal
+                        ? (['general', 'personal'] as const)
+                        : (['general', 'personal', 'financial', 'xero', 'compliance', 'training'] as const);
                       const idx = tabKeys.indexOf(activeTab as any);
                       if (idx > 0) setActiveTab(tabKeys[idx - 1]);
                     }}
@@ -1360,11 +1778,13 @@ export default function StaffDashboardView() {
                   </button>
                 )}
 
-                {activeTab !== 'all' && activeTab !== 'xero' && (
+                {activeTab !== 'all' && activeTab !== (formData.isExternal ? 'personal' : 'training') && (
                   <button
                     type="button"
                     onClick={() => {
-                      const tabKeys = ['general', 'personal', 'financial', 'xero'] as const;
+                      const tabKeys = formData.isExternal
+                        ? (['general', 'personal'] as const)
+                        : (['general', 'personal', 'financial', 'xero', 'compliance', 'training'] as const);
                       const idx = tabKeys.indexOf(activeTab as any);
                       if (idx < tabKeys.length - 1) setActiveTab(tabKeys[idx + 1]);
                     }}

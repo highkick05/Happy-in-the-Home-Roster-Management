@@ -12463,28 +12463,6 @@ app.get("/api/health", (req, res) => {
         }
       }
 
-      // 2. Auto-link onboarding compliance steps to matching files in `/Staff/${nameDir}/Onboarding`
-      const userFiles = db
-        .prepare("SELECT * FROM files WHERE folder_path = ?")
-        .all(onboardingFolderPath) as any[];
-      if (!userFiles.length) return;
-
-      const allSteps = db
-        .prepare(
-          `SELECT s.*, rt.name as requirement_type_name
-           FROM onboarding_hub_steps s
-           LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id
-           ORDER BY s.order_index ASC, s.id ASC`
-        )
-        .all() as any[];
-
-      let progressData: Record<string, any> = {};
-      try {
-        if (user.onboarding_json) {
-          progressData = JSON.parse(user.onboarding_json);
-        }
-      } catch {}
-
       const sanitizeForMatch = (str: string) =>
         String(str || "")
           .toLowerCase()
@@ -12492,85 +12470,133 @@ app.get("/api/health", (req, res) => {
           .replace(/[^a-z0-9]+/g, " ")
           .trim();
 
-      const keywordMap: Record<string, string[]> = {
-        tfn_super: ["taxation", "tfn", "tax", "super", "superannuation", "ato"],
-        ndis_screening: ["screening", "nwsc", "worker screening", "ndis check", "yellow"],
-        wwcc: ["wwcc", "children", "working with children", "blue card"],
-        vevo: ["vevo", "visa", "passport", "citizenship", "right to work"],
-        ahpra: ["ahpra", "registration", "nursing"],
-        ndis_orientation: ["orientation", "ndis module", "quality safety"],
-        cpr: ["cpr", "hltaid009", "resuscitation", "basic life"],
-        first_aid: ["first aid", "hltaid011", "first_aid", "firstaid"],
-        manual_handling: ["manual handling", "manual_handling", "handling"],
-        driver_license: ["driver", "license", "licence", "driving"],
-        car_insurance: ["insurance", "comprehensive", "car", "vehicle"],
-        flu_shot: ["flu", "influenza"],
-        immunisation: ["immunisation", "immunization", "vaccine history"],
-        covid_vaccine: ["covid", "covid-19", "coronavirus", "pfizer", "astra"],
-        police_check: ["police", "clearance", "national police", "npc"],
-      };
+      // 2. Auto-link onboarding compliance steps to matching files in `/Staff/${nameDir}/Onboarding`
+      const userFiles = db
+        .prepare("SELECT * FROM files WHERE folder_path = ?")
+        .all(onboardingFolderPath) as any[];
 
-      let updated = false;
+      if (userFiles.length > 0) {
+        const allSteps = db
+          .prepare(
+            `SELECT s.*, rt.name as requirement_type_name
+             FROM onboarding_hub_steps s
+             LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id
+             ORDER BY s.order_index ASC, s.id ASC`
+          )
+          .all() as any[];
 
-      for (const file of userFiles) {
-        const cleanFileStem = sanitizeForMatch(file.original_name || file.system_name || "");
-        if (!cleanFileStem) continue;
+        let progressData: Record<string, any> = {};
+        try {
+          if (user.onboarding_json) {
+            progressData = JSON.parse(user.onboarding_json);
+          }
+        } catch {}
 
-        // Match dynamic steps whose title or requirement_type_name matches this file
-        for (const step of allSteps) {
-          if (step.upload_required === 0) continue;
-          const stepKey = `dynamic_${step.id}`;
-          const stepTitleClean = sanitizeForMatch(step.title || "");
-          const reqTypeClean = sanitizeForMatch(step.requirement_type_name || "");
+        const keywordMap: Record<string, string[]> = {
+          tfn_super: ["taxation", "tfn", "tax", "super", "superannuation", "ato"],
+          ndis_screening: ["screening", "nwsc", "worker screening", "ndis check", "yellow"],
+          wwcc: ["wwcc", "children", "working with children", "blue card"],
+          vevo: ["vevo", "visa", "passport", "citizenship", "right to work"],
+          ahpra: ["ahpra", "registration", "nursing"],
+          ndis_orientation: ["orientation", "ndis module", "quality safety"],
+          cpr: ["cpr", "hltaid009", "resuscitation", "basic life"],
+          first_aid: ["first aid", "hltaid011", "first_aid", "firstaid"],
+          manual_handling: ["manual handling", "manual_handling", "handling"],
+          driver_license: ["driver", "license", "licence", "driving"],
+          car_insurance: ["insurance", "comprehensive", "car", "vehicle"],
+          flu_shot: ["flu", "influenza"],
+          immunisation: ["immunisation", "immunization", "vaccine history"],
+          covid_vaccine: ["covid", "covid-19", "coronavirus", "pfizer", "astra"],
+          police_check: ["police", "clearance", "national police", "npc"],
+        };
 
-          let isMatch = false;
-          if (stepTitleClean && (cleanFileStem === stepTitleClean || cleanFileStem.includes(stepTitleClean) || stepTitleClean.includes(cleanFileStem))) {
-            isMatch = true;
-          } else if (reqTypeClean && (cleanFileStem === reqTypeClean || cleanFileStem.includes(reqTypeClean))) {
-            isMatch = true;
-          } else {
-            // Check keyword overlap for common compliance items
-            for (const kws of Object.values(keywordMap)) {
-              const stepHasKw = kws.some((kw) => stepTitleClean.includes(kw) || reqTypeClean.includes(kw));
-              const fileHasKw = kws.some((kw) => cleanFileStem.includes(kw));
-              if (stepHasKw && fileHasKw) {
-                isMatch = true;
-                break;
+        let updated = false;
+
+        for (const file of userFiles) {
+          const cleanFileStem = sanitizeForMatch(file.original_name || file.system_name || "");
+          if (!cleanFileStem) continue;
+
+          // Match dynamic steps whose title or requirement_type_name matches this file
+          for (const step of allSteps) {
+            if (step.upload_required === 0) continue;
+            const stepKey = `dynamic_${step.id}`;
+            const stepTitleClean = sanitizeForMatch(step.title || "");
+            const reqTypeClean = sanitizeForMatch(step.requirement_type_name || "");
+
+            let isMatch = false;
+            if (stepTitleClean && (cleanFileStem === stepTitleClean || cleanFileStem.includes(stepTitleClean) || stepTitleClean.includes(cleanFileStem))) {
+              isMatch = true;
+            } else if (reqTypeClean && (cleanFileStem === reqTypeClean || cleanFileStem.includes(reqTypeClean))) {
+              isMatch = true;
+            } else {
+              // Check keyword overlap for common compliance items
+              for (const kws of Object.values(keywordMap)) {
+                const stepHasKw = kws.some((kw) => stepTitleClean.includes(kw) || reqTypeClean.includes(kw));
+                const fileHasKw = kws.some((kw) => cleanFileStem.includes(kw));
+                if (stepHasKw && fileHasKw) {
+                  isMatch = true;
+                  break;
+                }
+              }
+            }
+
+            if (isMatch) {
+              const existingStep = progressData[stepKey] || { status: "pending", files: [] };
+              const existingFilesArr = Array.isArray(existingStep.files) ? existingStep.files : [];
+              const alreadyLinked =
+                existingFilesArr.some((ef: any) => Number(ef.id) === Number(file.id)) ||
+                Number(existingStep.fileId) === Number(file.id);
+
+              if (!alreadyLinked && existingFilesArr.length === 0) {
+                progressData[stepKey] = {
+                  status: "completed",
+                  fileId: file.id,
+                  files: [
+                    {
+                      id: file.id,
+                      name: file.original_name || file.system_name,
+                      date_issued: file.date_issued || undefined,
+                      date_expires: file.date_expires || undefined,
+                    },
+                  ],
+                };
+                updated = true;
               }
             }
           }
+        }
 
-          if (isMatch) {
-            const existingStep = progressData[stepKey] || { status: "pending", files: [] };
-            const existingFilesArr = Array.isArray(existingStep.files) ? existingStep.files : [];
-            const alreadyLinked =
-              existingFilesArr.some((ef: any) => Number(ef.id) === Number(file.id)) ||
-              Number(existingStep.fileId) === Number(file.id);
-
-            if (!alreadyLinked && existingFilesArr.length === 0) {
-              progressData[stepKey] = {
-                status: "completed",
-                fileId: file.id,
-                files: [
-                  {
-                    id: file.id,
-                    name: file.original_name || file.system_name,
-                    date_issued: file.date_issued || undefined,
-                    date_expires: file.date_expires || undefined,
-                  },
-                ],
-              };
-              updated = true;
-            }
-          }
+        if (updated) {
+          db.prepare("UPDATE users SET onboarding_json = ? WHERE id = ?").run(
+            JSON.stringify(progressData),
+            user.id
+          );
         }
       }
 
-      if (updated) {
-        db.prepare("UPDATE users SET onboarding_json = ? WHERE id = ?").run(
-          JSON.stringify(progressData),
-          user.id
-        );
+      // 3. Auto-link Training files in `/Staff/${nameDir}/Training` to matching `staff_training` rows
+      const trainingFolderPath = `/Staff/${nameDir}/Training`;
+      const trainingFiles = db
+        .prepare("SELECT * FROM files WHERE folder_path = ?")
+        .all(trainingFolderPath) as any[];
+      if (trainingFiles.length > 0) {
+        const allModules = db.prepare("SELECT * FROM training_modules").all() as any[];
+        for (const tFile of trainingFiles) {
+          const cleanTStem = sanitizeForMatch(tFile.original_name || tFile.system_name || "");
+          if (!cleanTStem) continue;
+          for (const mod of allModules) {
+            const cleanModTitle = sanitizeForMatch(mod.title || "");
+            if (cleanModTitle && (cleanTStem === cleanModTitle || cleanTStem.includes(cleanModTitle) || cleanModTitle.includes(cleanTStem))) {
+              const certPath = `/api/files/download/${tFile.id}`;
+              const existingSt = db
+                .prepare("SELECT id, certificate_file_path FROM staff_training WHERE staff_id = ? AND training_module_id = ?")
+                .get(user.id, mod.id) as any;
+              if (existingSt && !existingSt.certificate_file_path) {
+                db.prepare("UPDATE staff_training SET certificate_file_path = ? WHERE id = ?").run(certPath, existingSt.id);
+              }
+            }
+          }
+        }
       }
     } catch (e: any) {
       logger.warn(`Failed to reconcile staff SharePoint compliance for staff ${staffId}: ${e.message}`);
@@ -13442,8 +13468,127 @@ app.get("/api/health", (req, res) => {
     }
   );
 
+  // Reusable helper to mirror a local `files` row (e.g. Onboarding or Training) to SharePoint `General\Staff\[Full_Name]\[subfolder]`
+  const mirrorLocalStaffFileToSharePoint = async (
+    staffId: number,
+    fileId: number | bigint,
+    subfolder = "Onboarding"
+  ): Promise<{ success: boolean; skipped?: boolean; reason?: string; sharePointPath?: string; webUrl?: string }> => {
+    const fileRow = db.prepare("SELECT * FROM files WHERE id = ?").get(fileId) as any;
+    if (!fileRow) {
+      throw new Error("Local file record not found");
+    }
+
+    const localFilePath = path.join(
+      process.cwd(),
+      "uploads",
+      String(fileRow.folder_path || "/").replace(/^\/+/, ""),
+      fileRow.system_name
+    );
+    if (!fs.existsSync(localFilePath)) {
+      throw new Error("Local file not found on disk");
+    }
+
+    const fastCtx = await getFastSharePointDriveContext();
+    if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+      return { success: false, skipped: true, reason: "SharePoint not configured" };
+    }
+
+    const cleanSub = normalizeSpPath(subfolder);
+    const cached = getCachedStaffSharePointPayload(staffId, cleanSub);
+    const { folderId: parentFolderId } = await resolveStaffTargetFolderIdFast(
+      staffId,
+      fastCtx.accessToken,
+      fastCtx.driveId,
+      cached.staffInfo.fullSharePointPath,
+      cached.staffInfo.folderItemId,
+      cleanSub
+    );
+
+    const fileName = fileRow.system_name || fileRow.original_name;
+    const encodedFileName = encodeURIComponent(fileName);
+    const fileBuffer = fs.readFileSync(localFilePath);
+
+    const putRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/content`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${fastCtx.accessToken}`,
+          "Content-Type": "application/octet-stream",
+        },
+        body: fileBuffer,
+      }
+    );
+
+    const putData = (await putRes.json().catch(() => ({}))) as any;
+    if (!putRes.ok) {
+      throw new Error(putData?.error?.message || `Failed to mirror ${cleanSub} file to SharePoint`);
+    }
+
+    if (putData?.id) {
+      upsertStaffSharePointItemToDb(staffId, fastCtx.driveId, cleanSub, putData);
+      recalculateStaffSqliteFolderCounts(staffId);
+    }
+
+    return {
+      success: true,
+      sharePointPath: `${cached.staffInfo.fullSharePointPath}/${cleanSub}/${fileName}`,
+      webUrl: putData?.webUrl || "",
+    };
+  };
+
+  // Background backfill helper: ensures all local `/Staff/[Full_Name]/Training` files are synced to SharePoint `Staff/[Full_Name]/Training`
+  let isSyncingTrainingToSharePoint = false;
+  const syncAllStaffLocalTrainingToSharePoint = async (onlyStaffId?: number) => {
+    if (isSyncingTrainingToSharePoint) return;
+    isSyncingTrainingToSharePoint = true;
+    try {
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) return;
+
+      const staffRows = onlyStaffId
+        ? (db.prepare("SELECT id, first_name, last_name FROM users WHERE id = ?").all(onlyStaffId) as any[])
+        : (db.prepare("SELECT id, first_name, last_name FROM users WHERE role IN ('STAFF', 'ADMIN')").all() as any[]);
+
+      for (const st of staffRows) {
+        const nameDir = [st.first_name, st.last_name].filter(Boolean).join(" ").replace(/[\\/]/g, "");
+        if (!nameDir) continue;
+        const folderPath = `/Staff/${nameDir}/Training`;
+        const localTrainingFiles = db
+          .prepare("SELECT id, system_name, original_name FROM files WHERE folder_path = ?")
+          .all(folderPath) as any[];
+        if (!localTrainingFiles.length) continue;
+
+        const existingSpTrainingNames = new Set(
+          (
+            db
+              .prepare(
+                "SELECT name FROM sharepoint_staff_items WHERE staff_id = ? AND is_folder = 0 AND LOWER(parent_subpath) = 'training'"
+              )
+              .all(st.id) as Array<{ name: string }>
+          ).map((r) => String(r.name || "").toLowerCase().trim())
+        );
+
+        for (const lf of localTrainingFiles) {
+          const fname = String(lf.system_name || lf.original_name || "").trim();
+          if (!fname || existingSpTrainingNames.has(fname.toLowerCase())) continue;
+          try {
+            await mirrorLocalStaffFileToSharePoint(Number(st.id), lf.id, "Training");
+          } catch (err: any) {
+            logger.warn(`Background training SharePoint mirror warning for staff ${st.id} (${fname}): ${err.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      logger.warn(`Failed background training SharePoint sync: ${e.message}`);
+    } finally {
+      isSyncingTrainingToSharePoint = false;
+    }
+  };
+
   // Staff SharePoint Route 6b: POST /api/staff/:id/sharepoint/mirror-local-file
-  // Automatically mirrors an Onboarding Hub local upload (`/uploads/Staff/[Full_Name]/Onboarding/...`) to SharePoint `General\Staff\[Full_Name]\Onboarding`
+  // Automatically mirrors an Onboarding Hub or Training local upload to SharePoint `General\Staff\[Full_Name]\[subfolder]`
   app.post("/api/staff/:id/sharepoint/mirror-local-file", authenticateToken, async (req: any, res: any) => {
     try {
       const staffId = Number(req.params.id || req.user?.id);
@@ -13451,71 +13596,10 @@ app.get("/api/health", (req, res) => {
       if (!fileId) {
         return res.status(400).json({ error: "fileId is required" });
       }
-
-      const fileRow = db.prepare("SELECT * FROM files WHERE id = ?").get(fileId) as any;
-      if (!fileRow) {
-        return res.status(404).json({ error: "Local file record not found" });
-      }
-
-      const localFilePath = path.join(
-        process.cwd(),
-        "uploads",
-        String(fileRow.folder_path || "/").replace(/^\/+/, ""),
-        fileRow.system_name
-      );
-      if (!fs.existsSync(localFilePath)) {
-        return res.status(404).json({ error: "Local file not found on disk" });
-      }
-
-      const fastCtx = await getFastSharePointDriveContext();
-      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
-        return res.json({ success: false, skipped: true, reason: "SharePoint not configured" });
-      }
-
-      const cleanSub = normalizeSpPath(subfolder);
-      const cached = getCachedStaffSharePointPayload(staffId, cleanSub);
-      const { folderId: parentFolderId } = await resolveStaffTargetFolderIdFast(
-        staffId,
-        fastCtx.accessToken,
-        fastCtx.driveId,
-        cached.staffInfo.fullSharePointPath,
-        cached.staffInfo.folderItemId,
-        cleanSub
-      );
-
-      const fileName = fileRow.system_name || fileRow.original_name;
-      const encodedFileName = encodeURIComponent(fileName);
-      const fileBuffer = fs.readFileSync(localFilePath);
-
-      const putRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/content`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${fastCtx.accessToken}`,
-            "Content-Type": "application/octet-stream",
-          },
-          body: fileBuffer,
-        }
-      );
-
-      const putData = (await putRes.json().catch(() => ({}))) as any;
-      if (!putRes.ok) {
-        throw new Error(putData?.error?.message || "Failed to mirror Onboarding file to SharePoint");
-      }
-
-      if (putData?.id) {
-        upsertStaffSharePointItemToDb(staffId, fastCtx.driveId, cleanSub, putData);
-        recalculateStaffSqliteFolderCounts(staffId);
-      }
-
-      return res.json({
-        success: true,
-        sharePointPath: `${cached.staffInfo.fullSharePointPath}/${cleanSub}/${fileName}`,
-        webUrl: putData?.webUrl || "",
-      });
+      const result = await mirrorLocalStaffFileToSharePoint(staffId, fileId, subfolder);
+      return res.json(result);
     } catch (err: any) {
-      logger.warn(`Failed to mirror Onboarding file to SharePoint: ${err.message}`);
+      logger.warn(`Failed to mirror local staff file to SharePoint: ${err.message}`);
       res.status(500).json({ error: err.message || "Failed to mirror file to SharePoint" });
     }
   });
@@ -14413,6 +14497,11 @@ app.get("/api/health", (req, res) => {
       });
 
       res.json(formatted);
+
+      // Background sync any local Staff Training certificates to SharePoint `Staff/[Full_Name]/Training`
+      setImmediate(() => {
+        syncAllStaffLocalTrainingToSharePoint(req.user.role === 'ADMIN' ? undefined : Number(req.user.id)).catch(() => {});
+      });
     } catch (e) {
       logger.error('Failed to get staff training', e);
       res.status(500).json({ error: 'Server error' });
@@ -14479,6 +14568,7 @@ app.get("/api/health", (req, res) => {
       }
 
       let certificatePath = null;
+      let uploadedFileId: number | bigint | null = null;
       if (req.file) {
           const user = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(targetUserId) as any;
           if (user) {
@@ -14502,6 +14592,7 @@ app.get("/api/health", (req, res) => {
               } else {
                   fileRecordId = existing.id;
               }
+              uploadedFileId = fileRecordId;
               certificatePath = `/api/files/download/${fileRecordId}`;
 
           }
@@ -14545,7 +14636,15 @@ app.get("/api/health", (req, res) => {
          );
       }
 
-      res.json({ success: true });
+      if (uploadedFileId) {
+        setImmediate(() => {
+          mirrorLocalStaffFileToSharePoint(Number(targetUserId), uploadedFileId!, "Training").catch((err: any) => {
+            logger.warn(`Failed background mirror of Training certificate to SharePoint: ${err.message}`);
+          });
+        });
+      }
+
+      res.json({ success: true, fileId: uploadedFileId, staffId: targetUserId });
     } catch (e) {
       logger.error('Failed to upload staff training', e);
       res.status(500).json({ error: 'Server error' });

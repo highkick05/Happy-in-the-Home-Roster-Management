@@ -26,7 +26,15 @@ interface Step {
 
 
 
-export default function OnboardingView({ targetUserId }: { targetUserId?: number }) {
+export default function OnboardingView({
+  targetUserId,
+  embedded = false,
+  onProgressChange
+}: {
+  targetUserId?: number;
+  embedded?: boolean;
+  onProgressChange?: () => void;
+}) {
   const { token, user } = useAuth();
   
   // Choose the context user
@@ -177,6 +185,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
         body: JSON.stringify({ data: newData, targetUserId: contextUserId })
       });
       
+      onProgressChange?.();
       
       const activeList = dynamicSteps;
 
@@ -1137,12 +1146,14 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   };
 
   return (
-    <div className="flex-1 overflow-auto bg-black p-4 md:p-6">
-      <div className="max-w-4xl mx-auto space-y-4">
-        <div className="mb-4 flex flex-col gap-0.5 border-b border-white/[0.05] pb-3">
-          <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub</h1>
-          <p className="text-xs text-zinc-500">Complete your profile requirements to begin shifts</p>
-        </div>
+    <div className={embedded ? 'w-full' : 'flex-1 overflow-auto bg-black p-4 md:p-6'}>
+      <div className={embedded ? 'w-full space-y-4' : 'max-w-4xl mx-auto space-y-4'}>
+        {!embedded && (
+          <div className="mb-4 flex flex-col gap-0.5 border-b border-white/[0.05] pb-3">
+            <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub</h1>
+            <p className="text-xs text-zinc-500">Complete your profile requirements to begin shifts</p>
+          </div>
+        )}
 
         <div className="bg-[#111111] border border-white/[0.05] rounded-lg p-3 shadow-sm relative overflow-hidden mb-4">
           <div className="flex justify-between text-[11px] font-medium mb-2">

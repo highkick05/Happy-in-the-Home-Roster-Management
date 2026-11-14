@@ -108,7 +108,19 @@ export default function TrainingView() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        const effectiveStaffId = data.staffId || user?.id;
+        if (effectiveStaffId && data.fileId) {
+          fetch(`/api/staff/${effectiveStaffId}/sharepoint/mirror-local-file`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ fileId: data.fileId, subfolder: 'Training' })
+          }).catch(err => console.warn('[SharePoint Training Mirror] Background sync warning:', err));
+        }
         setShowUploadModal(false);
         fetchData();
       } else {
