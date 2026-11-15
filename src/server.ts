@@ -23898,18 +23898,48 @@ app.get("/api/health", (req, res) => {
 
         const savedBizSet = new Map<string, string>();
         const savedStaffSet = new Map<string, string>();
-        const addSavedItem = (map: Map<string, string>, val: any) => {
+        const knownStaffNames = new Set(
+          allUsers
+            .map((u) => `${u.first_name || ""} ${u.last_name || ""}`.trim().toLowerCase())
+            .filter(Boolean),
+        );
+
+        const isKnownInternalStaff = (name: string) => {
+          const lower = name.trim().toLowerCase();
+          if (!lower) return false;
+          if (knownStaffNames.has(lower)) return true;
+          if (lower.includes(",")) {
+            const parts = lower
+              .split(",")
+              .map((p) => p.trim())
+              .filter(Boolean);
+            if (parts.length > 0 && parts.every((p) => knownStaffNames.has(p))) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        const addSavedBizItem = (val: any) => {
           const clean = String(val || "").trim();
           if (!clean || clean.toLowerCase() === "generic staff" || clean.toLowerCase() === "contractor") return;
           const lower = clean.toLowerCase();
-          if (!map.has(lower)) map.set(lower, clean);
+          if (!savedBizSet.has(lower)) savedBizSet.set(lower, clean);
+        };
+
+        const addSavedStaffItem = (val: any) => {
+          const clean = String(val || "").trim();
+          if (!clean || clean.toLowerCase() === "generic staff" || clean.toLowerCase() === "contractor") return;
+          if (isKnownInternalStaff(clean)) return;
+          const lower = clean.toLowerCase();
+          if (!savedStaffSet.has(lower)) savedStaffSet.set(lower, clean);
         };
 
         try {
           const bizSetting = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_businesses'").get() as any;
           if (bizSetting?.value) {
             const parsed = JSON.parse(bizSetting.value);
-            if (Array.isArray(parsed)) parsed.forEach((v) => addSavedItem(savedBizSet, v));
+            if (Array.isArray(parsed)) parsed.forEach((v) => addSavedBizItem(v));
           }
         } catch {}
 
@@ -23917,23 +23947,18 @@ app.get("/api/health", (req, res) => {
           const staffSetting = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_staff'").get() as any;
           if (staffSetting?.value) {
             const parsed = JSON.parse(staffSetting.value);
-            if (Array.isArray(parsed)) parsed.forEach((v) => addSavedItem(savedStaffSet, v));
+            if (Array.isArray(parsed)) parsed.forEach((v) => addSavedStaffItem(v));
           }
         } catch {}
 
         try {
           const remBizRows = db.prepare("SELECT DISTINCT custom_business_name FROM remittances WHERE custom_business_name IS NOT NULL AND TRIM(custom_business_name) != ''").all() as any[];
-          remBizRows.forEach((r) => addSavedItem(savedBizSet, r.custom_business_name));
+          remBizRows.forEach((r) => addSavedBizItem(r.custom_business_name));
         } catch {}
 
         try {
           const remStaffRows = db.prepare("SELECT DISTINCT custom_payee_name FROM remittances WHERE custom_payee_name IS NOT NULL AND TRIM(custom_payee_name) != ''").all() as any[];
-          remStaffRows.forEach((r) => addSavedItem(savedStaffSet, r.custom_payee_name));
-        } catch {}
-
-        try {
-          const invStaffRows = db.prepare("SELECT DISTINCT custom_staff_name FROM invoices WHERE custom_staff_name IS NOT NULL AND TRIM(custom_staff_name) != ''").all() as any[];
-          invStaffRows.forEach((r) => addSavedItem(savedStaffSet, r.custom_staff_name));
+          remStaffRows.forEach((r) => addSavedStaffItem(r.custom_payee_name));
         } catch {}
 
         const savedBusinesses = Array.from(savedBizSet.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
