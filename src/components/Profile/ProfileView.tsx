@@ -29,9 +29,13 @@ export default function ProfileView() {
     avatarUrl: ''
   });
 
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (token) {
+      fetchProfile();
+    }
+  }, [token]);
 
   const fetchProfile = async () => {
     try {
@@ -46,6 +50,7 @@ export default function ProfileView() {
           password: '', // never set password from server
           avatarUrl: getAvatarUrl(data.avatarUrl || data.firstName || 'Staff')
         }));
+        setProfileLoaded(true);
       }
     } catch (e) {
       console.error(e);
@@ -54,18 +59,39 @@ export default function ProfileView() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
 
+    if (!profileLoaded) {
+      setErrorMsg('Profile is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    const cleanFirst = (formData.firstName || '').trim();
+    const cleanLast = (formData.lastName || '').trim();
+    const cleanPhone = (formData.phone || '').trim();
+
+    if (!cleanFirst || !cleanLast || !cleanPhone) {
+      setErrorMsg('First Name, Last Name, and Phone Number are required and cannot be left blank.');
+      return;
+    }
+
+    setLoading(true);
+
     try {
+      const payload = {
+        ...formData,
+        firstName: cleanFirst,
+        lastName: cleanLast,
+        phone: cleanPhone,
+      };
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       
       if (!res.ok) {
@@ -76,14 +102,14 @@ export default function ProfileView() {
       if (user) {
         updateUser({
           ...user,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
+          firstName: cleanFirst,
+          lastName: cleanLast,
           avatarUrl: formData.avatarUrl,
         });
       }
 
       setSuccessMsg('Profile updated successfully.');
-      setFormData(prev => ({ ...prev, password: '' })); // clear password field
+      setFormData(prev => ({ ...prev, firstName: cleanFirst, lastName: cleanLast, phone: cleanPhone, password: '' })); // clear password field
     } catch (e: any) {
       setErrorMsg(e.message);
     } finally {
@@ -133,16 +159,16 @@ export default function ProfileView() {
           <h2 className="text-[11px] uppercase tracking-wider font-semibold text-white border-b border-white/[0.08] pb-2 mb-3">Personal Information</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">First Name</label>
-              <input type="text" value={formData.firstName || ''} onChange={e => setFormData({...formData, firstName: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">First Name <span className="text-red-400">*</span></label>
+              <input type="text" required value={formData.firstName || ''} onChange={e => setFormData({...formData, firstName: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">Last Name</label>
-              <input type="text" value={formData.lastName || ''} onChange={e => setFormData({...formData, lastName: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">Last Name <span className="text-red-400">*</span></label>
+              <input type="text" required value={formData.lastName || ''} onChange={e => setFormData({...formData, lastName: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">Phone</label>
-              <input type="text" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">Phone <span className="text-red-400">*</span></label>
+              <input type="text" required value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div>
               <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">Date of Birth</label>

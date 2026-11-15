@@ -5966,17 +5966,30 @@ function getUnreadChatCount(db: any, userId: number): number {
       password,
     } = req.body;
 
+    const cleanFirst = String(firstName || "").trim();
+    const cleanLast = String(lastName || "").trim();
+    const cleanPhone = String(phone || "").trim();
+
+    if (!cleanFirst || !cleanLast || !cleanPhone) {
+      return res.status(400).json({
+        error: "First Name, Last Name, and Phone Number are required and cannot be left blank.",
+      });
+    }
+
     let query = `
       UPDATE users SET 
-        first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, 
+        first_name = COALESCE(NULLIF(TRIM(?), ''), first_name),
+        last_name = COALESCE(NULLIF(TRIM(?), ''), last_name),
+        phone = COALESCE(NULLIF(TRIM(?), ''), phone),
+        address = ?, dob = ?, 
         emergency_contact_name = ?, emergency_contact_phone = ?, 
         bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, 
         super_fund_name = ?, super_member_number = ?, avatar_url = ?
     `;
     const params: any[] = [
-      firstName,
-      lastName,
-      phone,
+      cleanFirst,
+      cleanLast,
+      cleanPhone,
       address,
       dob,
       emergencyContactName,
@@ -9782,14 +9795,14 @@ app.get("/api/health", (req, res) => {
         (targetPosName === "Care Coordinator" ||
         (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator")));
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = ?, pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), is_external = ?, external_provider = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = COALESCE(NULLIF(TRIM(?), ''), first_name), last_name = COALESCE(NULLIF(TRIM(?), ''), last_name), phone = COALESCE(NULLIF(TRIM(?), ''), phone), address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = ?, pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), is_external = ?, external_provider = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
       stmt.run(
         safeEmail,
         isExt ? "STAFF" : (role || "STAFF"),
-        firstName,
-        lastName,
-        phone || "",
+        String(firstName || "").trim(),
+        String(lastName || "").trim(),
+        String(phone || "").trim(),
         address || "",
         dob || null,
         emergencyContactName || "",
