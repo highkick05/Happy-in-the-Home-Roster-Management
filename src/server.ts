@@ -23896,12 +23896,57 @@ app.get("/api/health", (req, res) => {
             }, {}),
         }));
 
+        const savedBizSet = new Map<string, string>();
+        const savedStaffSet = new Map<string, string>();
+        const addSavedItem = (map: Map<string, string>, val: any) => {
+          const clean = String(val || "").trim();
+          if (!clean || clean.toLowerCase() === "generic staff" || clean.toLowerCase() === "contractor") return;
+          const lower = clean.toLowerCase();
+          if (!map.has(lower)) map.set(lower, clean);
+        };
+
+        try {
+          const bizSetting = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_businesses'").get() as any;
+          if (bizSetting?.value) {
+            const parsed = JSON.parse(bizSetting.value);
+            if (Array.isArray(parsed)) parsed.forEach((v) => addSavedItem(savedBizSet, v));
+          }
+        } catch {}
+
+        try {
+          const staffSetting = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_staff'").get() as any;
+          if (staffSetting?.value) {
+            const parsed = JSON.parse(staffSetting.value);
+            if (Array.isArray(parsed)) parsed.forEach((v) => addSavedItem(savedStaffSet, v));
+          }
+        } catch {}
+
+        try {
+          const remBizRows = db.prepare("SELECT DISTINCT custom_business_name FROM remittances WHERE custom_business_name IS NOT NULL AND TRIM(custom_business_name) != ''").all() as any[];
+          remBizRows.forEach((r) => addSavedItem(savedBizSet, r.custom_business_name));
+        } catch {}
+
+        try {
+          const remStaffRows = db.prepare("SELECT DISTINCT custom_payee_name FROM remittances WHERE custom_payee_name IS NOT NULL AND TRIM(custom_payee_name) != ''").all() as any[];
+          remStaffRows.forEach((r) => addSavedItem(savedStaffSet, r.custom_payee_name));
+        } catch {}
+
+        try {
+          const invStaffRows = db.prepare("SELECT DISTINCT custom_staff_name FROM invoices WHERE custom_staff_name IS NOT NULL AND TRIM(custom_staff_name) != ''").all() as any[];
+          invStaffRows.forEach((r) => addSavedItem(savedStaffSet, r.custom_staff_name));
+        } catch {}
+
+        const savedBusinesses = Array.from(savedBizSet.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+        const savedCustomStaff = Array.from(savedStaffSet.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
         res.json({
           clients: clientsWithServices,
           staff,
           services,
           suspendedClientNames,
           suspendedStaffNames,
+          savedBusinesses,
+          savedCustomStaff,
         });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -24437,6 +24482,17 @@ app.get("/api/health", (req, res) => {
         INSERT INTO remittances (remittance_number, client_id, custom_business_name, amount, status, attachments_json, activity_name)
         VALUES (?, ?, ?, ?, 'HISTORICAL', ?, ?)
       `).run(remittanceNumber, finalClientId, finalBusinessName, amount, attachmentsJson, activity || 'Historical Remittance');
+
+      if (finalBusinessName) {
+        try {
+          const row = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_businesses'").get() as any;
+          const existing: string[] = row?.value ? JSON.parse(row.value) : [];
+          if (!existing.some((x) => String(x).trim().toLowerCase() === finalBusinessName.toLowerCase())) {
+            existing.push(finalBusinessName);
+            db.prepare("INSERT INTO settings (key, value) VALUES ('saved_remittance_businesses', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(existing));
+          }
+        } catch {}
+      }
       
       res.json({ success: true, message: "Historical remittance uploaded" });
     } catch (e: any) {
@@ -24922,7 +24978,29 @@ app.post(
 
         const isCustomStaff = staffId === "custom";
         const finalStaffId = (!staffId || isCustomStaff) ? null : staffId;
-        const finalCustomStaffName = isCustomStaff ? (customStaffName || "Generic Staff") : null;
+        const finalCustomStaffName = isCustomStaff ? (String(customStaffName || "").trim() || "Generic Staff") : null;
+
+        if (finalBusinessName) {
+          try {
+            const row = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_businesses'").get() as any;
+            const existing: string[] = row?.value ? JSON.parse(row.value) : [];
+            if (!existing.some((x) => String(x).trim().toLowerCase() === finalBusinessName.toLowerCase())) {
+              existing.push(finalBusinessName);
+              db.prepare("INSERT INTO settings (key, value) VALUES ('saved_remittance_businesses', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(existing));
+            }
+          } catch {}
+        }
+
+        if (isCustomStaff && finalCustomStaffName && finalCustomStaffName !== "Generic Staff") {
+          try {
+            const row = db.prepare("SELECT value FROM settings WHERE key = 'saved_remittance_staff'").get() as any;
+            const existing: string[] = row?.value ? JSON.parse(row.value) : [];
+            if (!existing.some((x) => String(x).trim().toLowerCase() === finalCustomStaffName.toLowerCase())) {
+              existing.push(finalCustomStaffName);
+              db.prepare("INSERT INTO settings (key, value) VALUES ('saved_remittance_staff', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(existing));
+            }
+          } catch {}
+        }
 
         const attachments = (req.files as any[])?.map(f => ({
           filename: f.originalname,

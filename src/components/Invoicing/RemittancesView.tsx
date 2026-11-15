@@ -46,7 +46,13 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
       : [{ serviceId: '', qtyOverride: '', rateOverride: '' }]
   );
   
-  const [options, setOptions] = useState<{ clients: any[], staff: any[], services: any[] }>({ clients: [], staff: [], services: [] });
+  const [options, setOptions] = useState<{
+    clients: any[];
+    staff: any[];
+    services: any[];
+    savedBusinesses?: string[];
+    savedCustomStaff?: string[];
+  }>({ clients: [], staff: [], services: [], savedBusinesses: [], savedCustomStaff: [] });
   const [attachments, setAttachments] = useState<File[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
@@ -283,32 +289,85 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
           <select
             required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none"
-            value={formData.clientId}
+            value={
+              formData.clientId === 'business' &&
+              formData.customBusinessName &&
+              (options.savedBusinesses || []).includes(formData.customBusinessName)
+                ? `saved-biz:${formData.customBusinessName}`
+                : formData.clientId
+            }
             onChange={e => {
               const nextVal = e.target.value;
-              setFormData({
-                ...formData,
-                clientId: nextVal,
-                customBusinessName: nextVal === 'business' ? formData.customBusinessName : ''
-              });
+              if (nextVal.startsWith('saved-biz:')) {
+                const chosenBiz = nextVal.slice('saved-biz:'.length);
+                setFormData({
+                  ...formData,
+                  clientId: 'business',
+                  customBusinessName: chosenBiz
+                });
+              } else {
+                setFormData({
+                  ...formData,
+                  clientId: nextVal,
+                  customBusinessName: nextVal === 'business' ? '' : ''
+                });
+              }
               setSelectedServices([{ serviceId: '', qtyOverride: '', rateOverride: '' }]);
             }}
           >
             <option value="">Select Client or Business</option>
             <option value="business">-- Custom Business / Organization --</option>
-            {options.clients.map(c => (
-              <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-            ))}
+            {(options.savedBusinesses || []).length > 0 && (
+              <optgroup label="Saved Businesses / Organizations">
+                {(options.savedBusinesses || []).map(biz => (
+                  <option key={`saved-biz-${biz}`} value={`saved-biz:${biz}`}>
+                    {biz} (Business)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Clients">
+              {options.clients.map(c => (
+                <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+              ))}
+            </optgroup>
           </select>
           {formData.clientId === 'business' && (
-            <input
-              type="text"
-              required
-              placeholder="Enter Business Name (e.g. Trilogy Care / Allied Health Pty Ltd)"
-              className="mt-1.5 w-full bg-[#121214] border border-white/[0.08] rounded-md py-1.5 px-3 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
-              value={formData.customBusinessName}
-              onChange={e => setFormData({ ...formData, customBusinessName: e.target.value })}
-            />
+            <div className="space-y-1.5 mt-1.5">
+              <input
+                type="text"
+                required
+                list="saved-remittance-businesses-list"
+                placeholder="Enter Business Name (e.g. Trilogy Care / Allied Health Pty Ltd)"
+                className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-1.5 px-3 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
+                value={formData.customBusinessName}
+                onChange={e => setFormData({ ...formData, customBusinessName: e.target.value })}
+              />
+              <datalist id="saved-remittance-businesses-list">
+                {(options.savedBusinesses || []).map(biz => (
+                  <option key={biz} value={biz} />
+                ))}
+              </datalist>
+              {(options.savedBusinesses || []).length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">Saved:</span>
+                  {(options.savedBusinesses || []).map(biz => (
+                    <button
+                      key={biz}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, clientId: 'business', customBusinessName: biz })}
+                      className={`px-2 py-0.5 rounded text-[11px] border transition-colors cursor-pointer ${
+                        formData.customBusinessName === biz
+                          ? 'bg-brand-teal/20 text-brand-teal border-brand-teal/40 font-medium'
+                          : 'bg-white/[0.04] text-zinc-300 border-white/[0.08] hover:border-brand-teal/30 hover:text-white'
+                      }`}
+                    >
+                      {biz}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
         
@@ -319,26 +378,86 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
           <select
             required={formData.clientId !== 'business'}
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none"
-            value={formData.staffId}
-            onChange={e => setFormData({ ...formData, staffId: e.target.value })}
+            value={
+              formData.staffId === 'custom' &&
+              formData.customStaffName &&
+              (options.savedCustomStaff || []).includes(formData.customStaffName)
+                ? `saved-staff:${formData.customStaffName}`
+                : formData.staffId
+            }
+            onChange={e => {
+              const nextVal = e.target.value;
+              if (nextVal.startsWith('saved-staff:')) {
+                const chosenStaff = nextVal.slice('saved-staff:'.length);
+                setFormData({
+                  ...formData,
+                  staffId: 'custom',
+                  customStaffName: chosenStaff
+                });
+              } else {
+                setFormData({
+                  ...formData,
+                  staffId: nextVal,
+                  customStaffName: nextVal === 'custom' ? '' : ''
+                });
+              }
+            }}
           >
             <option value="">
               {formData.clientId === 'business' ? 'No Staff Member (Business Only)' : 'Select Staff'}
             </option>
             <option value="custom">-- Custom Staff Member Name --</option>
-            {options.staff.map(s => (
-              <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-            ))}
+            {(options.savedCustomStaff || []).length > 0 && (
+              <optgroup label="Saved Custom Staff">
+                {(options.savedCustomStaff || []).map(staffName => (
+                  <option key={`saved-staff-${staffName}`} value={`saved-staff:${staffName}`}>
+                    {staffName} (Custom)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Staff Directory">
+              {options.staff.map(s => (
+                <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+              ))}
+            </optgroup>
           </select>
           {formData.staffId === 'custom' && (
-            <input
-              type="text"
-              required
-              placeholder="Enter Custom Staff Name (e.g. John Doe)"
-              className="mt-1.5 w-full bg-[#121214] border border-white/[0.08] rounded-md py-1.5 px-3 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
-              value={formData.customStaffName}
-              onChange={e => setFormData({ ...formData, customStaffName: e.target.value })}
-            />
+            <div className="space-y-1.5 mt-1.5">
+              <input
+                type="text"
+                required
+                list="saved-remittance-staff-list"
+                placeholder="Enter Custom Staff Name (e.g. John Doe)"
+                className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-1.5 px-3 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
+                value={formData.customStaffName}
+                onChange={e => setFormData({ ...formData, customStaffName: e.target.value })}
+              />
+              <datalist id="saved-remittance-staff-list">
+                {(options.savedCustomStaff || []).map(staffName => (
+                  <option key={staffName} value={staffName} />
+                ))}
+              </datalist>
+              {(options.savedCustomStaff || []).length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">Saved:</span>
+                  {(options.savedCustomStaff || []).map(staffName => (
+                    <button
+                      key={staffName}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, staffId: 'custom', customStaffName: staffName })}
+                      className={`px-2 py-0.5 rounded text-[11px] border transition-colors cursor-pointer ${
+                        formData.customStaffName === staffName
+                          ? 'bg-brand-teal/20 text-brand-teal border-brand-teal/40 font-medium'
+                          : 'bg-white/[0.04] text-zinc-300 border-white/[0.08] hover:border-brand-teal/30 hover:text-white'
+                      }`}
+                    >
+                      {staffName}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -812,23 +931,26 @@ export default function RemittancesView() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
+  const [savedDbBusinesses, setSavedDbBusinesses] = useState<string[]>([]);
+
+  const fetchClientsAndSaved = async () => {
+    try {
+      const res = await fetch('/api/invoices/form-data', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllDbClients(data.clients || []);
+        setSavedDbBusinesses(data.savedBusinesses || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch clients:', e);
+    }
+  };
 
   useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const res = await fetch('/api/invoices/form-data', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setAllDbClients(data.clients || []);
-        }
-      } catch (e) {
-        console.error('Failed to fetch clients:', e);
-      }
-    };
     if (token) {
-      fetchClients();
+      fetchClientsAndSaved();
     }
   }, [token]);
 
@@ -865,6 +987,7 @@ export default function RemittancesView() {
       setUploadActivity('');
       setUploadFile(null);
       fetchRemittances();
+      fetchClientsAndSaved();
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -1056,25 +1179,75 @@ export default function RemittancesView() {
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Client / Business</label>
                 <select
                   required
-                  value={uploadClientId}
-                  onChange={e => setUploadClientId(e.target.value)}
+                  value={
+                    uploadClientId === 'business' &&
+                    uploadBusinessName &&
+                    savedDbBusinesses.includes(uploadBusinessName)
+                      ? `saved-biz:${uploadBusinessName}`
+                      : uploadClientId
+                  }
+                  onChange={e => {
+                    const nextVal = e.target.value;
+                    if (nextVal.startsWith('saved-biz:')) {
+                      setUploadClientId('business');
+                      setUploadBusinessName(nextVal.slice('saved-biz:'.length));
+                    } else {
+                      setUploadClientId(nextVal);
+                      if (nextVal !== 'business') setUploadBusinessName('');
+                    }
+                  }}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
                 >
                   <option value="">Select Client or Business</option>
                   <option value="business">-- Custom Business / Organization --</option>
-                  {allDbClients.map(c => (
-                    <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
-                  ))}
+                  {savedDbBusinesses.length > 0 && (
+                    <optgroup label="Saved Businesses / Organizations">
+                      {savedDbBusinesses.map(biz => (
+                        <option key={`hist-biz-${biz}`} value={`saved-biz:${biz}`}>
+                          {biz} (Business)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Clients">
+                    {allDbClients.map(c => (
+                      <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                    ))}
+                  </optgroup>
                 </select>
                 {uploadClientId === 'business' && (
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter Business Name"
-                    value={uploadBusinessName}
-                    onChange={e => setUploadBusinessName(e.target.value)}
-                    className="mt-1.5 w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
-                  />
+                  <div className="space-y-1.5 mt-1.5">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter Business Name"
+                      value={uploadBusinessName}
+                      onChange={e => setUploadBusinessName(e.target.value)}
+                      className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
+                    />
+                    {savedDbBusinesses.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">Saved:</span>
+                        {savedDbBusinesses.map(biz => (
+                          <button
+                            key={biz}
+                            type="button"
+                            onClick={() => {
+                              setUploadClientId('business');
+                              setUploadBusinessName(biz);
+                            }}
+                            className={`px-2 py-0.5 rounded text-[11px] border transition-colors cursor-pointer ${
+                              uploadBusinessName === biz
+                                ? 'bg-brand-teal/20 text-brand-teal border-brand-teal/40 font-medium'
+                                : 'bg-white/[0.04] text-zinc-300 border-white/[0.08] hover:border-brand-teal/30 hover:text-white'
+                            }`}
+                          >
+                            {biz}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div>
@@ -1144,7 +1317,7 @@ export default function RemittancesView() {
             </div>
             
             <div className="overflow-visible flex-1">
-              <GenerateRemittanceForm token={token} editData={editingRemittance} onGenerated={() => fetchRemittances()} onClose={() => { setShowGenerateModal(false); setEditingRemittance(null); }} />
+              <GenerateRemittanceForm token={token} editData={editingRemittance} onGenerated={() => { fetchRemittances(); fetchClientsAndSaved(); }} onClose={() => { setShowGenerateModal(false); setEditingRemittance(null); }} />
             </div>
           </div>
         </div>
