@@ -21759,6 +21759,39 @@ app.get("/api/health", (req, res) => {
   );
 
   app.post(
+    "/api/shifts/:id/preview-abt",
+    authenticateToken,
+    async (req: any, res: any) => {
+      const { id } = req.params;
+      const { abtCoordinates } = req.body || {};
+      try {
+        const shift = db
+          .prepare("SELECT * FROM shifts WHERE id = ?")
+          .get(id) as any;
+        if (!shift) return res.status(404).json({ error: "Shift not found" });
+
+        if (!Array.isArray(abtCoordinates) || abtCoordinates.length < 2) {
+          return res.json({ distance: 0, minutes: 0, legs: [] });
+        }
+
+        const abtTravel = await calculateAbtTravel(shift, abtCoordinates);
+        const legs = Array.isArray((abtTravel?.routeLogs as any)?.legs)
+          ? (abtTravel.routeLogs as any).legs
+          : [];
+
+        return res.json({
+          distance: Number(abtTravel?.distance) || 0,
+          minutes: Number((abtTravel as any)?.minutes) || 0,
+          legs,
+        });
+      } catch (e: any) {
+        logger.error(`ABT Preview Error: ${e}`, { error: "Internal Server Error" });
+        return res.status(500).json({ error: "Failed to preview transport distance" });
+      }
+    },
+  );
+
+  app.post(
     "/api/shifts/:id/complete",
     authenticateToken,
     async (req: any, res: any) => {

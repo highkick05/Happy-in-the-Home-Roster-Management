@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car, ArrowDown, Edit, Lock } from 'lucide-react';
+import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car, ArrowDown, Edit, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
+
+const ABT_HIGH_KM_THRESHOLD = 500;
 
 interface ActiveShiftModalProps {
   isOpen: boolean;
@@ -64,6 +66,15 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [abtPreview, setAbtPreview] = useState<{ distance: number; minutes: number; legs: any[] } | null>(null);
+  const [abtPreviewLoading, setAbtPreviewLoading] = useState(false);
+  const [highKmWarningModal, setHighKmWarningModal] = useState<{
+    mode: 'added' | 'submit';
+    totalKm: number;
+    maxLegKm: number;
+    offendingWaypointName: string;
+    offendingIndex: number;
+  } | null>(null);
 
   const [odometerReading, setOdometerReading] = useState('');
   const [odometerPhoto, setOdometerPhoto] = useState('');
@@ -217,6 +228,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       setDidTransport(restoredDidTransport);
       setReturnedHome(restoredReturnedHome);
       setWaypoints(restoredWaypoints);
+      setAbtPreview(null);
+      setHighKmWarningModal(null);
       
       const storageKey = `shift_progress_${shift.id}`;
       const saved = localStorage.getItem(storageKey);
@@ -397,7 +410,89 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     }
   };
 
-  const handleCompleteShift = async (e?: React.MouseEvent) => {
+  const evaluateHighKmFromPreview = (
+    previewData: { distance: number; minutes: number; legs: any[] } | null,
+    currWaypoints: { name: string; placeId?: string; coords?: number[] | string }[]
+  ) => {
+    if (!previewData || currWaypoints.length === 0) return null;
+    const totalKm = Number(previewData.distance) || 0;
+    const legs = Array.isArray(previewData.legs) ? previewData.legs : [];
+    let maxLegKm = 0;
+    let offendingIndex = currWaypoints.length - 1;
+
+    legs.forEach((leg: any, idx: number) => {
+      const legDist = Number(leg?.distance) || 0;
+      if (legDist > maxLegKm) {
+        maxLegKm = legDist;
+        offendingIndex = Math.min(idx, currWaypoints.length - 1);
+      }
+    });
+
+    if (totalKm > ABT_HIGH_KM_THRESHOLD || maxLegKm > ABT_HIGH_KM_THRESHOLD) {
+      const offendingWaypointName =
+        currWaypoints[offendingIndex]?.name || currWaypoints[currWaypoints.length - 1]?.name || 'Selected Destination';
+      return {
+        totalKm,
+        maxLegKm,
+        offendingWaypointName,
+        offendingIndex,
+      };
+    }
+    return null;
+  };
+
+  const requestAbtPreview = async (
+    currWaypoints: { name: string; placeId?: string; coords?: number[] | string }[],
+    currReturnedHome: boolean,
+    triggerPopupOnHighKm: boolean
+  ): Promise<{ distance: number; minutes: number; legs: any[] } | null> => {
+    if (!shift || !token || currWaypoints.length === 0) {
+      setAbtPreview(null);
+      return null;
+    }
+    const abtCoordinates = [
+      'CLIENT_HOME',
+      ...currWaypoints.map(wp => ({ placeId: wp.placeId, coords: wp.coords, address: wp.name })),
+      ...(currReturnedHome ? ['CLIENT_HOME'] : [])
+    ];
+    setAbtPreviewLoading(true);
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}/preview-abt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ abtCoordinates })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const previewObj = {
+          distance: Number(data?.distance) || 0,
+          minutes: Number(data?.minutes) || 0,
+          legs: Array.isArray(data?.legs) ? data.legs : []
+        };
+        setAbtPreview(previewObj);
+        if (triggerPopupOnHighKm) {
+          const highKmInfo = evaluateHighKmFromPreview(previewObj, currWaypoints);
+          if (highKmInfo) {
+            setHighKmWarningModal({
+              mode: 'added',
+              ...highKmInfo
+            });
+          }
+        }
+        return previewObj;
+      }
+    } catch (e) {
+      // Ignore transient preview errors when offline
+    } finally {
+      setAbtPreviewLoading(false);
+    }
+    return null;
+  };
+
+  const handleCompleteShift = async (e?: React.MouseEvent, bypassHighKmConfirm = false) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -412,6 +507,21 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     if (!shouldPreserveAbt && hasABTService && didTransport && waypoints.length === 0) {
        alert("Please add at least 1 destination if you transported the client.");
        return;
+    }
+
+    if (!shouldPreserveAbt && hasABTService && didTransport && waypoints.length > 0 && !bypassHighKmConfirm) {
+      let currentPreview = abtPreview;
+      if (!currentPreview && navigator.onLine) {
+        currentPreview = await requestAbtPreview(waypoints, returnedHome, false);
+      }
+      const highKmInfo = evaluateHighKmFromPreview(currentPreview, waypoints);
+      if (highKmInfo) {
+        setHighKmWarningModal({
+          mode: 'submit',
+          ...highKmInfo
+        });
+        return;
+      }
     }
 
     setLoading(true);
@@ -496,10 +606,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   const addWaypoint = (suggestion: any) => {
     const text = suggestion.placePrediction.text.text;
     const placeId = suggestion.placePrediction.placeId;
-    setWaypoints([...waypoints, { name: text, placeId }]);
+    const nextWaypoints = [...waypoints, { name: text, placeId }];
+    setWaypoints(nextWaypoints);
     setHasModifiedTransport(true);
     setSearchQuery('');
     setSearchResults([]);
+    requestAbtPreview(nextWaypoints, returnedHome, true);
   };
 
   const formatLocationString = (str: string) => {
@@ -1433,33 +1545,151 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                                 </div>
 
                                 <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                                  {waypoints.map((wp: any, idx: number) => (
-                                    <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 flex items-center justify-between">
-                                      <span className="text-sm md:text-base truncate mr-3 text-zinc-300 font-medium flex items-center min-w-0">
-                                         <span className="flex-shrink-0 w-6 h-6 bg-indigo-500/20 text-brand-teal rounded-full flex items-center justify-center text-xs mr-3 font-bold">{idx + 1}</span>
-                                         <span className="truncate">{wp.name}</span>
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setWaypoints(waypoints.filter((_: any, i: number) => i !== idx));
-                                          setHasModifiedTransport(true);
-                                        }}
-                                        className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0"
+                                  {waypoints.map((wp: any, idx: number) => {
+                                    const legDist = Number(abtPreview?.legs?.[idx]?.distance || 0);
+                                    const isLegOverThreshold = legDist > ABT_HIGH_KM_THRESHOLD;
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className={`w-full rounded-md px-3 py-2 text-[13px] text-white outline-none transition-colors flex items-center justify-between gap-2 ${
+                                          isLegOverThreshold
+                                            ? 'bg-red-950/60 border-2 border-red-500/70'
+                                            : 'bg-black/40 border border-white/[0.08]'
+                                        }`}
                                       >
-                                        <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                                      </button>
-                                    </div>
-                                  ))}
+                                        <span className="text-sm md:text-base truncate mr-2 text-zinc-200 font-medium flex items-center min-w-0 flex-1">
+                                          <span
+                                            className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 font-bold ${
+                                              isLegOverThreshold
+                                                ? 'bg-red-500/30 text-red-300 border border-red-400/50'
+                                                : 'bg-indigo-500/20 text-brand-teal'
+                                            }`}
+                                          >
+                                            {idx + 1}
+                                          </span>
+                                          <span className="truncate">{wp.name}</span>
+                                        </span>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          {legDist > 0 && (
+                                            <span
+                                              className={`px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap border ${
+                                                isLegOverThreshold
+                                                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                                  : 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                              }`}
+                                            >
+                                              {isLegOverThreshold ? `⚠️ ${legDist.toFixed(1)} km` : `${legDist.toFixed(1)} km`}
+                                            </span>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextWaypoints = waypoints.filter((_: any, i: number) => i !== idx);
+                                              setWaypoints(nextWaypoints);
+                                              setHasModifiedTransport(true);
+                                              if (nextWaypoints.length > 0) {
+                                                requestAbtPreview(nextWaypoints, returnedHome, false);
+                                              } else {
+                                                setAbtPreview(null);
+                                                setHighKmWarningModal(null);
+                                              }
+                                            }}
+                                            className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0"
+                                            title="Remove destination"
+                                          >
+                                            <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
+
+                                {waypoints.length > 0 && (
+                                  <div className="space-y-2.5">
+                                    <div
+                                      className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm ${
+                                        (abtPreview?.distance || 0) > ABT_HIGH_KM_THRESHOLD
+                                          ? 'bg-red-950/60 border-red-500/60 text-red-200'
+                                          : 'bg-[#09090b]/90 border-white/[0.1] text-zinc-300'
+                                      }`}
+                                    >
+                                      <span className="font-semibold flex items-center gap-2">
+                                        <Car className="w-4 h-4 text-brand-teal shrink-0" />
+                                        Estimated Client Transport Distance:
+                                      </span>
+                                      {abtPreviewLoading ? (
+                                        <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-teal" />
+                                          Calculating distance...
+                                        </span>
+                                      ) : abtPreview ? (
+                                        <span
+                                          className={`font-extrabold text-sm sm:text-base ${
+                                            abtPreview.distance > ABT_HIGH_KM_THRESHOLD ? 'text-red-400' : 'text-brand-green'
+                                          }`}
+                                        >
+                                          {abtPreview.distance.toFixed(2)} km
+                                          {returnedHome ? ' (inc. return home)' : ''}
+                                        </span>
+                                      ) : (
+                                        <span className="text-xs text-zinc-500">Pending calculation</span>
+                                      )}
+                                    </div>
+
+                                    {(() => {
+                                      const highKmInfo = evaluateHighKmFromPreview(abtPreview, waypoints);
+                                      if (!highKmInfo) return null;
+                                      return (
+                                        <div className="p-3.5 rounded-xl bg-red-950/80 border-2 border-red-500/70 text-red-100 space-y-2.5 shadow-lg animate-in fade-in">
+                                          <div className="flex items-start gap-2.5">
+                                            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                                            <div className="space-y-1 text-xs sm:text-sm leading-relaxed">
+                                              <p className="font-extrabold text-red-300 uppercase tracking-wide">
+                                                Warning: Abnormal Travel Distance ({highKmInfo.totalKm.toFixed(1)} km — Over {ABT_HIGH_KM_THRESHOLD} km!)
+                                              </p>
+                                              <p className="text-red-100/90">
+                                                Destination <strong className="text-white">&ldquo;{highKmInfo.offendingWaypointName}&rdquo;</strong> resulted in an unusually large distance. Please double-check the suburb/town — you may have selected an address in the wrong city or region.
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="flex justify-end">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const nextWaypoints = waypoints.filter((_: any, i: number) => i !== highKmInfo.offendingIndex);
+                                                setWaypoints(nextWaypoints);
+                                                setHasModifiedTransport(true);
+                                                setHighKmWarningModal(null);
+                                                if (nextWaypoints.length > 0) {
+                                                  requestAbtPreview(nextWaypoints, returnedHome, false);
+                                                } else {
+                                                  setAbtPreview(null);
+                                                }
+                                              }}
+                                              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                              Remove &ldquo;{highKmInfo.offendingWaypointName.split(',')[0]}&rdquo;
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
                                 
                                 <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
                                   <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
                                   <button 
                                     type="button"
                                     onClick={() => {
-                                      setReturnedHome(!returnedHome);
+                                      const nextReturned = !returnedHome;
+                                      setReturnedHome(nextReturned);
                                       setHasModifiedTransport(true);
+                                      if (waypoints.length > 0) {
+                                        requestAbtPreview(waypoints, nextReturned, true);
+                                      }
                                     }}
                                     className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
                                   >
@@ -1672,6 +1902,94 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
             </div>
           )}
         </div>
+
+        {/* High KM (>500km) Abnormal Waypoint Warning Modal */}
+        {highKmWarningModal && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="bg-[#121214] border-2 border-red-500/80 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base md:text-lg font-extrabold text-white leading-snug">
+                    Abnormal Travel Distance ({highKmWarningModal.totalKm.toFixed(1)} km)
+                  </h4>
+                  <p className="text-xs font-bold uppercase tracking-wider text-red-400">
+                    Over {ABT_HIGH_KM_THRESHOLD} km Threshold Detected
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-red-950/50 border border-red-500/30 rounded-xl p-3.5 text-xs sm:text-sm text-zinc-200 space-y-2 leading-relaxed">
+                <p>
+                  The destination you entered resulted in a total transport distance of{' '}
+                  <strong className="text-red-300 font-extrabold">{highKmWarningModal.totalKm.toFixed(2)} km</strong>:
+                </p>
+                <div className="bg-black/50 border border-white/[0.08] rounded-lg px-3 py-2 text-white font-semibold text-xs sm:text-sm break-words">
+                  {highKmWarningModal.offendingWaypointName}
+                </div>
+                <p className="text-zinc-300">
+                  This usually happens when an address with the same street or venue name in the <strong className="text-white">wrong town, suburb, or region</strong> is selected by mistake.
+                </p>
+              </div>
+
+              {highKmWarningModal.mode === 'added' ? (
+                <div className="flex flex-col gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const idxToRemove = highKmWarningModal.offendingIndex;
+                      const nextWaypoints = waypoints.filter((_: any, i: number) => i !== idxToRemove);
+                      setWaypoints(nextWaypoints);
+                      setHasModifiedTransport(true);
+                      setHighKmWarningModal(null);
+                      if (nextWaypoints.length > 0) {
+                        requestAbtPreview(nextWaypoints, returnedHome, false);
+                      } else {
+                        setAbtPreview(null);
+                      }
+                    }}
+                    className="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    Remove This Destination &amp; Re-Enter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHighKmWarningModal(null)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs sm:text-sm border border-white/[0.1] transition-colors cursor-pointer"
+                  >
+                    Keep Destination (Distance Over {ABT_HIGH_KM_THRESHOLD} km is Correct)
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setHighKmWarningModal(null)}
+                    className="w-full py-3 px-4 rounded-xl bg-brand-teal hover:opacity-90 text-zinc-950 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                  >
+                    Go Back &amp; Fix Destination Address
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHighKmWarningModal(null);
+                      handleCompleteShift(undefined, true);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-red-300 hover:text-red-200 font-semibold text-xs sm:text-sm border border-red-500/30 transition-colors cursor-pointer"
+                  >
+                    Yes, Confirm {highKmWarningModal.totalKm.toFixed(1)} km is Correct &amp; Submit
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
