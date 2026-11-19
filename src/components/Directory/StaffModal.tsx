@@ -21,6 +21,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
   const [loadingXero, setLoadingXero] = useState(false);
   const [xeroError, setXeroError] = useState<string>('');
   const [isManualXero, setIsManualXero] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([]);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 
   const fetchXeroEmployees = () => {
     setLoadingXero(true);
@@ -270,6 +272,11 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
       if (!formData.phone?.trim()) {
         setActiveTab('personal');
         alert('Please enter a contact phone number in Contact & Personal.');
+        return;
+      }
+      if (!formData.address?.trim()) {
+        setActiveTab('personal');
+        alert('Please enter a residential address in Contact & Personal (required for shift travel calculations).');
         return;
       }
     }
@@ -653,9 +660,66 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Address</label>
-                  <input name="address" value={formData.address} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="123 Example St, Suburb, State, 1234" />
+                <div className="relative">
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">
+                    Address {formData.isExternal ? '(optional)' : '*'}
+                  </label>
+                  <input
+                    required={!formData.isExternal}
+                    name="address"
+                    value={formData.address}
+                    autoComplete="off"
+                    onFocus={() => {
+                      if (addressSuggestions.length > 0) setShowAddressDropdown(true);
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowAddressDropdown(false), 180);
+                    }}
+                    onChange={e => {
+                      handleChange(e);
+                      const val = e.target.value.trim();
+                      if (val.length >= 3) {
+                        fetch(`/api/places/autocomplete?input=${encodeURIComponent(val)}`)
+                          .then(r => (r.ok ? r.json() : null))
+                          .then(data => {
+                            if (Array.isArray(data)) {
+                              setAddressSuggestions(data);
+                              setShowAddressDropdown(data.length > 0);
+                            } else if (Array.isArray(data?.suggestions)) {
+                              const formatted = data.suggestions
+                                .map((s: any) => s.placePrediction?.text?.text || '')
+                                .filter(Boolean);
+                              setAddressSuggestions(formatted);
+                              setShowAddressDropdown(formatted.length > 0);
+                            }
+                          })
+                          .catch(() => {});
+                      } else {
+                        setAddressSuggestions([]);
+                        setShowAddressDropdown(false);
+                      }
+                    }}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
+                    placeholder="123 Example St, Suburb, State, 1234"
+                  />
+                  {showAddressDropdown && addressSuggestions.length > 0 && (
+                    <div className="absolute z-30 left-0 right-0 mt-1 bg-[#121214] border border-white/[0.12] rounded-lg shadow-xl max-h-48 overflow-y-auto divide-y divide-white/[0.04]">
+                      {addressSuggestions.map((sug, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setFormData(prev => ({ ...prev, address: sug }));
+                            setShowAddressDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-brand-teal/15 hover:text-white transition-colors truncate cursor-pointer"
+                        >
+                          {sug}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 bg-black/40 border border-white/[0.08] rounded-lg">

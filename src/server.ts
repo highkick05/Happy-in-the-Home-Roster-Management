@@ -5969,6 +5969,7 @@ function getUnreadChatCount(db: any, userId: number): number {
     const cleanFirst = String(firstName || "").trim();
     const cleanLast = String(lastName || "").trim();
     const cleanPhone = String(phone || "").trim();
+    const cleanAddress = String(address || "").trim();
 
     if (!cleanFirst || !cleanLast || !cleanPhone) {
       return res.status(400).json({
@@ -5976,12 +5977,31 @@ function getUnreadChatCount(db: any, userId: number): number {
       });
     }
 
+    const existingUser = db
+      .prepare("SELECT role, address FROM users WHERE id = ?")
+      .get(req.user.id) as any;
+    const isAdminUser =
+      req.user?.role === "ADMIN" || String(existingUser?.role || "").toUpperCase() === "ADMIN";
+    const prevAddress = String(existingUser?.address || "").trim();
+
+    if (isAdminUser && !cleanAddress && prevAddress) {
+      return res.status(400).json({
+        error: "Residential Address is required and cannot be left blank.",
+      });
+    }
+
+    // Staff members cannot alter or clear their locked residential address from the self-service Profile page.
+    // Only Admins can update an address on their own profile (and never to an empty value).
+    const effectiveAddress = isAdminUser ? (cleanAddress || prevAddress) : prevAddress;
+    const addressChanged = Boolean(effectiveAddress && effectiveAddress !== prevAddress);
+
     let query = `
       UPDATE users SET 
         first_name = COALESCE(NULLIF(TRIM(?), ''), first_name),
         last_name = COALESCE(NULLIF(TRIM(?), ''), last_name),
         phone = COALESCE(NULLIF(TRIM(?), ''), phone),
-        address = ?, dob = ?, 
+        address = COALESCE(NULLIF(TRIM(?), ''), address),
+        dob = ?, 
         emergency_contact_name = ?, emergency_contact_phone = ?, 
         bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, 
         super_fund_name = ?, super_member_number = ?, avatar_url = ?
@@ -5990,7 +6010,7 @@ function getUnreadChatCount(db: any, userId: number): number {
       cleanFirst,
       cleanLast,
       cleanPhone,
-      address,
+      effectiveAddress,
       dob,
       emergencyContactName,
       emergencyContactPhone,
@@ -6002,6 +6022,10 @@ function getUnreadChatCount(db: any, userId: number): number {
       superMemberNumber,
       avatarUrl || null,
     ];
+
+    if (addressChanged) {
+      query += ", latitude = NULL, longitude = NULL";
+    }
 
     if (password) {
       query += ", password_hash = ?";
@@ -9632,6 +9656,10 @@ app.get("/api/health", (req, res) => {
       if (!safeEmail) {
         return res.status(400).json({ error: "Email is required for internal staff" });
       }
+      const cleanAddress = String(address || "").trim();
+      if (!isExt && !cleanAddress) {
+        return res.status(400).json({ error: "Residential address is required for internal staff" });
+      }
       const rawPassword = (password && String(password).trim())
         ? String(password)
         : `ext_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -9765,7 +9793,7 @@ app.get("/api/health", (req, res) => {
     } = req.body;
     const { id } = req.params;
     try {
-      const existingUser = db.prepare("SELECT email, is_external, external_provider FROM users WHERE id = ?").get(id) as any;
+      const existingUser = db.prepare("SELECT email, address, is_external, external_provider FROM users WHERE id = ?").get(id) as any;
       const isExt =
         isExternal !== undefined
           ? (isExternal ? 1 : 0)
@@ -9782,6 +9810,16 @@ app.get("/api/health", (req, res) => {
           ? (existingUser?.email || `external.${Date.now()}.${Math.random().toString(36).slice(2, 7)}@external.local`)
           : (existingUser?.email || "");
 
+      const cleanAddress = String(address || "").trim();
+      const prevAddress = String(existingUser?.address || "").trim();
+      if (!isExt && !cleanAddress) {
+        return res.status(400).json({
+          error: "Residential address is required for internal staff and cannot be left blank.",
+        });
+      }
+      const effectiveAddress = isExt ? cleanAddress : (cleanAddress || prevAddress);
+      const addressChanged = Boolean(effectiveAddress && effectiveAddress !== prevAddress);
+
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : null;
       const targetPosId = req.body.positionId !== undefined ? req.body.positionId : (req.body.position_id !== undefined ? req.body.position_id : null);
       const targetPayCatId = isExt ? null : (req.body.payCategoryId !== undefined ? req.body.payCategoryId : (req.body.pay_category_id !== undefined ? req.body.pay_category_id : null));
@@ -9795,7 +9833,7 @@ app.get("/api/health", (req, res) => {
         (targetPosName === "Care Coordinator" ||
         (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator")));
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = COALESCE(NULLIF(TRIM(?), ''), first_name), last_name = COALESCE(NULLIF(TRIM(?), ''), last_name), phone = COALESCE(NULLIF(TRIM(?), ''), phone), address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = ?, pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), is_external = ?, external_provider = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = COALESCE(NULLIF(TRIM(?), ''), first_name), last_name = COALESCE(NULLIF(TRIM(?), ''), last_name), phone = COALESCE(NULLIF(TRIM(?), ''), phone), address = CASE WHEN ? = 1 THEN ? ELSE COALESCE(NULLIF(TRIM(?), ''), address) END, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = ?, pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), is_external = ?, external_provider = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
       stmt.run(
         safeEmail,
@@ -9803,7 +9841,9 @@ app.get("/api/health", (req, res) => {
         String(firstName || "").trim(),
         String(lastName || "").trim(),
         String(phone || "").trim(),
-        address || "",
+        isExt,
+        effectiveAddress,
+        effectiveAddress,
         dob || null,
         emergencyContactName || "",
         emergencyContactPhone || "",
@@ -9832,6 +9872,11 @@ app.get("/api/health", (req, res) => {
         safeJoinedDate,
         id,
       );
+      if (addressChanged) {
+        try {
+          db.prepare("UPDATE users SET latitude = NULL, longitude = NULL WHERE id = ?").run(id);
+        } catch (e) {}
+      }
       res.json({
         id,
         email: safeEmail,

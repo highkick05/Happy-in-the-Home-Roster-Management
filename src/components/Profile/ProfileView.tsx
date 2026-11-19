@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Save, RefreshCw } from 'lucide-react';
+import { Save, RefreshCw, Lock } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { getAvatarUrl } from '../../utils/avatar';
 import AvatarSelector from '../ui/AvatarSelector';
@@ -10,6 +10,7 @@ export default function ProfileView() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const isStaffLockedAddress = user?.role !== 'ADMIN';
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -70,9 +71,15 @@ export default function ProfileView() {
     const cleanFirst = (formData.firstName || '').trim();
     const cleanLast = (formData.lastName || '').trim();
     const cleanPhone = (formData.phone || '').trim();
+    const cleanAddress = (formData.address || '').trim();
 
     if (!cleanFirst || !cleanLast || !cleanPhone) {
       setErrorMsg('First Name, Last Name, and Phone Number are required and cannot be left blank.');
+      return;
+    }
+
+    if (!isStaffLockedAddress && !cleanAddress) {
+      setErrorMsg('Residential Address is required for shift travel calculations and cannot be left blank.');
       return;
     }
 
@@ -84,6 +91,7 @@ export default function ProfileView() {
         firstName: cleanFirst,
         lastName: cleanLast,
         phone: cleanPhone,
+        address: cleanAddress,
       };
       const res = await fetch('/api/profile', {
         method: 'PUT',
@@ -109,7 +117,7 @@ export default function ProfileView() {
       }
 
       setSuccessMsg('Profile updated successfully.');
-      setFormData(prev => ({ ...prev, firstName: cleanFirst, lastName: cleanLast, phone: cleanPhone, password: '' })); // clear password field
+      setFormData(prev => ({ ...prev, firstName: cleanFirst, lastName: cleanLast, phone: cleanPhone, address: cleanAddress, password: '' })); // clear password field
     } catch (e: any) {
       setErrorMsg(e.message);
     } finally {
@@ -175,8 +183,45 @@ export default function ProfileView() {
               <CustomDatePicker position="bottom" value={formData.dob || ''} onChange={e => setFormData({...formData, dob: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div className="col-span-2">
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400 mb-1">Address</label>
-              <input type="text" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] uppercase tracking-wider font-semibold text-zinc-400">
+                  Address {!isStaffLockedAddress && <span className="text-red-400">*</span>}
+                </label>
+                {isStaffLockedAddress && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-400/90 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                    <Lock className="w-2.5 h-2.5" />
+                    Locked (Admin Only)
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.address || ''}
+                  readOnly={isStaffLockedAddress}
+                  disabled={isStaffLockedAddress}
+                  required={!isStaffLockedAddress}
+                  onChange={e => {
+                    if (!isStaffLockedAddress) {
+                      setFormData({ ...formData, address: e.target.value });
+                    }
+                  }}
+                  placeholder={isStaffLockedAddress ? 'No address on file — please contact an administrator' : '123 Example St, Suburb, State, 1234'}
+                  className={`w-full rounded-md px-2.5 py-1.5 text-xs outline-none transition-colors ${
+                    isStaffLockedAddress
+                      ? 'bg-zinc-900/70 border border-white/[0.06] text-zinc-400 cursor-not-allowed select-none pr-8'
+                      : 'bg-black/40 border border-white/[0.08] text-white focus:border-brand-blue placeholder-zinc-600'
+                  }`}
+                />
+                {isStaffLockedAddress && (
+                  <Lock className="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                )}
+              </div>
+              {isStaffLockedAddress && (
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Locked for shift travel calculations — please contact an administrator if your residential address needs to be updated.
+                </p>
+              )}
             </div>
           </div>
         </div>
