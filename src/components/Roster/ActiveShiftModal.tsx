@@ -75,6 +75,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     offendingWaypointName: string;
     offendingIndex: number;
   } | null>(null);
+  const [showMissingTravelReminder, setShowMissingTravelReminder] = useState(false);
+  const destinationInputRef = useRef<HTMLInputElement>(null);
 
   const [odometerReading, setOdometerReading] = useState('');
   const [odometerPhoto, setOdometerPhoto] = useState('');
@@ -230,6 +232,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       setWaypoints(restoredWaypoints);
       setAbtPreview(null);
       setHighKmWarningModal(null);
+      setShowMissingTravelReminder(false);
       
       const storageKey = `shift_progress_${shift.id}`;
       const saved = localStorage.getItem(storageKey);
@@ -492,24 +495,40 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     return null;
   };
 
-  const handleCompleteShift = async (e?: React.MouseEvent, bypassHighKmConfirm = false) => {
+  const handleCompleteShift = async (
+    e?: React.MouseEvent,
+    bypassHighKmConfirm = false,
+    bypassMissingTravelConfirm = false,
+    forceNoTransport = false
+  ) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     const isInvoiceLocked = Boolean(shift.invoiceLocked);
-    const resolvedWaypoints = (!isInvoiceLocked && hasABTService && didTransport)
+    const effectiveDidTransport = forceNoTransport ? false : didTransport;
+    const resolvedWaypoints = (!isInvoiceLocked && hasABTService && effectiveDidTransport)
       ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, coords: wp.coords, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
       : null;
 
     const shouldPreserveAbt = isInvoiceLocked || (hasABTService && shift.status === 'COMPLETED' && !isEditingTransport && !hasModifiedTransport);
 
-    if (!shouldPreserveAbt && hasABTService && didTransport && waypoints.length === 0) {
+    if (
+      !shouldPreserveAbt &&
+      hasTravelReminderService &&
+      (!effectiveDidTransport || waypoints.length === 0) &&
+      !bypassMissingTravelConfirm
+    ) {
+      setShowMissingTravelReminder(true);
+      return;
+    }
+
+    if (!shouldPreserveAbt && hasABTService && effectiveDidTransport && waypoints.length === 0) {
        alert("Please add at least 1 destination if you transported the client.");
        return;
     }
 
-    if (!shouldPreserveAbt && hasABTService && didTransport && waypoints.length > 0 && !bypassHighKmConfirm) {
+    if (!shouldPreserveAbt && hasABTService && effectiveDidTransport && waypoints.length > 0 && !bypassHighKmConfirm) {
       let currentPreview = abtPreview;
       if (!currentPreview && navigator.onLine) {
         currentPreview = await requestAbtPreview(waypoints, returnedHome, false);
@@ -821,6 +840,32 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     const nameLower = String(srv?.name || s.serviceName || s.customName || s.name || '').toLowerCase();
     return nameLower.includes('activity based transport') || nameLower.includes('activity-based transport') || nameLower === 'abt';
   });
+  const HOME_CARE_TRAVEL_REMINDER_SERVICES = [
+    'assistance with self-care and activities of daily living',
+    'accompanied activities',
+    'direct transport',
+    'indirect transport',
+    'individual social support',
+    'shopping assistance',
+  ];
+  const travelReminderMatchedServices: string[] = shiftServiceItems
+    .map((s: any) => {
+      const srv = servicesList.find((srvItem: any) => String(srvItem.id) === String(s.serviceId));
+      return String(srv?.name || s.serviceName || s.customName || s.name || '').trim();
+    })
+    .filter((rawName: string) => {
+      if (!rawName) return false;
+      const nameLower = rawName.toLowerCase();
+      if (isHCP) {
+        return HOME_CARE_TRAVEL_REMINDER_SERVICES.some(target => nameLower.includes(target));
+      }
+      return (
+        nameLower.includes('activity based transport') ||
+        nameLower.includes('activity-based transport') ||
+        nameLower === 'abt'
+      );
+    });
+  const hasTravelReminderService = travelReminderMatchedServices.length > 0;
   const hasAnyTravelService = hasProviderTravelService || hasABTService;
   const clientData = clientList.find((c: any) => String(c.id) === String(shift.clientId));
   const clientAddress = clientData?.address;
@@ -1519,6 +1564,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                                   <div className="flex items-center space-x-3 bg-[#09090b] border border-white/[0.12]/80 rounded-xl px-3 focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal transition-shadow shadow-inner">
                                     <MapPin className="text-brand-teal w-5 h-5 flex-shrink-0" />
                                     <input 
+                                      ref={destinationInputRef}
                                       type="text" 
                                       placeholder="Search destination address..." 
                                       className="w-full bg-transparent border-none py-3 text-sm md:text-base text-white focus:outline-none focus:ring-0"
@@ -1979,7 +2025,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     type="button"
                     onClick={() => {
                       setHighKmWarningModal(null);
-                      handleCompleteShift(undefined, true);
+                      handleCompleteShift(undefined, true, true);
                     }}
                     className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-red-300 hover:text-red-200 font-semibold text-xs sm:text-sm border border-red-500/30 transition-colors cursor-pointer"
                   >
@@ -1987,6 +2033,82 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Missing Travel Kilometres Reminder Modal on Submit */}
+        {showMissingTravelReminder && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="bg-[#121214] border-2 border-amber-500/80 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <Car className="w-6 h-6 text-amber-400" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base md:text-lg font-extrabold text-white leading-snug">
+                    Did You Forget to Enter Client Travel?
+                  </h4>
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Travel Kilometres Reminder
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-amber-950/40 border border-amber-500/30 rounded-xl p-3.5 text-xs sm:text-sm text-zinc-200 space-y-2.5 leading-relaxed">
+                <p>
+                  You haven&apos;t entered any client transport destinations for this{' '}
+                  <strong className="text-white">{isHCP ? 'Home Care' : 'NDIS'}</strong> shift.
+                </p>
+                {travelReminderMatchedServices.length > 0 && (
+                  <div className="bg-black/50 border border-white/[0.08] rounded-lg px-3 py-2 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 block">
+                      {isHCP ? 'Home Care Service(s) on Shift:' : 'NDIS Transport Service on Shift:'}
+                    </span>
+                    <div className="text-white font-semibold text-xs sm:text-sm">
+                      {Array.from(new Set(travelReminderMatchedServices)).join(', ')}
+                    </div>
+                  </div>
+                )}
+                <p className="text-zinc-300">
+                  Please make sure you have entered all of your client travel destinations so your travel kilometres are calculated accurately.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMissingTravelReminder(false);
+                    setIsEditingTransport(true);
+                    setDidTransport(true);
+                    setHasModifiedTransport(true);
+                    setTimeout(() => {
+                      destinationInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      destinationInputRef.current?.focus();
+                    }, 100);
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  Go Back &amp; Enter Travel Destinations
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMissingTravelReminder(false);
+                    setDidTransport(false);
+                    setWaypoints([]);
+                    handleCompleteShift(undefined, false, true, true);
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs sm:text-sm border border-white/[0.1] transition-colors cursor-pointer"
+                >
+                  No Client Travel Performed — Submit Shift
+                </button>
+              </div>
             </div>
           </div>
         )}
