@@ -4,6 +4,7 @@ import { X, Plus, Trash2, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
+import { extractPlainNoteText } from './ShiftDetailsModal';
 
 interface AddShiftModalProps {
   isOpen: boolean;
@@ -63,8 +64,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       setStartTime(startT);
       setEndTime(endT);
       
-      let pNote = initialData?.progressNote || '';
-      let cNotes = initialData?.notes || '';
+      let pNote = extractPlainNoteText(initialData?.progressNote || '');
+      let cNotes = extractPlainNoteText(initialData?.notes || '');
       const isHistCheck = !!initialData?.isHistorical || (initialData?.status === 'COMPLETED' && cNotes.includes('[HISTORICAL]'));
       
       

@@ -23649,7 +23649,7 @@ app.get("/api/health", (req, res) => {
             serviceProvided: serviceProvided,
             isCustomService: isCustomService,
             hoursWorked: parseFloat(hours.toFixed(2)),
-            shiftDuration: parseFloat(scheduledHrs.toFixed(2)),
+            shiftDuration: parseFloat(payableCategoryHrs.toFixed(2)),
             dayCategory: dayCategory,
             travelKm: isHomeCare ? parseFloat(final_hc_travel_km.toFixed(2)) : 0,
             travelHours: isHomeCare

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car, ArrowDown, Edit, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
+import { extractPlainNoteText } from './ShiftDetailsModal';
 
 const ABT_HIGH_KM_THRESHOLD = 500;
 
@@ -239,10 +240,10 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setNotes(parsed.notes || '');
+          setNotes(extractPlainNoteText(parsed.notes || ''));
         } catch(e) {}
       } else {
-        setNotes(shift.notes || '');
+        setNotes(extractPlainNoteText(shift.notes || ''));
       }
       
     }

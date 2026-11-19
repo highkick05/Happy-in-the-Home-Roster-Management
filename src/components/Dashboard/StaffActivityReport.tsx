@@ -420,7 +420,7 @@ export default function StaffActivityReport() {
           );
           const displayTotals = filteredLog.reduce(
             (acc: any, row: any) => {
-              const hrs = Number(row.hoursWorked) || 0;
+              const hrs = Number(row.shiftDuration ?? row.hoursWorked) || 0;
               if (row.isTraining || row.dayCategory === 'Training') {
                 acc.trainingHours += hrs;
               } else if (row.dayCategory === 'Public Holiday') {

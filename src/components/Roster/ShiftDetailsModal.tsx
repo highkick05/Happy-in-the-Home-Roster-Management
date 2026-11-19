@@ -15,6 +15,106 @@ interface ShiftDetailsModalProps {
   holidays?: any[];
 }
 
+export function decodeHtmlAndStripTags(html: string): string {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
+}
+
+export function extractPlainNoteText(rawNote?: string | null): string {
+  if (!rawNote) return '';
+  const trimmed = String(rawNote).trim();
+  if (trimmed.startsWith('{') && trimmed.includes('"blocks"')) {
+    try {
+      const data = JSON.parse(trimmed);
+      if (data && Array.isArray(data.blocks)) {
+        const lines = data.blocks
+          .map((block: any) => {
+            if (!block || !block.data) return '';
+            if (block.type === 'paragraph' || block.type === 'header') {
+              return decodeHtmlAndStripTags(String(block.data.text || ''));
+            }
+            if (block.type === 'list' && Array.isArray(block.data.items)) {
+              const isOrdered = block.data.style === 'ordered';
+              return block.data.items
+                .map((item: any, idx: number) => {
+                  const itemStr = typeof item === 'string' ? item : String(item?.content || item?.text || '');
+                  const cleanItem = decodeHtmlAndStripTags(itemStr);
+                  return isOrdered ? `${idx + 1}. ${cleanItem}` : `• ${cleanItem}`;
+                })
+                .join('\n');
+            }
+            return '';
+          })
+          .filter((t: string) => t.trim().length > 0);
+        return lines.join('\n\n');
+      }
+    } catch (e) {
+      // Fallback if not valid JSON
+    }
+  }
+  if (/<[a-z][\s\S]*>/i.test(trimmed) || /&(?:nbsp|amp|lt|gt|quot|#39|apos);/i.test(trimmed)) {
+    return decodeHtmlAndStripTags(trimmed);
+  }
+  return String(rawNote);
+}
+
+export function renderShiftProgressNote(rawNote?: string | null): React.ReactNode {
+  if (!rawNote) return null;
+  const trimmed = String(rawNote).trim();
+  if (trimmed.startsWith('{') && trimmed.includes('"blocks"')) {
+    try {
+      const data = JSON.parse(trimmed);
+      if (data && Array.isArray(data.blocks)) {
+        return (
+          <div className="space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1">
+            {data.blocks.map((block: any, idx: number) => {
+              if (!block || !block.data) return null;
+              if (block.type === 'paragraph') {
+                return <p key={idx} dangerouslySetInnerHTML={{ __html: block.data.text || '' }} />;
+              }
+              if (block.type === 'header') {
+                const Tag = (`h${block.data.level || 3}`) as any;
+                return <Tag key={idx} className="font-bold text-white" dangerouslySetInnerHTML={{ __html: block.data.text || '' }} />;
+              }
+              if (block.type === 'list' && Array.isArray(block.data.items)) {
+                const ListTag = block.data.style === 'ordered' ? 'ol' : 'ul';
+                return (
+                  <ListTag key={idx}>
+                    {block.data.items.map((item: any, i: number) => {
+                      const itemHtml = typeof item === 'string' ? item : String(item?.content || item?.text || '');
+                      return <li key={i} dangerouslySetInnerHTML={{ __html: itemHtml }} />;
+                    })}
+                  </ListTag>
+                );
+              }
+              if (block.type === 'image' && block.data.file?.url) {
+                return (
+                  <div key={idx} className="my-2 flex flex-col items-start">
+                    <img src={block.data.file.url} alt="Progress Note Attachment" className="rounded-lg max-w-full h-auto max-h-80 border border-white/10" />
+                  </div>
+                );
+              }
+              return <p key={idx}>{extractPlainNoteText(JSON.stringify(block))}</p>;
+            })}
+          </div>
+        );
+      }
+    } catch (e) {
+      // Fallback to plain text below
+    }
+  }
+  return extractPlainNoteText(rawNote);
+}
+
 export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, onCopy, servicesList = [], holidays }: ShiftDetailsModalProps) {
   const { token, user, settings } = useAuth();
   const [showCancelPrompt, setShowCancelPrompt] = React.useState(false);
@@ -1114,7 +1214,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                   <button
                     type="button"
                     onClick={() => {
-                      setProgressNoteText(shift.notes || shift.progressNote || '');
+                      setProgressNoteText(extractPlainNoteText(shift.notes || shift.progressNote || ''));
                       setShowProgressNotePrompt(true);
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 transition-colors"
@@ -1126,7 +1226,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               </div>
               {(shift.notes || shift.progressNote) ? (
                 <div className="bg-[#09090b]/90 p-4 rounded-xl border border-white/[0.08] text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-inner">
-                  {shift.notes || shift.progressNote}
+                  {renderShiftProgressNote(shift.notes || shift.progressNote)}
                 </div>
               ) : (
                 <div className="bg-zinc-800/30 p-3.5 rounded-xl border border-white/[0.06] text-xs text-zinc-500 italic">
@@ -1338,7 +1438,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               {canEdit && shift.status !== 'CANCELLED' && (
                 <button 
                   onClick={() => {
-                     setProgressNoteText(shift.notes || shift.progressNote || '');
+                     setProgressNoteText(extractPlainNoteText(shift.notes || shift.progressNote || ''));
                      setShowProgressNotePrompt(true);
                   }}
                   className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal rounded-xl text-sm md:text-base font-bold transition-all shadow-md border border-brand-teal/30 animate-in fade-in"
