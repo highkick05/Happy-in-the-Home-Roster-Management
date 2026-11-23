@@ -73,11 +73,11 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Failed to save service');
+      if (!res.ok) throw new Error('Failed to save contractor');
       onSave();
     } catch (err) {
-      console.error('Error saving service:', err);
-      alert('Failed to save service');
+      console.error('Error saving contractor:', err);
+      alert('Failed to save contractor');
     }
   };
 
@@ -87,7 +87,7 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-[#1a1b1e] rounded-xl border border-white/[0.05] w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.05]">
-          <h2 className="text-lg font-semibold text-[#E6EDF3]">{contractor ? 'Edit Service' : 'Add New Service'}</h2>
+          <h2 className="text-lg font-semibold text-[#E6EDF3]">{contractor ? 'Edit Contractor' : 'Add New Contractor'}</h2>
           <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/[0.05]">
             <X className="w-5 h-5" />
           </button>
@@ -144,7 +144,7 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
               Cancel
             </button>
             <button type="submit" className="px-6 py-2 bg-brand-blue text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors shadow-lg shadow-brand-blue/20">
-              {contractor ? 'Save Changes' : 'Add Service'}
+              {contractor ? 'Save Changes' : 'Add Contractor'}
             </button>
           </div>
         </form>

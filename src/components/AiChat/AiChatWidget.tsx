@@ -32,99 +32,6 @@ export interface SuggestedAction {
   directPrompt?: string;
 }
 
-export interface PortalPromptQuestion {
-  id: string;
-  category: string;
-  question: string;
-  prompt: string;
-}
-
-const PORTAL_QUESTIONS: PortalPromptQuestion[] = [
-  // NDIS Government Funding & Agreements
-  {
-    id: 'ndis-travel-rules',
-    category: 'NDIS Funding',
-    question: "How do provider travel limits and non-labor travel charges work under NDIS Pricing Arrangements?",
-    prompt: "Explain how NDIS provider travel limits, non-labor travel charges, and billing caps work under the NDIS Pricing Arrangements"
-  },
-  {
-    id: 'ndis-agreement-tracking',
-    category: 'NDIS Agreements',
-    question: "How does the portal track NDIS Service Agreement line item sub-totals and remaining balances?",
-    prompt: "Explain how NDIS Service Agreement dates, line item sub-totals, and remaining balance tracking work in the portal"
-  },
-  {
-    id: 'ndis-core-vs-capacity',
-    category: 'NDIS Planning',
-    question: "What is the difference between Core Supports and Capacity Building funding in NDIS agreements?",
-    prompt: "What is the difference between Core Supports and Capacity Building line items in NDIS funding, and how flexible are they?"
-  },
-
-  // Home Care & Support at Home Government Funding
-  {
-    id: 'hcp-rollover-rule',
-    category: 'Home Care',
-    question: "How does the Commonwealth quarterly unspent funds rollover cap (greater of $1,000 or 10%) work?",
-    prompt: "Explain the Commonwealth My Aged Care quarterly unspent funds rollover rule (greater of $1,000 or 10% cap) and how expiring surplus is calculated"
-  },
-  {
-    id: 'sah-contributions',
-    category: 'Support at Home',
-    question: "How do Support at Home (SaH) participant contributions differ between Pensioners and Self-Funded clients?",
-    prompt: "Explain Support at Home (SaH) participant co-contribution tiers for Full Pensioners (5%/17.5%), Part Pensioners, and Self-Funded clients (50%/80%)"
-  },
-  {
-    id: 'sah-classifications',
-    category: 'Support at Home',
-    question: "What are the 8 classification levels and daily funding structures under the new Support at Home program?",
-    prompt: "Explain the Support at Home (SaH) 8 classification levels and daily funding structure compared to HCP Levels 1-4"
-  },
-  {
-    id: 'ringfenced-funding',
-    category: 'Funding Rules',
-    question: "Why is Assistive Technology (AT) and Home Modifications (HM) funding ringfenced separately from care shifts?",
-    prompt: "Explain why Assistive Technology (AT) and Home Modifications (HM) funding is ringfenced under My Aged Care and cannot be used for care shifts"
-  },
-  {
-    id: 'hcp-subsidy-overview',
-    category: 'Home Care',
-    question: "What are the standard government subsidies and quarterly allocations for HCP Levels 1 through 4?",
-    prompt: "Provide an overview of Home Care Package (HCP) Levels 1 to 4 government subsidies, quarterly allocations, and care management fees"
-  },
-  {
-    id: 'home-care-summary',
-    category: 'Home Care',
-    question: "Would you like a consolidated financial summary of all Home Care clients for the active quarter?",
-    prompt: "Show me a consolidated budget summary of all Home Care clients for the active quarter"
-  },
-
-  // Portal Operations, Travel & Quality Compliance
-  {
-    id: 'cascading-travel-calc',
-    category: 'Travel & Km',
-    question: "How does the portal calculate cascading staff travel km and travel time across multi-shift days?",
-    prompt: "How do staff travel logs and cascading travel calculations work in the portal?"
-  },
-  {
-    id: 'compliance-evidence-matrix',
-    category: 'Compliance',
-    question: "How does the Evidence Matrix generate compliance logs and shift proof for NDIA and Aged Care audits?",
-    prompt: "How does the Evidence Matrix and compliance auditing work in the portal?"
-  },
-  {
-    id: 'invoice-billing-flow',
-    category: 'Finance',
-    question: "What is the procedure for verifying completed shifts before generating verified PDF invoices?",
-    prompt: "What is the procedure for verifying completed shifts before generating invoices in the portal?"
-  },
-  {
-    id: 'roster-optimization-method',
-    category: 'Roster Capacity',
-    question: "How does the AI Assistant calculate sustainable weekly roster hours to prevent client funding shortfalls?",
-    prompt: "Explain how weekly roster capacity and suggested hours are calculated to prevent budget overruns"
-  }
-];
-
 export default function AiChatWidget() {
   const { user } = useAuth();
   const canAccessAi = Boolean(user && (user.role === 'ADMIN' || user.canSwitchAdmin));
@@ -135,11 +42,9 @@ export default function AiChatWidget() {
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Mascot movement & occasional question state
+  // Mascot movement state
   const [mascotMood, setMascotMood] = useState<MascotMood>('idle');
   const [isMascotJumping, setIsMascotJumping] = useState<boolean>(false);
-  const [activeQuestion, setActiveQuestion] = useState<PortalPromptQuestion | null>(null);
-  const [showQuestionBubble, setShowQuestionBubble] = useState<boolean>(false);
 
   // Helper to trigger lively animations from Happy's repertoire
   const triggerLivelyAnimation = (preferredMood?: MascotMood, durationMs = 2600) => {
@@ -155,10 +60,6 @@ export default function AiChatWidget() {
 
   // Portal client selection state
   const [clients, setClients] = useState<PortalClient[]>([]);
-  const clientsRef = useRef<PortalClient[]>(clients);
-  useEffect(() => {
-    clientsRef.current = clients;
-  }, [clients]);
 
   const [isLoadingClients, setIsLoadingClients] = useState<boolean>(false);
   const [clientSearch, setClientSearch] = useState<string>('');
@@ -183,109 +84,6 @@ export default function AiChatWidget() {
     return () => {
       clearTimeout(initialJumpTimer);
       clearInterval(jumpInterval);
-    };
-  }, [canAccessAi]);
-
-  // 2. Random portal questions: Happy asks a question every 3-5 minutes (with first at 30 seconds)
-  useEffect(() => {
-    if (!canAccessAi) return;
-    let questionDismissTimeout: NodeJS.Timeout | null = null;
-    let nextQuestionTimer: NodeJS.Timeout | null = null;
-
-    const askRandomQuestion = () => {
-      const loadedClients = clientsRef.current;
-      let chosen: PortalPromptQuestion;
-
-      // When portal clients are loaded, alternate between a real client in the portal and general funding questions
-      if (loadedClients.length > 0 && Math.random() < 0.45) {
-        const client = loadedClients[Math.floor(Math.random() * loadedClients.length)];
-        const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Client';
-
-        if (client.funding_type === 'NDIS') {
-          const ndisQuestions: PortalPromptQuestion[] = [
-            {
-              id: `client-ndis-${client.id}`,
-              category: 'NDIS Agreement',
-              question: `Want me to analyze NDIS Service Agreement funds & line items for ${fullName}?`,
-              prompt: `Analyze NDIS Service Agreement funds for ${fullName}`
-            },
-            {
-              id: `client-ndis-spend-${client.id}`,
-              category: 'NDIS Agreement',
-              question: `Shall we check remaining NDIS agreement funds and line item balances for ${fullName}?`,
-              prompt: `Review remaining NDIS agreement funds and budget drawdown for ${fullName}`
-            }
-          ];
-          chosen = ndisQuestions[Math.floor(Math.random() * ndisQuestions.length)];
-        } else {
-          let packageLabel = '';
-          if (client.home_care_sub_type === 'SAH') {
-            packageLabel = client.home_care_level_or_class ? `Support at Home (${client.home_care_level_or_class})` : 'Support at Home';
-          } else if (client.home_care_level_or_class) {
-            packageLabel = client.home_care_level_or_class.toLowerCase().includes('level')
-              ? client.home_care_level_or_class
-              : `HCP ${client.home_care_level_or_class}`;
-          }
-          const packageSuffix = packageLabel ? ` (${packageLabel})` : '';
-
-          const hcQuestions: PortalPromptQuestion[] = [
-            {
-              id: `client-hours-${client.id}`,
-              category: 'Home Care',
-              question: `Want to calculate affordable weekly roster hours for ${fullName}${packageSuffix} for the remaining quarter?`,
-              prompt: `Calculate suggested weekly roster hours for ${fullName} for the remaining quarter`
-            },
-            {
-              id: `client-burn-${client.id}`,
-              category: 'Home Care',
-              question: `Shall we check the budget burn rate and remaining funding weeks for ${fullName}${packageSuffix}?`,
-              prompt: `Assess budget burn rate and remaining funding weeks for ${fullName}`
-            },
-            {
-              id: `client-funds-${client.id}`,
-              category: 'Home Care',
-              question: `Would you like me to review ${fullName}'s${packageSuffix} quarterly allocation and spent funds?`,
-              prompt: `Analyze client funds for ${fullName}`
-            }
-          ];
-          chosen = hcQuestions[Math.floor(Math.random() * hcQuestions.length)];
-        }
-      } else {
-        const randomIndex = Math.floor(Math.random() * PORTAL_QUESTIONS.length);
-        chosen = PORTAL_QUESTIONS[randomIndex];
-      }
-
-      setActiveQuestion(chosen);
-      setShowQuestionBubble(true);
-
-      // Trigger energetic wave or curious question pose from repertoire!
-      triggerLivelyAnimation(Math.random() > 0.5 ? 'curious' : 'waving', 3200);
-
-      // Auto-hide bubble after 22 seconds if untouched
-      if (questionDismissTimeout) clearTimeout(questionDismissTimeout);
-      questionDismissTimeout = setTimeout(() => {
-        setShowQuestionBubble(false);
-      }, 22000);
-    };
-
-    // First question after 30 seconds of user loading portal
-    const firstTimer = setTimeout(askRandomQuestion, 30000);
-
-    // Schedule subsequent questions every 3 to 5 minutes (180,000ms - 300,000ms)
-    const scheduleNext = () => {
-      const delay = Math.floor(Math.random() * (300000 - 180000 + 1)) + 180000;
-      nextQuestionTimer = setTimeout(() => {
-        askRandomQuestion();
-        scheduleNext();
-      }, delay);
-    };
-
-    scheduleNext();
-
-    return () => {
-      clearTimeout(firstTimer);
-      if (nextQuestionTimer) clearTimeout(nextQuestionTimer);
-      if (questionDismissTimeout) clearTimeout(questionDismissTimeout);
     };
   }, [canAccessAi]);
 
@@ -1081,40 +879,6 @@ export default function AiChatWidget() {
             </div>
           )}
 
-          {/* Active Question Suggestion Banner when chat is open */}
-          {activeQuestion && showQuestionBubble && (
-            <div className="mx-3 my-1.5 p-2 rounded-xl bg-gradient-to-r from-brand-teal/20 via-brand-navy to-emerald-500/15 border border-brand-teal/40 flex items-center justify-between gap-2 text-xs shadow-md animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="p-1 rounded-lg bg-brand-teal/20 text-teal-300 shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                </span>
-                <p className="text-[11px] text-zinc-200 truncate">
-                  <span className="font-semibold text-teal-300">Happy asks:</span> {activeQuestion.question}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowQuestionBubble(false);
-                    handleSubmit(undefined, activeQuestion.prompt);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-brand-teal hover:bg-brand-teal/80 text-white text-[10px] font-semibold transition-colors cursor-pointer"
-                >
-                  Ask
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowQuestionBubble(false)}
-                  className="p-1 text-zinc-400 hover:text-white rounded hover:bg-white/[0.08] transition-colors cursor-pointer"
-                  title="Dismiss"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Input Footer */}
           <form
             onSubmit={handleSubmit}
@@ -1145,72 +909,11 @@ export default function AiChatWidget() {
         </div>
       )}
 
-      {/* Floating Speech Bubble from Happy Mascot (When Chat is Closed) */}
-      {showQuestionBubble && activeQuestion && !isOpen && (
-        <div 
-          className="fixed bottom-[160px] right-[20px] z-50 max-w-[285px] sm:max-w-[320px] bg-brand-navy/95 backdrop-blur-md border border-brand-teal/50 rounded-2xl p-3.5 shadow-2xl shadow-black/80 text-white animate-in fade-in slide-in-from-bottom-3 duration-300 print:hidden select-none"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/[0.08]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] font-bold text-brand-teal tracking-wide flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-300" />
-                Happy asks
-              </span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.08] text-teal-200/80 font-medium">
-                {activeQuestion.category}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowQuestionBubble(false)}
-              className="text-zinc-400 hover:text-white p-0.5 rounded hover:bg-white/[0.08] transition-colors cursor-pointer"
-              title="Dismiss"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Question Text */}
-          <p className="text-xs text-zinc-200 leading-relaxed font-medium mb-3">
-            "{activeQuestion.question}"
-          </p>
-
-          {/* Action buttons */}
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowQuestionBubble(false)}
-              className="text-[11px] text-zinc-400 hover:text-zinc-200 px-2 py-1 transition-colors cursor-pointer"
-            >
-              Later
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowQuestionBubble(false);
-                setIsOpen(true);
-                handleSubmit(undefined, activeQuestion.prompt);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-teal to-emerald-500 hover:from-brand-teal/90 hover:to-emerald-500/90 text-white text-[11px] font-semibold shadow-md shadow-emerald-950/40 transition-all hover:scale-102 active:scale-98 cursor-pointer"
-            >
-              <span>Ask Happy</span>
-              <Send className="w-3 h-3" />
-            </button>
-          </div>
-
-          {/* Speech bubble pointer notch */}
-          <div className="absolute -bottom-1.5 right-6 w-3.5 h-3.5 bg-brand-navy border-r border-b border-brand-teal/50 transform rotate-45" />
-        </div>
-      )}
-
       {/* 2. Floating Action Button (FAB): Positioned above bottom input bars (bottom: 96px, right: 20px) */}
       <button
         type="button"
         onClick={() => {
           setIsOpen(prev => !prev);
-          setShowQuestionBubble(false);
         }}
         onMouseEnter={() => {
           if (mascotMood === 'idle') {

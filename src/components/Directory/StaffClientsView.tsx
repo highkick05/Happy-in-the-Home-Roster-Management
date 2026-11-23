@@ -556,7 +556,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             </div>
           ) : (
             <div className="px-4 py-2 text-xs font-medium text-[#E6EDF3] flex items-center">
-              {activeTab === 'CONTRACTORS' ? 'Services' : 'Providers'} <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{activeTab === 'CONTRACTORS' ? contractors.length : sortedProviders.length}</span>
+              {activeTab === 'CONTRACTORS' ? 'Contractors' : 'Providers'} <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{activeTab === 'CONTRACTORS' ? contractors.length : sortedProviders.length}</span>
             </div>
           )}
           <div className="flex items-center gap-2 shrink-0">
@@ -592,7 +592,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-xs font-medium rounded-md transition-all shadow-sm shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4 mr-1.5" />
-              Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : activeTab === 'CONTRACTORS' ? 'Service' : 'Provider'}
+              Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : activeTab === 'CONTRACTORS' ? 'Contractor' : 'Provider'}
             </button>
             {activeTab === 'STAFF' && (
               <button 
@@ -1034,7 +1034,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No {clientTab === 'SUSPENDED' ? 'suspended clients' : clientTab === 'HOME_CARE' ? 'Home Care clients' : 'NDIS clients'} found.</td></tr>
               )}
               {(activeTab === 'CONTRACTORS' && contractors.length === 0) && (
-                <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No services found.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No contractors found.</td></tr>
               )}
               {(activeTab === 'PROVIDERS' && providers.length === 0) && (
                 <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No providers found.</td></tr>

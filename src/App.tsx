@@ -34,7 +34,6 @@ import ComplianceDashboard from './components/Compliance/ComplianceDashboard';
 import ActiveShiftModal from './components/Roster/ActiveShiftModal';
 import OnboardingView from './components/Onboarding/OnboardingView';
 import AdminOnboardingHub from './components/AdminOnboarding/AdminOnboardingHub';
-import TrilogyPlanningView from './components/TrilogyPlanning/TrilogyPlanningView';
 import UniversalPWAInstall from './components/UniversalPWAInstall';
 import NotificationsDropdown from './components/NotificationsDropdown';
 import LiveChatIcon from './components/LiveChatIcon';
@@ -399,8 +398,8 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink replace={true} to="/providers" className={getNavClasses} title="Providers">
                   <Building className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
                 </NavLink>
-                <NavLink replace={true} to="/services" className={getNavClasses} title="Services">
-                  <Briefcase className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Services' : ''}
+                <NavLink replace={true} to="/contractors" className={getNavClasses} title="Contractors">
+                  <Briefcase className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Contractors' : ''}
                 </NavLink>
               </div>
 
@@ -421,12 +420,6 @@ function Layout({ children }: { children: React.ReactNode }) {
             )}
             <NavLink replace={true} to="/compliance" className={getNavClasses} title="Audit Logs">
                   <FileCheck className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Audit Logs' : ''}
-                </NavLink>
-              </div>
-              <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Trilogy Care</div>
-              <div className="space-y-0.5">
-                <NavLink replace={true} to="/trilogy/planning" className={getNavClasses} title="Trilogy Planning">
-                  <Calendar className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Trilogy Planning' : ''}
                 </NavLink>
               </div>
             </>
@@ -629,9 +622,9 @@ export default function App() {
             <Route path="/clients/:id/documents" element={<ProtectedRoute adminOnly><Layout><ClientDocumentsView /></Layout></ProtectedRoute>} />
             <Route path="/clients/:id/progress-notes" element={<ProtectedRoute><ClientProgressNotesRedirect /></ProtectedRoute>} />
             <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
+            <Route path="/contractors" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/services" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
-            <Route path="/trilogy/planning" element={<ProtectedRoute adminOnly><Layout><TrilogyPlanningView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />
             <Route path="/progress-notes" element={<ProtectedRoute><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />
             <Route path="/compliance" element={<ProtectedRoute adminOnly><Layout><ComplianceDashboard /></Layout></ProtectedRoute>} />
