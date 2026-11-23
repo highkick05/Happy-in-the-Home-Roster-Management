@@ -191,7 +191,7 @@ export default function SettingsView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [region, setRegion] = useState('NSW');
-  const [homeCareSubTab, setHomeCareSubTab] = useState<'FUNDING' | 'PRICING'>('FUNDING');
+  const [homeCareSubTab, setHomeCareSubTab] = useState<'PRICING' | 'FUNDING'>('PRICING');
   const authSettings = useAuth().settings;
   
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
@@ -2087,16 +2087,6 @@ export default function SettingsView() {
             <div className="flex border-b border-border-subtle bg-brand-bg px-4 sticky top-0 z-20 shrink-0">
               <button
                 className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
-                  homeCareSubTab === 'FUNDING' 
-                    ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
-                    : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
-                }`}
-                onClick={() => setHomeCareSubTab('FUNDING')}
-              >
-                Home Care Funding
-              </button>
-              <button
-                className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
                   homeCareSubTab === 'PRICING' 
                     ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
                     : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
@@ -2107,6 +2097,16 @@ export default function SettingsView() {
                 }}
               >
                 Home Care Pricing
+              </button>
+              <button
+                className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
+                  homeCareSubTab === 'FUNDING' 
+                    ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
+                    : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
+                }`}
+                onClick={() => setHomeCareSubTab('FUNDING')}
+              >
+                Home Care Funding
               </button>
             </div>
 
