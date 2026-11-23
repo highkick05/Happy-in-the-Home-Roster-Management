@@ -2355,7 +2355,7 @@ export default function SettingsView() {
                   <div className="p-3 border-b border-border-subtle flex flex-wrap justify-between items-center gap-2 bg-brand-bg relative shrink-0">
                     <div>
                       <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5 font-sans">Home Care Line Items</h3>
-                      <p className="text-xs text-[#8B949E]">Create, configure, and organise Home Care services by category, or import/export rates via Excel (.xlsx).</p>
+                      <p className="text-xs text-[#8B949E]">Create, configure, and organise Home Care services by category.</p>
                     </div>
                     <div className="flex flex-wrap gap-2 items-center">
                       <input
@@ -2364,13 +2364,6 @@ export default function SettingsView() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder:text-[#8B949E] w-48"
-                      />
-                      <input 
-                        type="file" 
-                        accept=".xlsx, .xls, .csv" 
-                        className="hidden" 
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
                       />
                       <button
                         onClick={() => setShowManageGroupsModal(true)}
@@ -2395,14 +2388,6 @@ export default function SettingsView() {
                       >
                         <Download className="w-4 h-4 mr-1.5" />
                         Export Pricing
-                      </button>
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors shadow-sm whitespace-nowrap shrink-0"
-                        disabled={loading || user?.role !== 'ADMIN'}
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Import Pricing
                       </button>
                     </div>
                   </div>
@@ -2585,7 +2570,7 @@ export default function SettingsView() {
                                     <FileDown className="w-6 h-6 text-[#8B949E]" />
                                   </div>
                                   <div className="text-[#8B949E]">No services found</div>
-                                  <div className="text-xs text-zinc-500">Import an XLSX file containing 'code', 'name', and 'rate' columns, or click Add Custom Service.</div>
+                                  <div className="text-xs text-zinc-500">Click Add Custom Service to create a new Home Care service.</div>
                                 </div>
                               </td>
                             </tr>
