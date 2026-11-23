@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info, Bot, Building2, Award, Cloud } from 'lucide-react';
+import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info, Bot, Building2, Award, Cloud, Pencil, Trash2, FolderPlus, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import PayItemsSettings from './PayItemsSettings';
 import FundingTypesSettings from './FundingTypesSettings';
@@ -194,12 +194,39 @@ export default function SettingsView() {
   const [homeCareSubTab, setHomeCareSubTab] = useState<'PRICING' | 'FUNDING'>('PRICING');
   const authSettings = useAuth().settings;
   
+  const DEFAULT_HOME_CARE_GROUPS = [
+    'Equipment and Products',
+    'Social support and community engagement',
+    'Transport',
+    'Home or community general respite',
+    'Home Adjustments',
+    'Therapeutic services for independent living',
+    'Domestic assistance',
+    'Home maintenance and repairs',
+    'Meals',
+    'Personal care',
+    'Nursing care',
+    'Allied health and therapy',
+    'Nutrition'
+  ];
+
+  const [homeCareGroups, setHomeCareGroups] = useState<string[]>(DEFAULT_HOME_CARE_GROUPS);
+  const [showManageGroupsModal, setShowManageGroupsModal] = useState(false);
+  const [newGroupNameInput, setNewGroupNameInput] = useState('');
+  const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
+  const [editingGroupText, setEditingGroupText] = useState('');
+  const [savingGroups, setSavingGroups] = useState(false);
+
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
+  const [isAddingInlineGroup, setIsAddingInlineGroup] = useState(false);
+  const [inlineNewGroupName, setInlineNewGroupName] = useState('');
   const [creatingService, setCreatingService] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [newServiceForm, setNewServiceForm] = useState({
     name: '',
-    service_category: '',
+    service_group: 'Equipment and Products',
+    service_category: 'Independence',
     unit: 'Hour',
     rates_json: {
       'Weekday': 0,
@@ -209,6 +236,22 @@ export default function SettingsView() {
       'Public Holiday': 0
     }
   });
+
+  const fetchHomeCareGroups = async () => {
+    try {
+      const res = await fetch('/api/settings/home-care-groups', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.groups) && data.groups.length > 0) {
+          setHomeCareGroups(data.groups);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load home care groups', e);
+    }
+  };
 
   useEffect(() => {
     if (authSettings?.ndisRegion && authSettings.ndisRegion !== region) {
@@ -242,12 +285,14 @@ export default function SettingsView() {
     }
     if (activeTab === 'HOME_CARE') {
       fetchServices('HOME_CARE');
+      fetchHomeCareGroups();
     }
   }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'HOME_CARE' && homeCareSubTab === 'PRICING') {
       fetchServices('HOME_CARE');
+      fetchHomeCareGroups();
     }
   }, [activeTab, homeCareSubTab]);
 
@@ -454,20 +499,176 @@ export default function SettingsView() {
     }
   };
 
+  const handleOpenAddServiceModal = (preselectedGroup?: string) => {
+    setEditingServiceId(null);
+    setIsAddingInlineGroup(false);
+    setInlineNewGroupName('');
+    setNewServiceForm({
+      name: '',
+      service_group: preselectedGroup || homeCareGroups[0] || 'Equipment and Products',
+      service_category: 'Independence',
+      unit: 'Hour',
+      rates_json: {
+        'Weekday': 0,
+        'Weekday (Non-Standard)': 0,
+        'Saturday': 0,
+        'Sunday': 0,
+        'Public Holiday': 0
+      }
+    });
+    setShowAddServiceModal(true);
+  };
+
+  const handleOpenEditServiceModal = (service: any) => {
+    let parsedRates = {
+      'Weekday': 0,
+      'Weekday (Non-Standard)': 0,
+      'Saturday': 0,
+      'Sunday': 0,
+      'Public Holiday': 0
+    };
+    try {
+      if (service.rates_json) {
+        const raw = typeof service.rates_json === 'string' ? JSON.parse(service.rates_json) : service.rates_json;
+        parsedRates = {
+          'Weekday': raw['Weekday'] !== undefined ? Number(raw['Weekday']) || 0 : Number(service.rate) || 0,
+          'Weekday (Non-Standard)': raw['Weekday (Non-Standard)'] !== undefined ? Number(raw['Weekday (Non-Standard)']) || 0 : 0,
+          'Saturday': raw['Saturday'] !== undefined ? Number(raw['Saturday']) || 0 : 0,
+          'Sunday': raw['Sunday'] !== undefined ? Number(raw['Sunday']) || 0 : 0,
+          'Public Holiday': raw['Public Holiday'] !== undefined ? Number(raw['Public Holiday']) || 0 : 0
+        };
+      } else if (service.rate) {
+        parsedRates['Weekday'] = Number(service.rate) || 0;
+      }
+    } catch (e) {}
+
+    setEditingServiceId(service.id);
+    setIsAddingInlineGroup(false);
+    setInlineNewGroupName('');
+    setNewServiceForm({
+      name: service.name || '',
+      service_group: service.service_group || homeCareGroups[0] || 'Equipment and Products',
+      service_category: service.service_category || 'Independence',
+      unit: service.unit || 'Hour',
+      rates_json: parsedRates
+    });
+    setShowAddServiceModal(true);
+  };
+
+  const handleDeleteService = async (service: any) => {
+    if (!window.confirm(`Are you sure you want to remove "${service.name}" (${service.code})?`)) return;
+    try {
+      const res = await fetch(`/api/settings/services/${service.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setServices(prev => prev.filter(s => s.id !== service.id));
+        setHomeCareServices(prev => prev.filter(s => s.id !== service.id));
+        setSuccessMsg(`Removed service "${service.name}".`);
+        setTimeout(() => setSuccessMsg(''), 3000);
+      }
+    } catch (e) {
+      console.error('Failed to delete service:', e);
+    }
+  };
+
+  const handlePersistHomeCareGroups = async (updatedGroups: string[], renamedFrom?: string, renamedTo?: string) => {
+    setSavingGroups(true);
+    try {
+      const res = await fetch('/api/settings/home-care-groups', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ groups: updatedGroups, renamedFrom, renamedTo })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.groups)) {
+          setHomeCareGroups(data.groups);
+        }
+        if (renamedFrom && renamedTo && renamedFrom !== renamedTo) {
+          setServices(prev => prev.map(s => s.service_group === renamedFrom ? { ...s, service_group: renamedTo } : s));
+          setHomeCareServices(prev => prev.map(s => s.service_group === renamedFrom ? { ...s, service_group: renamedTo } : s));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to save Home Care groups:', e);
+    } finally {
+      setSavingGroups(false);
+    }
+  };
+
+  const handleAddNewGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newGroupNameInput.trim();
+    if (!trimmed) return;
+    if (homeCareGroups.some(g => g.toLowerCase() === trimmed.toLowerCase())) {
+      setNewGroupNameInput('');
+      return;
+    }
+    const next = [...homeCareGroups, trimmed];
+    setNewGroupNameInput('');
+    await handlePersistHomeCareGroups(next);
+  };
+
+  const handleConfirmRenameGroup = async (idx: number) => {
+    const oldName = homeCareGroups[idx];
+    const trimmed = editingGroupText.trim();
+    setEditingGroupIndex(null);
+    setEditingGroupText('');
+    if (!trimmed || trimmed === oldName) return;
+    const next = homeCareGroups.map((g, i) => (i === idx ? trimmed : g));
+    await handlePersistHomeCareGroups(next, oldName, trimmed);
+  };
+
+  const handleMoveGroup = async (idx: number, direction: -1 | 1) => {
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= homeCareGroups.length) return;
+    const next = [...homeCareGroups];
+    const temp = next[idx];
+    next[idx] = next[targetIdx];
+    next[targetIdx] = temp;
+    setHomeCareGroups(next);
+    await handlePersistHomeCareGroups(next);
+  };
+
+  const handleDeleteGroup = async (groupName: string) => {
+    const countInGroup = filteredHomeCareServices.filter(s => (s.service_group || '') === groupName).length;
+    if (countInGroup > 0) {
+      if (!window.confirm(`"${groupName}" currently contains ${countInGroup} service(s). If you remove this category from the list, those services will appear under "Other / Custom Services" until reassigned. Continue?`)) {
+        return;
+      }
+    }
+    const next = homeCareGroups.filter(g => g !== groupName);
+    await handlePersistHomeCareGroups(next);
+  };
+
   const handleAddCustomService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newServiceForm.name.trim()) return;
 
+    const finalGroup = isAddingInlineGroup && inlineNewGroupName.trim()
+      ? inlineNewGroupName.trim()
+      : newServiceForm.service_group;
+
     setCreatingService(true);
     try {
-      const res = await fetch('/api/settings/services', {
-        method: 'POST',
+      const isEditing = editingServiceId !== null;
+      const url = isEditing ? `/api/settings/services/${editingServiceId}` : '/api/settings/services';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          name: newServiceForm.name,
+          name: newServiceForm.name.trim(),
+          service_group: finalGroup,
           service_category: newServiceForm.service_category,
           unit: newServiceForm.unit,
           rates_json: newServiceForm.rates_json,
@@ -476,33 +677,36 @@ export default function SettingsView() {
       });
 
       if (res.ok) {
-        const newService = await res.json();
-        setServices(prev => [newService, ...prev]);
-        if (activeTab === 'HOME_CARE') {
-          setHomeCareServices(prev => [newService, ...prev]);
+        const savedService = await res.json();
+        if (finalGroup && !homeCareGroups.includes(finalGroup)) {
+          setHomeCareGroups(prev => [...prev, finalGroup]);
+        }
+        if (isEditing) {
+          setServices(prev => prev.map(s => s.id === savedService.id ? savedService : s));
+          if (activeTab === 'HOME_CARE') {
+            setHomeCareServices(prev => prev.map(s => s.id === savedService.id ? savedService : s));
+          } else {
+            setNdisServices(prev => prev.map(s => s.id === savedService.id ? savedService : s));
+          }
         } else {
-          setNdisServices(prev => [newService, ...prev]);
+          setServices(prev => [...prev, savedService]);
+          if (activeTab === 'HOME_CARE') {
+            setHomeCareServices(prev => [...prev, savedService]);
+          } else {
+            setNdisServices(prev => [...prev, savedService]);
+          }
         }
         setShowAddServiceModal(false);
-        setNewServiceForm({
-          name: '',
-          service_category: '',
-          unit: 'Hour',
-          rates_json: {
-            'Weekday': 0,
-            'Weekday (Non-Standard)': 0,
-            'Saturday': 0,
-            'Sunday': 0,
-            'Public Holiday': 0
-          }
-        });
-        setSuccessMsg('Custom service created successfully!');
+        setEditingServiceId(null);
+        setIsAddingInlineGroup(false);
+        setInlineNewGroupName('');
+        setSuccessMsg(isEditing ? 'Service updated successfully!' : 'Custom service created successfully!');
         setTimeout(() => setSuccessMsg(''), 3000);
       } else {
-        console.error('Failed to create service');
+        console.error('Failed to save service');
       }
     } catch (error) {
-      console.error('Error creating custom service:', error);
+      console.error('Error saving service:', error);
     } finally {
       setCreatingService(false);
     }
@@ -875,14 +1079,43 @@ export default function SettingsView() {
     const q = searchQuery.toLowerCase();
     const regGroupNum = String(s.reg_group_number || '');
     const regGroupName = String(s.reg_group_name || '');
+    const serviceGroup = String(s.service_group || '');
+    const serviceCategory = String(s.service_category || '');
     return (
       String(s.code || '').toLowerCase().includes(q) ||
       String(s.name || '').toLowerCase().includes(q) ||
       String(s.rate || '').toLowerCase().includes(q) ||
+      serviceGroup.toLowerCase().includes(q) ||
+      serviceCategory.toLowerCase().includes(q) ||
       regGroupNum.toLowerCase().includes(q) ||
       regGroupName.toLowerCase().includes(q)
     );
   });
+
+  const groupedHomeCareServices = (() => {
+    const orderedGroups = [...homeCareGroups];
+    for (const s of filteredHomeCareServices) {
+      const grp = String(s.service_group || '').trim();
+      if (grp && !orderedGroups.includes(grp)) {
+        orderedGroups.push(grp);
+      }
+    }
+
+    const sections: Array<{ groupName: string; items: any[] }> = [];
+    for (const grp of orderedGroups) {
+      const items = filteredHomeCareServices.filter(s => String(s.service_group || '').trim() === grp);
+      if (items.length > 0 || !searchQuery.trim()) {
+        sections.push({ groupName: grp, items });
+      }
+    }
+
+    const uncategorised = filteredHomeCareServices.filter(s => !String(s.service_group || '').trim());
+    if (uncategorised.length > 0) {
+      sections.push({ groupName: 'Uncategorised / Custom Services', items: uncategorised });
+    }
+
+    return sections;
+  })();
 
   const filteredServices = filteredNdisServices;
 
@@ -2119,12 +2352,19 @@ export default function SettingsView() {
 
               {homeCareSubTab === 'PRICING' && (
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                  <div className="p-3 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
+                  <div className="p-3 border-b border-border-subtle flex flex-wrap justify-between items-center gap-2 bg-brand-bg relative shrink-0">
                     <div>
                       <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5 font-sans">Home Care Line Items</h3>
-                      <p className="text-xs text-[#8B949E]">Import Home Care rates from an Excel (.xlsx) file.</p>
+                      <p className="text-xs text-[#8B949E]">Create, configure, and organise Home Care services by category, or import/export rates via Excel (.xlsx).</p>
                     </div>
-                    <div className="flex space-x-2 items-center">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <input
+                        type="text"
+                        placeholder="Search services or category..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder:text-[#8B949E] w-48"
+                      />
                       <input 
                         type="file" 
                         accept=".xlsx, .xls, .csv" 
@@ -2132,9 +2372,17 @@ export default function SettingsView() {
                         ref={fileInputRef}
                         onChange={handleFileUpload}
                       />
+                      <button
+                        onClick={() => setShowManageGroupsModal(true)}
+                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors shadow-sm whitespace-nowrap shrink-0"
+                        disabled={loading || user?.role !== 'ADMIN'}
+                      >
+                        <FolderPlus className="w-4 h-4 mr-1.5 text-brand-teal" />
+                        Manage Categories
+                      </button>
                       <button 
-                        onClick={() => setShowAddServiceModal(true)}
-                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        onClick={() => handleOpenAddServiceModal()}
+                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-white text-[13px] font-medium rounded-md transition-colors shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
                       >
                         <Plus className="w-4 h-4 mr-1.5" />
@@ -2142,7 +2390,7 @@ export default function SettingsView() {
                       </button>
                       <button
                         onClick={handleExportPricing}
-                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
                       >
                         <Download className="w-4 h-4 mr-1.5" />
@@ -2150,7 +2398,7 @@ export default function SettingsView() {
                       </button>
                       <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
                       >
                         <Upload className="w-4 h-4 mr-2" />
@@ -2175,109 +2423,169 @@ export default function SettingsView() {
                             <th className="px-2 py-1.5 font-semibold text-right">Saturday</th>
                             <th className="px-2 py-1.5 font-semibold text-right">Sunday</th>
                             <th className="px-2 py-1.5 font-semibold text-right">Pub. Holiday</th>
+                            <th className="px-2 py-1.5 font-semibold text-right w-20">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle text-sm">
-                          {filteredHomeCareServices.map(s => {
-                            let isVariable = false;
-                            try {
-                              if (s.rates_json) {
-                                const rates = JSON.parse(s.rates_json);
-                                const wk = rates['Weekday'] !== undefined ? parseFloat(rates['Weekday']) : 0;
-                                const wkn = rates['Weekday (Non-Standard)'] !== undefined ? parseFloat(rates['Weekday (Non-Standard)']) : 0;
-                                const sat = rates['Saturday'] !== undefined ? parseFloat(rates['Saturday']) : 0;
-                                const sun = rates['Sunday'] !== undefined ? parseFloat(rates['Sunday']) : 0;
-                                const pub = rates['Public Holiday'] !== undefined ? parseFloat(rates['Public Holiday']) : 0;
-                                isVariable = (wk === 0 && wkn === 0 && sat === 0 && sun === 0 && pub === 0);
-                              } else if (!s.rate || parseFloat(s.rate) === 0) {
-                                isVariable = true;
-                              }
-                            } catch (e) {
-                              isVariable = false;
-                            }
-                            return (
-                              <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
-                                <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
-                                <td className="px-2 py-1.5 text-[#E6EDF3]">
-                                  <div>{s.name}</div>
-                                  {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
+                          {groupedHomeCareServices.map((section) => (
+                            <React.Fragment key={section.groupName}>
+                              <tr className="bg-[#151b26] border-y border-border-subtle">
+                                <td colSpan={10} className="px-3 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-1.5 h-4 rounded-full bg-brand-teal inline-block" />
+                                      <span className="font-semibold text-xs uppercase tracking-wider text-brand-teal">
+                                        {section.groupName}
+                                      </span>
+                                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-navy text-[#8B949E] border border-border-subtle font-medium">
+                                        {section.items.length} {section.items.length === 1 ? 'service' : 'services'}
+                                      </span>
+                                    </div>
+                                    {user?.role === 'ADMIN' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenAddServiceModal(section.groupName)}
+                                        className="text-[11px] text-[#8B949E] hover:text-brand-teal flex items-center gap-1 transition-colors font-medium"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        Add to {section.groupName}
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className="px-2 py-1.5">
-                                  <select
-                                    value={s.service_category || ''}
-                                    onChange={(e) => handleCategoryChange(s.id, e.target.value)}
-                                    className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
-                                    disabled={savingCategoryIds.has(s.id)}
-                                  >
-                                    <option value="">Select Category</option>
-                                    <option value="Clinical">Clinical</option>
-                                    <option value="Independence">Independence</option>
-                                    <option value="Everyday Living">Everyday Living</option>
-                                  </select>
-                                </td>
-                                <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
-                                {isVariable ? (
-                                  <td colSpan={5} className="px-2 py-1.5 text-center">
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#1e293b] text-[#94a3b8] border border-slate-700">
-                                      Variable Rate (Entered on Invoice Entry)
-                                    </span>
-                                  </td>
-                                ) : (
-                                  <>
-                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                      {(() => {
-                                        try {
-                                          const rates = JSON.parse(s.rates_json);
-                                          return rates['Weekday'] !== undefined ? `$${Number(rates['Weekday']).toFixed(2)}` : '-';
-                                        } catch(e) { return '-'; }
-                                      })()}
-                                    </td>
-                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                      {(() => {
-                                        try {
-                                          const rates = JSON.parse(s.rates_json);
-                                          return rates['Weekday (Non-Standard)'] !== undefined ? `$${Number(rates['Weekday (Non-Standard)']).toFixed(2)}` : '-';
-                                        } catch(e) { return '-'; }
-                                      })()}
-                                    </td>
-                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                      {(() => {
-                                        try {
-                                          const rates = JSON.parse(s.rates_json);
-                                          return rates['Saturday'] !== undefined ? `$${Number(rates['Saturday']).toFixed(2)}` : '-';
-                                        } catch(e) { return '-'; }
-                                      })()}
-                                    </td>
-                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                      {(() => {
-                                        try {
-                                          const rates = JSON.parse(s.rates_json);
-                                          return rates['Sunday'] !== undefined ? `$${Number(rates['Sunday']).toFixed(2)}` : '-';
-                                        } catch(e) { return '-'; }
-                                      })()}
-                                    </td>
-                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                      {(() => {
-                                        try {
-                                          const rates = JSON.parse(s.rates_json);
-                                          return rates['Public Holiday'] !== undefined ? `$${Number(rates['Public Holiday']).toFixed(2)}` : '-';
-                                        } catch(e) { return '-'; }
-                                      })()}
-                                    </td>
-                                  </>
-                                )}
                               </tr>
-                            );
-                          })}
+                              {section.items.length === 0 ? (
+                                <tr>
+                                  <td colSpan={10} className="px-4 py-3 text-xs text-[#8B949E] italic bg-brand-navy/30">
+                                    No services in this category yet. Click &ldquo;Add to {section.groupName}&rdquo; to add one.
+                                  </td>
+                                </tr>
+                              ) : (
+                                section.items.map(s => {
+                                  let isVariable = false;
+                                  try {
+                                    if (s.rates_json) {
+                                      const rates = typeof s.rates_json === 'string' ? JSON.parse(s.rates_json) : s.rates_json;
+                                      const wk = rates['Weekday'] !== undefined ? parseFloat(rates['Weekday']) : 0;
+                                      const wkn = rates['Weekday (Non-Standard)'] !== undefined ? parseFloat(rates['Weekday (Non-Standard)']) : 0;
+                                      const sat = rates['Saturday'] !== undefined ? parseFloat(rates['Saturday']) : 0;
+                                      const sun = rates['Sunday'] !== undefined ? parseFloat(rates['Sunday']) : 0;
+                                      const pub = rates['Public Holiday'] !== undefined ? parseFloat(rates['Public Holiday']) : 0;
+                                      isVariable = (wk === 0 && wkn === 0 && sat === 0 && sun === 0 && pub === 0);
+                                    } else if (!s.rate || parseFloat(s.rate) === 0) {
+                                      isVariable = true;
+                                    }
+                                  } catch (e) {
+                                    isVariable = false;
+                                  }
+                                  return (
+                                    <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
+                                      <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
+                                      <td className="px-2 py-1.5 text-[#E6EDF3]">
+                                        <div>{s.name}</div>
+                                        {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <select
+                                          value={s.service_category || ''}
+                                          onChange={(e) => handleCategoryChange(s.id, e.target.value)}
+                                          className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                                          disabled={savingCategoryIds.has(s.id)}
+                                        >
+                                          <option value="">Select Category</option>
+                                          <option value="Clinical">Clinical</option>
+                                          <option value="Independence">Independence</option>
+                                          <option value="Everyday Living">Everyday Living</option>
+                                        </select>
+                                      </td>
+                                      <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
+                                      {isVariable ? (
+                                        <td colSpan={5} className="px-2 py-1.5 text-center">
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#1e293b] text-[#94a3b8] border border-slate-700">
+                                            Variable Rate (Entered on Invoice Entry)
+                                          </span>
+                                        </td>
+                                      ) : (
+                                        <>
+                                          <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                            {(() => {
+                                              try {
+                                                const rates = typeof s.rates_json === 'string' ? JSON.parse(s.rates_json) : s.rates_json;
+                                                return rates['Weekday'] !== undefined ? `$${Number(rates['Weekday']).toFixed(2)}` : '-';
+                                              } catch(e) { return '-'; }
+                                            })()}
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                            {(() => {
+                                              try {
+                                                const rates = typeof s.rates_json === 'string' ? JSON.parse(s.rates_json) : s.rates_json;
+                                                return rates['Weekday (Non-Standard)'] !== undefined ? `$${Number(rates['Weekday (Non-Standard)']).toFixed(2)}` : '-';
+                                              } catch(e) { return '-'; }
+                                            })()}
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                            {(() => {
+                                              try {
+                                                const rates = typeof s.rates_json === 'string' ? JSON.parse(s.rates_json) : s.rates_json;
+                                                return rates['Saturday'] !== undefined ? `$${Number(rates['Saturday']).toFixed(2)}` : '-';
+                                              } catch(e) { return '-'; }
+                                            })()}
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                            {(() => {
+                                              try {
+                                                const rates = typeof s.rates_json === 'string' ? JSON.parse(s.rates_json) : s.rates_json;
+                                                return rates['Sunday'] !== undefined ? `$${Number(rates['Sunday']).toFixed(2)}` : '-';
+                                              } catch(e) { return '-'; }
+                                            })()}
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                            {(() => {
+                                              try {
+                                                const rates = typeof s.rates_json === 'string' ? JSON.parse(s.rates_json) : s.rates_json;
+                                                return rates['Public Holiday'] !== undefined ? `$${Number(rates['Public Holiday']).toFixed(2)}` : '-';
+                                              } catch(e) { return '-'; }
+                                            })()}
+                                          </td>
+                                        </>
+                                      )}
+                                      <td className="px-2 py-1.5 text-right">
+                                        {user?.role === 'ADMIN' && (
+                                          <div className="inline-flex items-center justify-end gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenEditServiceModal(s)}
+                                              title="Configure / Edit Service"
+                                              className="p-1.5 text-[#8B949E] hover:text-brand-teal hover:bg-brand-bg rounded transition-colors"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteService(s)}
+                                              title="Remove Service"
+                                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-brand-bg rounded transition-colors"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </React.Fragment>
+                          ))}
                           {filteredHomeCareServices.length === 0 && (
                             <tr>
-                              <td colSpan={9} className="px-4 py-12 text-center">
+                              <td colSpan={10} className="px-4 py-12 text-center">
                                 <div className="flex flex-col items-center justify-center space-y-3">
                                   <div className="p-3 bg-brand-bg rounded-full border border-border-subtle">
                                     <FileDown className="w-6 h-6 text-[#8B949E]" />
                                   </div>
                                   <div className="text-[#8B949E]">No services found</div>
-                                  <div className="text-xs text-zinc-500">Import an XLSX file containing 'code', 'name', and 'rate' columns.</div>
+                                  <div className="text-xs text-zinc-500">Import an XLSX file containing 'code', 'name', and 'rate' columns, or click Add Custom Service.</div>
                                 </div>
                               </td>
                             </tr>
@@ -2297,9 +2605,15 @@ export default function SettingsView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center p-3 border-b border-border-subtle">
-              <h2 className="text-xl font-semibold text-[#E6EDF3]">Add Custom Service</h2>
+              <h2 className="text-xl font-semibold text-[#E6EDF3]">
+                {editingServiceId !== null ? 'Configure Home Care Service' : 'Add Custom Service'}
+              </h2>
               <button 
-                onClick={() => setShowAddServiceModal(false)}
+                onClick={() => {
+                  setShowAddServiceModal(false);
+                  setEditingServiceId(null);
+                  setIsAddingInlineGroup(false);
+                }}
                 className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors p-1"
               >
                 <X className="w-5 h-5" />
@@ -2307,7 +2621,7 @@ export default function SettingsView() {
             </div>
             
             <form onSubmit={handleAddCustomService} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-4 overflow-y-auto space-y-5">
+              <div className="p-4 overflow-y-auto space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Service Name *</label>
                   <input
@@ -2316,13 +2630,53 @@ export default function SettingsView() {
                     value={newServiceForm.name}
                     onChange={(e) => setNewServiceForm(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
-                    placeholder="e.g. Specialized Nursing Care"
+                    placeholder="e.g. Mobility products"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-medium text-[#8B949E]">Service Category (List Grouping) *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingInlineGroup(!isAddingInlineGroup);
+                        setInlineNewGroupName('');
+                      }}
+                      className="text-[11px] text-brand-teal hover:underline font-medium"
+                    >
+                      {isAddingInlineGroup ? 'Select Existing Category' : '+ Create Custom Category'}
+                    </button>
+                  </div>
+                  {isAddingInlineGroup ? (
+                    <input
+                      type="text"
+                      required
+                      value={inlineNewGroupName}
+                      onChange={(e) => setInlineNewGroupName(e.target.value)}
+                      className="w-full bg-brand-bg text-[#E6EDF3] border border-brand-teal rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-brand-teal outline-none transition-colors"
+                      placeholder="Enter new custom category name..."
+                    />
+                  ) : (
+                    <select
+                      required
+                      value={newServiceForm.service_group}
+                      onChange={(e) => setNewServiceForm(prev => ({ ...prev, service_group: e.target.value }))}
+                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                    >
+                      {homeCareGroups.map(grp => (
+                        <option key={grp} value={grp}>{grp}</option>
+                      ))}
+                      {newServiceForm.service_group && !homeCareGroups.includes(newServiceForm.service_group) && (
+                        <option value={newServiceForm.service_group}>{newServiceForm.service_group}</option>
+                      )}
+                    </select>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Category *</label>
+                    <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Co-Contribution Category *</label>
                     <select
                       required
                       value={newServiceForm.service_category}
@@ -2337,18 +2691,41 @@ export default function SettingsView() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Unit</label>
-                    <input
-                      type="text"
+                    <select
                       value={newServiceForm.unit}
                       onChange={(e) => setNewServiceForm(prev => ({ ...prev, unit: e.target.value }))}
                       className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
-                      placeholder="e.g. Hour"
-                    />
+                    >
+                      <option value="Hour">Hour</option>
+                      <option value="Each">Each</option>
+                      <option value="Day">Day</option>
+                      <option value="Week">Week</option>
+                      <option value="Month">Month</option>
+                      <option value="Year">Year</option>
+                    </select>
                   </div>
                 </div>
 
                 <div className="pt-2">
-                  <h4 className="text-sm font-medium text-[#E6EDF3] mb-3 border-b border-border-subtle pb-2">Rates</h4>
+                  <div className="flex items-center justify-between mb-3 border-b border-border-subtle pb-2">
+                    <h4 className="text-sm font-medium text-[#E6EDF3]">Rates</h4>
+                    <button
+                      type="button"
+                      onClick={() => setNewServiceForm(prev => ({
+                        ...prev,
+                        rates_json: {
+                          'Weekday': 0,
+                          'Weekday (Non-Standard)': 0,
+                          'Saturday': 0,
+                          'Sunday': 0,
+                          'Public Holiday': 0
+                        }
+                      }))}
+                      className="text-[11px] px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
+                    >
+                      Set as Variable Rate ($0.00)
+                    </button>
+                  </div>
                   <div className="space-y-3">
                     {['Weekday', 'Weekday (Non-Standard)', 'Saturday', 'Sunday', 'Public Holiday'].map(rateKey => (
                       <div key={rateKey} className="flex items-center justify-between">
@@ -2374,7 +2751,7 @@ export default function SettingsView() {
                     ))}
                   </div>
                   <p className="text-[11px] text-[#8B949E] mt-3 leading-relaxed bg-[#1b212c] p-2.5 rounded border border-border-subtle/40">
-                    For variable third-party brokerage items (e.g., Taxi accounts, flexible meal delivery), enter 0.00 across all fields. This flags the item as an open invoice item, allowing staff to input the exact custom dollar amount manually when logging the expense onto a client's budget ledger.
+                    For services or products without fixed default rates (e.g., Equipment and Products, Home Adjustments, or variable third-party items), leave all fields at 0.00. Rates will then be set when the service is added to Shifts or Invoices.
                   </p>
                 </div>
               </div>
@@ -2382,7 +2759,11 @@ export default function SettingsView() {
               <div className="p-4 border-t border-border-subtle flex justify-end gap-3 bg-brand-navy">
                 <button
                   type="button"
-                  onClick={() => setShowAddServiceModal(false)}
+                  onClick={() => {
+                    setShowAddServiceModal(false);
+                    setEditingServiceId(null);
+                    setIsAddingInlineGroup(false);
+                  }}
                   className="px-3 py-1.5 text-xs font-medium text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
                 >
                   Cancel
@@ -2395,11 +2776,155 @@ export default function SettingsView() {
                   {creatingService ? (
                     <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                   ) : (
-                    'Save Service'
+                    editingServiceId !== null ? 'Update Service' : 'Save Service'
                   )}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showManageGroupsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-center p-3 border-b border-border-subtle">
+              <div>
+                <h2 className="text-lg font-semibold text-[#E6EDF3]">Manage Service Categories</h2>
+                <p className="text-xs text-[#8B949E]">Create custom categories, rename, or reorder how Home Care services are grouped in the list.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowManageGroupsModal(false);
+                  setEditingGroupIndex(null);
+                }}
+                className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-border-subtle bg-brand-bg/50">
+              <form onSubmit={handleAddNewGroup} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newGroupNameInput}
+                  onChange={(e) => setNewGroupNameInput(e.target.value)}
+                  placeholder="New custom category name..."
+                  className="flex-1 bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-teal outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!newGroupNameInput.trim() || savingGroups}
+                  className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Category
+                </button>
+              </form>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {homeCareGroups.map((grp, idx) => {
+                const count = filteredHomeCareServices.filter(s => (s.service_group || '') === grp).length;
+                const isEditingThis = editingGroupIndex === idx;
+                return (
+                  <div
+                    key={`${grp}-${idx}`}
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-brand-bg border border-border-subtle"
+                  >
+                    {isEditingThis ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          type="text"
+                          value={editingGroupText}
+                          onChange={(e) => setEditingGroupText(e.target.value)}
+                          className="flex-1 bg-brand-navy text-[#E6EDF3] border border-brand-teal rounded px-2 py-1 text-xs outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmRenameGroup(idx)}
+                          className="p-1 text-brand-green hover:bg-brand-navy rounded"
+                          title="Save Name"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingGroupIndex(null)}
+                          className="p-1 text-[#8B949E] hover:bg-brand-navy rounded"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-medium text-[#E6EDF3] truncate">{grp}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-navy text-[#8B949E] border border-border-subtle shrink-0">
+                            {count}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveGroup(idx, -1)}
+                            disabled={idx === 0 || savingGroups}
+                            className="p-1 text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-30 rounded hover:bg-brand-navy"
+                            title="Move Up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveGroup(idx, 1)}
+                            disabled={idx === homeCareGroups.length - 1 || savingGroups}
+                            className="p-1 text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-30 rounded hover:bg-brand-navy"
+                            title="Move Down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingGroupIndex(idx);
+                              setEditingGroupText(grp);
+                            }}
+                            className="p-1 text-[#8B949E] hover:text-brand-teal rounded hover:bg-brand-navy"
+                            title="Rename Category"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGroup(grp)}
+                            className="p-1 text-[#8B949E] hover:text-red-400 rounded hover:bg-brand-navy"
+                            title="Remove Category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="p-3 border-t border-border-subtle flex justify-end bg-brand-navy">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManageGroupsModal(false);
+                  setEditingGroupIndex(null);
+                }}
+                className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-[#E6EDF3] text-xs font-medium rounded-md border border-zinc-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

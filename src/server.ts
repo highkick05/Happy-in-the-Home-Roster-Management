@@ -2069,6 +2069,266 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   }
 
   try {
+    db.exec(`
+      ALTER TABLE services ADD COLUMN service_group TEXT;
+    `);
+    console.log("[DEBUG] Completed services.service_group column check");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning adding service_group:", e.message);
+    }
+  }
+
+  try {
+    const DEFAULT_HC_GROUPS: Array<{
+      group: string;
+      items: Array<{ name: string; coContribution: "Clinical" | "Independence" | "Everyday Living"; unit: string }>;
+    }> = [
+      {
+        group: "Equipment and Products",
+        items: [
+          { name: "Mobility products", coContribution: "Independence", unit: "Each" },
+          { name: "Domestic life products", coContribution: "Independence", unit: "Each" },
+          { name: "Managing body functions", coContribution: "Independence", unit: "Each" },
+          { name: "Self-care products", coContribution: "Independence", unit: "Each" },
+          { name: "Communication and information management products", coContribution: "Independence", unit: "Each" },
+          { name: "Assistive technology prescription and clinical support", coContribution: "Clinical", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Social support and community engagement",
+        items: [
+          { name: "Individual social support", coContribution: "Independence", unit: "Hour" },
+          { name: "Group social support", coContribution: "Independence", unit: "Hour" },
+          { name: "Accompanied activities", coContribution: "Independence", unit: "Hour" },
+          { name: "Cultural support", coContribution: "Independence", unit: "Hour" },
+          { name: "Digital education and support", coContribution: "Independence", unit: "Hour" },
+          { name: "Assistance to maintain personal affairs", coContribution: "Independence", unit: "Hour" },
+          { name: "Expenses to maintain personal affairs", coContribution: "Independence", unit: "Each" },
+        ],
+      },
+      {
+        group: "Transport",
+        items: [
+          { name: "Direct transport", coContribution: "Independence", unit: "Hour" },
+          { name: "Indirect transport", coContribution: "Independence", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Home or community general respite",
+        items: [
+          { name: "Flexible respite", coContribution: "Independence", unit: "Hour" },
+          { name: "Community and centre based respite", coContribution: "Independence", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Home Adjustments",
+        items: [
+          { name: "Home modification products", coContribution: "Independence", unit: "Each" },
+          { name: "Home modifications prescription and clinical support", coContribution: "Clinical", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Therapeutic services for independent living",
+        items: [
+          { name: "Chiropractics", coContribution: "Independence", unit: "Hour" },
+          { name: "Remedial massage", coContribution: "Independence", unit: "Hour" },
+          { name: "Osteopathy", coContribution: "Independence", unit: "Hour" },
+          { name: "Acupuncture", coContribution: "Independence", unit: "Hour" },
+          { name: "Diversional therapy", coContribution: "Independence", unit: "Hour" },
+          { name: "Art therapy", coContribution: "Independence", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Domestic assistance",
+        items: [
+          { name: "General house cleaning", coContribution: "Everyday Living", unit: "Hour" },
+          { name: "Laundry services", coContribution: "Everyday Living", unit: "Hour" },
+          { name: "Shopping assistance", coContribution: "Everyday Living", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Home maintenance and repairs",
+        items: [
+          { name: "Gardening", coContribution: "Everyday Living", unit: "Hour" },
+          { name: "Assistance with home maintenance and repairs", coContribution: "Everyday Living", unit: "Hour" },
+          { name: "Expenses for home maintenance and repairs", coContribution: "Everyday Living", unit: "Each" },
+        ],
+      },
+      {
+        group: "Meals",
+        items: [
+          { name: "Meal preparation", coContribution: "Everyday Living", unit: "Hour" },
+          { name: "Meal delivery", coContribution: "Everyday Living", unit: "Each" },
+        ],
+      },
+      {
+        group: "Personal care",
+        items: [
+          { name: "Assistance with self-care and activities of daily living", coContribution: "Clinical", unit: "Hour" },
+          { name: "Assistance with the self-administration of medication", coContribution: "Clinical", unit: "Hour" },
+          { name: "Continence management (non-clinical)", coContribution: "Clinical", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Nursing care",
+        items: [
+          { name: "Registered nurse clinical care", coContribution: "Clinical", unit: "Hour" },
+          { name: "Nursing care consumables", coContribution: "Clinical", unit: "Each" },
+          { name: "Enrolled nurse clinical care", coContribution: "Clinical", unit: "Hour" },
+          { name: "Nursing assistant clinical care", coContribution: "Clinical", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Allied health and therapy",
+        items: [
+          { name: "Physiotherapy", coContribution: "Clinical", unit: "Hour" },
+          { name: "Occupational therapy", coContribution: "Clinical", unit: "Hour" },
+          { name: "Podiatry", coContribution: "Clinical", unit: "Hour" },
+          { name: "Speech pathology", coContribution: "Clinical", unit: "Hour" },
+          { name: "Diet or nutrition", coContribution: "Clinical", unit: "Hour" },
+          { name: "Psychology", coContribution: "Clinical", unit: "Hour" },
+          { name: "Exercise physiology", coContribution: "Clinical", unit: "Hour" },
+          { name: "Allied health assistance", coContribution: "Clinical", unit: "Hour" },
+          { name: "Social work", coContribution: "Clinical", unit: "Hour" },
+          { name: "Aboriginal or Torres Strait Islander Health Practitioner assistance", coContribution: "Clinical", unit: "Hour" },
+          { name: "Aboriginal or Torres Strait Islander Health Worker assistance", coContribution: "Clinical", unit: "Hour" },
+          { name: "Counselling or psychotherapy", coContribution: "Clinical", unit: "Hour" },
+          { name: "Music therapy", coContribution: "Clinical", unit: "Hour" },
+        ],
+      },
+      {
+        group: "Nutrition",
+        items: [
+          { name: "Nutrition supports", coContribution: "Clinical", unit: "Each" },
+        ],
+      },
+    ];
+
+    const defaultGroupNames = DEFAULT_HC_GROUPS.map((g) => g.group);
+    const existingGroupSetting = db
+      .prepare("SELECT value FROM settings WHERE key = 'home_care_service_groups'")
+      .get() as any;
+
+    if (!existingGroupSetting) {
+      db.prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_service_groups', ?)"
+      ).run(JSON.stringify(defaultGroupNames));
+    } else {
+      try {
+        const parsed = JSON.parse(existingGroupSetting.value);
+        if (Array.isArray(parsed)) {
+          let updated = false;
+          for (const defName of defaultGroupNames) {
+            if (!parsed.includes(defName)) {
+              parsed.push(defName);
+              updated = true;
+            }
+          }
+          if (updated) {
+            db.prepare(
+              "UPDATE settings SET value = ? WHERE key = 'home_care_service_groups'"
+            ).run(JSON.stringify(parsed));
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Seed missing default Home Care services & assign service_group to existing ones
+    db.transaction(() => {
+      const existingHcServices = db
+        .prepare(
+          "SELECT id, code, name, service_category, service_group FROM services WHERE (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') AND (status IS NULL OR status != 'ARCHIVED')"
+        )
+        .all() as any[];
+
+      const lastServiceRow = db
+        .prepare(
+          "SELECT code FROM services WHERE code LIKE 'SERV-%' ORDER BY CAST(SUBSTR(code, 6) AS INTEGER) DESC LIMIT 1"
+        )
+        .get() as any;
+      let nextServNum = 1;
+      if (lastServiceRow && lastServiceRow.code) {
+        const m = String(lastServiceRow.code).match(/SERV-(\d+)/);
+        if (m) nextServNum = parseInt(m[1], 10) + 1;
+      }
+
+      const updateGroupOnlyStmt = db.prepare(
+        "UPDATE services SET service_group = ?, service_category = COALESCE(NULLIF(service_category, ''), ?) WHERE id = ?"
+      );
+      const insertHcServiceStmt = db.prepare(`
+        INSERT INTO services (code, name, service_category, service_group, unit, rate, rates_json, type, status)
+        VALUES (?, ?, ?, ?, ?, 0, ?, 'HOME_CARE', 'ACTIVE')
+      `);
+      const zeroRatesJson = JSON.stringify({
+        Weekday: 0,
+        "Weekday (Non-Standard)": 0,
+        Saturday: 0,
+        Sunday: 0,
+        "Public Holiday": 0,
+      });
+
+      for (const grp of DEFAULT_HC_GROUPS) {
+        for (const item of grp.items) {
+          const matches = existingHcServices.filter(
+            (s) => String(s.name || "").trim().toLowerCase() === item.name.trim().toLowerCase()
+          );
+          if (matches.length > 0) {
+            for (const match of matches) {
+              if (!match.service_group) {
+                updateGroupOnlyStmt.run(grp.group, item.coContribution, match.id);
+                match.service_group = grp.group;
+              }
+            }
+          } else {
+            const code = `SERV-${String(nextServNum).padStart(4, "0")}`;
+            nextServNum++;
+            insertHcServiceStmt.run(
+              code,
+              item.name,
+              item.coContribution,
+              grp.group,
+              item.unit,
+              zeroRatesJson
+            );
+          }
+        }
+      }
+
+      // Also assign a sensible service_group to any existing pre-configured Home Care packages that don't have a group yet
+      const remainingUnassigned = db
+        .prepare(
+          "SELECT id, name FROM services WHERE (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') AND (status IS NULL OR status != 'ARCHIVED') AND (service_group IS NULL OR TRIM(service_group) = '')"
+        )
+        .all() as any[];
+
+      for (const rem of remainingUnassigned) {
+        const lowerName = String(rem.name || "").toLowerCase();
+        let fallbackGroup = "Personal care";
+        if (lowerName.includes("respite") || lowerName.includes("overnight")) {
+          fallbackGroup = "Home or community general respite";
+        } else if (lowerName.includes("clean") || lowerName.includes("laundry") || lowerName.includes("domestic") || lowerName.includes("shopping")) {
+          fallbackGroup = "Domestic assistance";
+        } else if (lowerName.includes("garden") || lowerName.includes("maintenance") || lowerName.includes("repair")) {
+          fallbackGroup = "Home maintenance and repairs";
+        } else if (lowerName.includes("transport")) {
+          fallbackGroup = "Transport";
+        } else if (lowerName.includes("meal")) {
+          fallbackGroup = "Meals";
+        } else if (lowerName.includes("nurs")) {
+          fallbackGroup = "Nursing care";
+        } else if (lowerName.includes("social") || lowerName.includes("accompanied") || lowerName.includes("community")) {
+          fallbackGroup = "Social support and community engagement";
+        }
+        db.prepare("UPDATE services SET service_group = ? WHERE id = ?").run(fallbackGroup, rem.id);
+      }
+    })();
+    console.log("[DEBUG] Completed Home Care default service groups and 51 services check");
+  } catch (e: any) {
+    console.warn("Migration warning seeding Home Care service groups:", e.message);
+  }
+
+  try {
     // Automatically archive older duplicate NDIS services so ONLY the latest current NDIS Pricing schedule is active
     db.exec(`
       UPDATE services
@@ -22071,7 +22331,7 @@ app.get("/api/health", (req, res) => {
     }
     const selectCols = canSeeRates
       ? "*"
-      : "id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name, status";
+      : "id, code, name, description, type, unit, service_category, service_group, reg_group_number, reg_group_name, status";
 
     let query = `SELECT ${selectCols} FROM services WHERE (status IS NULL OR status != 'ARCHIVED')`;
 
@@ -22145,6 +22405,99 @@ app.get("/api/health", (req, res) => {
     },
   );
 
+  const DEFAULT_HOME_CARE_GROUP_NAMES = [
+    "Equipment and Products",
+    "Social support and community engagement",
+    "Transport",
+    "Home or community general respite",
+    "Home Adjustments",
+    "Therapeutic services for independent living",
+    "Domestic assistance",
+    "Home maintenance and repairs",
+    "Meals",
+    "Personal care",
+    "Nursing care",
+    "Allied health and therapy",
+    "Nutrition",
+  ];
+
+  const getStoredHomeCareGroups = (): string[] => {
+    try {
+      const row = db
+        .prepare("SELECT value FROM settings WHERE key = 'home_care_service_groups'")
+        .get() as any;
+      if (row && row.value) {
+        const parsed = JSON.parse(row.value);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [...DEFAULT_HOME_CARE_GROUP_NAMES];
+  };
+
+  const ensureGroupSavedInSettings = (groupName?: string | null) => {
+    const trimmed = String(groupName || "").trim();
+    if (!trimmed) return;
+    const current = getStoredHomeCareGroups();
+    if (!current.includes(trimmed)) {
+      current.push(trimmed);
+      db.prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_service_groups', ?)"
+      ).run(JSON.stringify(current));
+    }
+  };
+
+  app.get(
+    "/api/settings/home-care-groups",
+    authenticateToken,
+    (req, res) => {
+      try {
+        const groups = getStoredHomeCareGroups();
+        res.json({ groups });
+      } catch (e: any) {
+        logger.error(`Failed to load home care groups: ${e}`);
+        res.status(500).json({ error: "Failed to load home care groups" });
+      }
+    }
+  );
+
+  app.put(
+    "/api/settings/home-care-groups",
+    authenticateToken,
+    requireAdmin,
+    (req, res) => {
+      const { groups, renamedFrom, renamedTo } = req.body;
+      if (!Array.isArray(groups)) {
+        return res.status(400).json({ error: "Groups array is required" });
+      }
+      try {
+        const cleaned = Array.from(
+          new Set(
+            groups
+              .map((g: any) => String(g || "").trim())
+              .filter((g: string) => g.length > 0)
+          )
+        );
+        db.transaction(() => {
+          db.prepare(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_service_groups', ?)"
+          ).run(JSON.stringify(cleaned));
+
+          if (renamedFrom && renamedTo && String(renamedFrom).trim() !== String(renamedTo).trim()) {
+            db.prepare(
+              "UPDATE services SET service_group = ? WHERE service_group = ? AND (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP')"
+            ).run(String(renamedTo).trim(), String(renamedFrom).trim());
+          }
+        })();
+        res.json({ groups: cleaned });
+      } catch (e: any) {
+        logger.error(`Failed to save home care groups: ${e}`);
+        res.status(500).json({ error: "Failed to save home care groups" });
+      }
+    }
+  );
+
   app.get(
     "/api/settings/services/export",
     authenticateToken,
@@ -22153,7 +22506,7 @@ app.get("/api/health", (req, res) => {
       try {
         const services = db
           .prepare(
-            "SELECT * FROM services WHERE type = 'HOME_CARE' ORDER BY code ASC",
+            "SELECT * FROM services WHERE type = 'HOME_CARE' AND (status IS NULL OR status != 'ARCHIVED') ORDER BY code ASC",
           )
           .all() as any[];
 
@@ -22168,6 +22521,7 @@ app.get("/api/health", (req, res) => {
           return {
             "SERV. ID": s.code,
             "SERVICE NAME": s.name,
+            "SERVICE GROUP": s.service_group || "",
             CATEGORY: s.service_category || "",
             UNIT: s.unit || "Hour",
             WEEKDAY:
@@ -22285,10 +22639,17 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     requireAdmin,
     (req, res) => {
-      const { name, service_category, unit, rates_json, type } = req.body;
+      const { name, service_category, service_group, unit, rates_json, type, description } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Service name is required" });
+      }
+
+      if (
+        service_category &&
+        !["Clinical", "Independence", "Everyday Living"].includes(service_category)
+      ) {
+        return res.status(400).json({ error: "Invalid co-contribution category" });
       }
 
       try {
@@ -22314,15 +22675,22 @@ app.get("/api/health", (req, res) => {
             : "0";
         const parsedRatesJson = rates_json ? JSON.stringify(rates_json) : "{}";
 
+        const trimmedGroup = service_group ? String(service_group).trim() : null;
+        if (trimmedGroup) {
+          ensureGroupSavedInSettings(trimmedGroup);
+        }
+
         const stmt = db.prepare(`
-        INSERT INTO services (code, name, service_category, unit, rate, rates_json, type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO services (code, name, description, service_category, service_group, unit, rate, rates_json, type, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
       `);
 
         const info = stmt.run(
           nextCode,
-          name,
+          String(name).trim(),
+          description ? String(description).trim() : null,
           service_category || null,
+          trimmedGroup,
           unit || "Hour",
           rateStr,
           parsedRatesJson,
@@ -22338,6 +22706,82 @@ app.get("/api/health", (req, res) => {
         res.status(500).json({ error: "Failed to create service" });
       }
     },
+  );
+
+  app.put(
+    "/api/settings/services/:id",
+    authenticateToken,
+    requireAdmin,
+    (req, res) => {
+      const { id } = req.params;
+      const { name, service_category, service_group, unit, rates_json, description } = req.body;
+
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: "Service name is required" });
+      }
+
+      if (
+        service_category &&
+        !["Clinical", "Independence", "Everyday Living"].includes(service_category)
+      ) {
+        return res.status(400).json({ error: "Invalid co-contribution category" });
+      }
+
+      try {
+        const rateVal =
+          rates_json && rates_json["Weekday"] !== undefined
+            ? Number(rates_json["Weekday"]) || 0
+            : 0;
+        const parsedRatesJson = rates_json ? JSON.stringify(rates_json) : "{}";
+        const trimmedGroup = service_group ? String(service_group).trim() : null;
+        if (trimmedGroup) {
+          ensureGroupSavedInSettings(trimmedGroup);
+        }
+
+        db.prepare(`
+          UPDATE services
+          SET name = ?,
+              description = ?,
+              service_category = ?,
+              service_group = ?,
+              unit = ?,
+              rate = ?,
+              rates_json = ?
+          WHERE id = ?
+        `).run(
+          String(name).trim(),
+          description !== undefined ? (description ? String(description).trim() : null) : null,
+          service_category || null,
+          trimmedGroup,
+          unit || "Hour",
+          rateVal,
+          parsedRatesJson,
+          id
+        );
+
+        const updated = db.prepare("SELECT * FROM services WHERE id = ?").get(id);
+        res.json(updated);
+      } catch (e: any) {
+        logger.error(`Failed to update service ${id}: ${e}`);
+        res.status(500).json({ error: "Failed to update service" });
+      }
+    }
+  );
+
+  app.delete(
+    "/api/settings/services/:id",
+    authenticateToken,
+    requireAdmin,
+    (req, res) => {
+      const { id } = req.params;
+      try {
+        db.prepare("UPDATE services SET status = 'ARCHIVED' WHERE id = ?").run(id);
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`Failed to delete service ${id}: ${e}`);
+        res.status(500).json({ error: "Failed to delete service" });
+      }
+    }
   );
 
   app.post(
