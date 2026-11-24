@@ -1214,7 +1214,7 @@ export default function HomeCareBudgetView() {
                     <th className="px-3 py-2 border-b border-border-subtle text-right">Service Amt</th>
                     {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Care Coord ({careCoordPercent}%)</th>}
                     {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Total w/ CC ({careCoordPercent}%)</th>}
-                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Mgmt ({managementFeePercent}%)</th>}
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Service Loading Fee ({managementFeePercent}%)</th>}
                     <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Grand Total</th>
                   </tr>
                 </thead>
@@ -1398,7 +1398,7 @@ export default function HomeCareBudgetView() {
                         Apply Platform Loadings
                       </label>
                       <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
-                        Apply Care Coordination ({careCoordPercent}%) and Management ({managementFeePercent}%) fees to this invoice amount.
+                        Apply Care Coordination ({careCoordPercent}%) and Service Loading ({managementFeePercent}%) fees to this invoice amount.
                       </p>
                     </div>
                   </div>

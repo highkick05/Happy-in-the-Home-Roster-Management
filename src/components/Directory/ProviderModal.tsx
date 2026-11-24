@@ -120,7 +120,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
               </div>
               {formData.providerType === 'Home Care' && (
                 <div>
-                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Management Fee (%)</label>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Service Loading Fee (%)</label>
                   <input type="number" step="0.01" name="managementFee" value={formData.managementFee} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                 </div>
               )}

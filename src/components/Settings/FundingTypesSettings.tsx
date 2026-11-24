@@ -216,26 +216,26 @@ export default function FundingTypesSettings() {
                 <div className="bg-[#121214] border border-border-subtle rounded-xl p-6 shadow-sm space-y-6">
                   <div>
                     <h4 className="text-sm font-semibold text-[#E6EDF3] flex items-center gap-2">
-                      <span>Home Care Package &amp; Management Fees</span>
+                      <span>Home Care Package &amp; Service Loading Fees</span>
                       <span className="text-[11px] font-normal px-2 py-0.5 rounded bg-brand-teal/10 text-brand-teal border border-brand-teal/20">
                         System Defaults
                       </span>
                     </h4>
                     <p className="text-xs text-[#8B949E] mt-1 leading-relaxed">
-                      Configure the baseline Management Fee and Care Coordination percentages applied when calculating service charges, grand total deductions, and initial client onboarding for Home Care packages (HCP &amp; Support at Home).
+                      Configure the baseline Service Loading Fee and Care Coordination percentages applied when calculating service charges, grand total deductions, and initial client onboarding for Home Care packages (HCP &amp; Support at Home).
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                    {/* Default Management Fee (%) */}
+                    {/* Default Service Loading Fee (%) */}
                     <div className="bg-black/30 border border-white/[0.08] rounded-lg p-5 flex flex-col justify-between">
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-xs font-semibold text-[#E6EDF3]">Default Management Fee</label>
+                          <label className="text-xs font-semibold text-[#E6EDF3]">Default Service Loading Fee</label>
                           <span className="text-[10px] text-zinc-400 bg-white/5 px-2 py-0.5 rounded font-mono font-medium">Applied to Grand Total</span>
                         </div>
                         <p className="text-[11px] text-[#8B949E] mb-4 leading-normal">
-                          Package management fee percentage applied to services in the System Ledger Preview (e.g. 10%). Together with Care Coordination, this works out the Grand Total Amount charged to the client's funding.
+                          Service loading fee percentage applied to services in the System Ledger Preview (e.g. 10%). Together with Care Coordination, this works out the Grand Total Amount charged to the client&apos;s funding.
                         </p>
                       </div>
                       <div className="relative mt-2">
@@ -289,9 +289,9 @@ export default function FundingTypesSettings() {
                       <div>1. Service Base Amount</div>
                       <div>2. Care Coordination Fee = Base Amount × <span className="text-brand-teal font-bold">{defaultCareCoordinationFee}%</span></div>
                       <div>3. Subtotal w/ Care Coord = Base Amount + Care Coordination Fee</div>
-                      <div>4. Management Fee (MGMT) = Subtotal × <span className="text-emerald-400 font-bold">{defaultManagementFee}%</span></div>
+                      <div>4. Service Loading Fee = Subtotal × <span className="text-emerald-400 font-bold">{defaultManagementFee}%</span></div>
                       <div className="pt-1 text-[#E6EDF3] font-semibold border-t border-white/[0.06] mt-1">
-                        5. Grand Total Amount = Subtotal + Management Fee
+                        5. Grand Total Amount = Subtotal + Service Loading Fee
                       </div>
                     </div>
                   </div>
