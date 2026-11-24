@@ -415,8 +415,8 @@ function Layout({ children }: { children: React.ReactNode }) {
                   <FileText className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
                 </NavLink>
                 {user?.role === 'ADMIN' && (
-                  <NavLink replace={true} to="/care-management" className={getNavClasses} title="Care Management">
-                    <Landmark className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Care Management' : ''}
+                  <NavLink replace={true} to="/care-management" className={getNavClasses} title="Pooled Funds">
+                    <Landmark className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Pooled Funds' : ''}
                   </NavLink>
                 )}
                 {user?.role === 'ADMIN' && (
