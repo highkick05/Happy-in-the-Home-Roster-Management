@@ -12,6 +12,7 @@ export default function FundingTypesSettings() {
   // Default Home Care Fees (applied globally / new client defaults)
   const [defaultManagementFee, setDefaultManagementFee] = useState<number>(10);
   const [defaultCareCoordinationFee, setDefaultCareCoordinationFee] = useState<number>(20);
+  const [defaultCareManagementFee, setDefaultCareManagementFee] = useState<number>(10);
 
   const [hcpLevels, setHcpLevels] = useState([
     { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 11289.45, amountQuarterly: 2822.36, amountDaily: 30.93, billingCycle: 'annual' },
@@ -48,6 +49,9 @@ export default function FundingTypesSettings() {
         }
         if (data.defaultCareCoordinationFee !== undefined && data.defaultCareCoordinationFee !== null) {
           setDefaultCareCoordinationFee(Number(data.defaultCareCoordinationFee));
+        }
+        if (data.defaultCareManagementFee !== undefined && data.defaultCareManagementFee !== null) {
+          setDefaultCareManagementFee(Number(data.defaultCareManagementFee));
         }
         if (data.hcpFundingLevels) {
           setHcpLevels(data.hcpFundingLevels.map((lvl: any) => {
@@ -111,7 +115,8 @@ export default function FundingTypesSettings() {
           hcpFundingLevels: hcpLevels,
           sahFundingLevels: sahLevels,
           defaultManagementFee: Number(defaultManagementFee),
-          defaultCareCoordinationFee: Number(defaultCareCoordinationFee)
+          defaultCareCoordinationFee: Number(defaultCareCoordinationFee),
+          defaultCareManagementFee: Number(defaultCareManagementFee)
         })
       });
       if (res.ok) {
@@ -212,7 +217,7 @@ export default function FundingTypesSettings() {
         ) : (
           <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-4 max-w-6xl font-sans">
             {activeTab === 'FEES' && (
-              <div className="space-y-6 max-w-4xl">
+              <div className="space-y-6 max-w-5xl">
                 <div className="bg-[#121214] border border-border-subtle rounded-xl p-6 shadow-sm space-y-6">
                   <div>
                     <h4 className="text-sm font-semibold text-[#E6EDF3] flex items-center gap-2">
@@ -222,17 +227,17 @@ export default function FundingTypesSettings() {
                       </span>
                     </h4>
                     <p className="text-xs text-[#8B949E] mt-1 leading-relaxed">
-                      Configure the baseline Service Loading Fee and Care Coordination percentages applied when calculating service charges, grand total deductions, and initial client onboarding for Home Care packages (HCP &amp; Support at Home).
+                      Configure the baseline Service Loading Fee, Care Coordination, and Care Management percentages applied across Home Care packages (HCP &amp; Support at Home).
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
                     {/* Default Service Loading Fee (%) */}
                     <div className="bg-black/30 border border-white/[0.08] rounded-lg p-5 flex flex-col justify-between">
                       <div>
-                        <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
                           <label className="text-xs font-semibold text-[#E6EDF3]">Default Service Loading Fee</label>
-                          <span className="text-[10px] text-zinc-400 bg-white/5 px-2 py-0.5 rounded font-mono font-medium">Applied to Grand Total</span>
+                          <span className="text-[10px] text-zinc-400 bg-white/5 px-2 py-0.5 rounded font-mono font-medium whitespace-nowrap">Applied to Grand Total</span>
                         </div>
                         <p className="text-[11px] text-[#8B949E] mb-4 leading-normal">
                           Service loading fee percentage applied to services in the System Ledger Preview (e.g. 10%). Together with Care Coordination, this works out the Grand Total Amount charged to the client&apos;s funding.
@@ -256,9 +261,9 @@ export default function FundingTypesSettings() {
                     {/* Default Care Coordination Fee (%) */}
                     <div className="bg-black/30 border border-white/[0.08] rounded-lg p-5 flex flex-col justify-between">
                       <div>
-                        <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
                           <label className="text-xs font-semibold text-[#E6EDF3]">Default Care Coordinator Rate</label>
-                          <span className="text-[10px] text-zinc-400 bg-white/5 px-2 py-0.5 rounded font-mono font-medium">New Client Default</span>
+                          <span className="text-[10px] text-zinc-400 bg-white/5 px-2 py-0.5 rounded font-mono font-medium whitespace-nowrap">New Client Default</span>
                         </div>
                         <p className="text-[11px] text-[#8B949E] mb-4 leading-normal">
                           The baseline Care Coordinator rate used when Home Care client accounts are set up to start with (default: 20%). Can be customized individually per client on their profile.
@@ -278,20 +283,61 @@ export default function FundingTypesSettings() {
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm font-medium">%</span>
                       </div>
                     </div>
+
+                    {/* Care Management Fee (%) */}
+                    <div className="bg-black/30 border border-amber-500/20 rounded-lg p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <label className="text-xs font-semibold text-[#E6EDF3]">Care Management Fee</label>
+                          <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-mono font-medium whitespace-nowrap">Off Top of Subsidy</span>
+                        </div>
+                        <p className="text-[11px] text-[#8B949E] mb-4 leading-normal">
+                          Deducted off the top of every Home Care client&apos;s quarterly funding subsidy (HCP &amp; Support at Home) before it hits their Total Allocation (ON) balance, and credited to HITH&apos;s pooled Care Management account.
+                        </p>
+                      </div>
+                      <div className="relative mt-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={defaultCareManagementFee}
+                          onChange={(e) => setDefaultCareManagementFee(parseFloat(e.target.value) || 0)}
+                          className="w-full bg-brand-navy border border-border-subtle rounded-md pl-4 pr-10 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-brand-teal font-mono transition-colors"
+                          placeholder="10.00"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm font-medium">%</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Visual Calculation Formula Preview */}
-                  <div className="bg-brand-navy/60 border border-white/[0.06] rounded-lg p-4 text-xs text-[#8B949E] space-y-2">
-                    <div className="text-zinc-300 font-medium flex items-center gap-1.5">
-                      <span>Grand Total Amount Calculation Formula:</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-brand-navy/60 border border-white/[0.06] rounded-lg p-4 text-xs text-[#8B949E] space-y-2">
+                      <div className="text-zinc-300 font-medium flex items-center gap-1.5">
+                        <span>1. Quarterly Subsidy &amp; Pooled Care Management Formula:</span>
+                      </div>
+                      <div className="font-mono text-[11px] bg-black/40 border border-white/[0.04] p-3 rounded text-zinc-300 leading-relaxed">
+                        <div>1. Gross Quarterly Subsidy = Quarter Days × Daily Funding Rate</div>
+                        <div>2. Care Management Fee (Pooled) = Gross Subsidy × <span className="text-amber-400 font-bold">{defaultCareManagementFee}%</span></div>
+                        <div className="pt-1 text-[#E6EDF3] font-semibold border-t border-white/[0.06] mt-1">
+                          3. Net Client Ongoing Allocation (ON) = Gross Subsidy − Care Management Fee
+                        </div>
+                      </div>
                     </div>
-                    <div className="font-mono text-[11px] bg-black/40 border border-white/[0.04] p-3 rounded text-zinc-300 leading-relaxed">
-                      <div>1. Service Base Amount</div>
-                      <div>2. Care Coordination Fee = Base Amount × <span className="text-brand-teal font-bold">{defaultCareCoordinationFee}%</span></div>
-                      <div>3. Subtotal w/ Care Coord = Base Amount + Care Coordination Fee</div>
-                      <div>4. Service Loading Fee = Subtotal × <span className="text-emerald-400 font-bold">{defaultManagementFee}%</span></div>
-                      <div className="pt-1 text-[#E6EDF3] font-semibold border-t border-white/[0.06] mt-1">
-                        5. Grand Total Amount = Subtotal + Service Loading Fee
+
+                    <div className="bg-brand-navy/60 border border-white/[0.06] rounded-lg p-4 text-xs text-[#8B949E] space-y-2">
+                      <div className="text-zinc-300 font-medium flex items-center gap-1.5">
+                        <span>2. Service Grand Total Amount Calculation Formula:</span>
+                      </div>
+                      <div className="font-mono text-[11px] bg-black/40 border border-white/[0.04] p-3 rounded text-zinc-300 leading-relaxed">
+                        <div>1. Service Base Amount</div>
+                        <div>2. Care Coordination Fee = Base Amount × <span className="text-brand-teal font-bold">{defaultCareCoordinationFee}%</span></div>
+                        <div>3. Subtotal w/ Care Coord = Base Amount + Care Coordination Fee</div>
+                        <div>4. Service Loading Fee = Subtotal × <span className="text-emerald-400 font-bold">{defaultManagementFee}%</span></div>
+                        <div className="pt-1 text-[#E6EDF3] font-semibold border-t border-white/[0.06] mt-1">
+                          5. Grand Total Amount = Subtotal + Service Loading Fee
+                        </div>
                       </div>
                     </div>
                   </div>

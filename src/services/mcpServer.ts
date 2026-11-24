@@ -509,13 +509,23 @@ export function getClientBudgetDetails(
     }
 
     const additionalFundingTotal = parseFloat(
-      additionalFundingStreams.reduce((sum, s) => sum + (Number(s.amount) || 0), 0).toFixed(2)
+      additionalFundingStreams
+        .filter((s: any) => s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code)
+        .reduce((sum, s) => sum + (Number(s.amount) || 0), 0).toFixed(2)
     );
 
-    // Base package cycle allocation (totalDays * dailyRate)
-    const baseCycleAllocation = parseFloat((totalDays * dailyRate).toFixed(2));
+    const defaultCareMgmtRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareManagementFee'").get() as any;
+    let careManagementFeePercent = 10;
+    if (defaultCareMgmtRow) {
+      try { careManagementFeePercent = Number(JSON.parse(defaultCareMgmtRow.value)); } catch(e) {}
+    }
 
-    // Exact cycle allocation as displayed in the Client Budget section: Base Package + Additional Funding Streams
+    // Gross package cycle allocation (totalDays * dailyRate) and Net after Care Management Fee (default 10%)
+    const grossCycleAllocation = parseFloat((totalDays * dailyRate).toFixed(2));
+    const careManagementFeeDeduction = parseFloat((grossCycleAllocation * (careManagementFeePercent / 100)).toFixed(2));
+    const baseCycleAllocation = parseFloat((grossCycleAllocation - careManagementFeeDeduction).toFixed(2));
+
+    // Exact cycle allocation as displayed in the Client Budget section: Net Base Package + Additional Funding Streams added to ON
     const totalCycleAllocation = customQuarterlyBudget !== undefined && customQuarterlyBudget > 0
       ? customQuarterlyBudget
       : parseFloat((baseCycleAllocation + additionalFundingTotal).toFixed(2));

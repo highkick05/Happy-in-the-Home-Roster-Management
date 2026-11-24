@@ -645,6 +645,9 @@ export default function HomeCareBudgetView() {
   const isHomeCare = client?.funding_type === 'Home Care' || client?.funding_type === 'HOME_CARE';
   const defaultMgmtRate = fundingRates?.defaultManagementFee !== undefined ? Number(fundingRates.defaultManagementFee) : 10;
   const defaultCareCoordRate = fundingRates?.defaultCareCoordinationFee !== undefined ? Number(fundingRates.defaultCareCoordinationFee) : 20;
+  const careManagementFeePercent = isHomeCare
+    ? (fundingRates?.defaultCareManagementFee !== undefined && fundingRates?.defaultCareManagementFee !== null ? Number(fundingRates.defaultCareManagementFee) : 10)
+    : 0;
 
   const managementFeePercent = isHomeCare 
     ? (client?.management_fee !== undefined && client?.management_fee !== null && client?.management_fee !== '' ? Number(client.management_fee) : defaultMgmtRate) 
@@ -652,12 +655,16 @@ export default function HomeCareBudgetView() {
   const careCoordPercent = isHomeCare 
     ? (client?.care_coordination_fee !== undefined && client?.care_coordination_fee !== null ? Number(client.care_coordination_fee) : defaultCareCoordRate) 
     : 0;
+
+  // Deduct Care Management Fee (default 10%) off the top of the quarterly subsidy before it hits Total Allocation / ON balance
+  const careManagementFeeAmount = isHomeCare ? grossAllocation * (careManagementFeePercent / 100) : 0;
+  const netOngoingSubsidy = grossAllocation - careManagementFeeAmount;
   
   // Additional funding streams that have addToOngoing === true increase the ON = Ongoing Funds Total Allocation
   const additionalFundingTotal = additionalFundingStreams
     .filter(s => Boolean(s.addToOngoing))
     .reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-  const totalAllocation = grossAllocation + additionalFundingTotal; // Base Package + Additional Streams added to ON Ongoing Funds
+  const totalAllocation = netOngoingSubsidy + additionalFundingTotal; // Net Ongoing Subsidy (after 10% Care Mgmt deduction) + Additional Streams added to ON Ongoing Funds
 
   // Separate additional funding stream codes (streams not added to ON Ongoing Funds)
   const separateStreamCodes = new Set(
@@ -959,10 +966,17 @@ export default function HomeCareBudgetView() {
               </div>
               <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalAllocation)}</div>
             </div>
-            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04]">
-              {totalDays} Days ({formatDate(activeCycle.startStr)} – {formatDate(activeCycle.endStr)})
-              {additionalFundingTotal > 0 && (
-                <span className="text-emerald-400 font-sans ml-1">+{formatCurrency(additionalFundingTotal)}</span>
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] space-y-0.5">
+              <div className="truncate">
+                {totalDays} Days ({formatDate(activeCycle.startStr)} – {formatDate(activeCycle.endStr)})
+                {additionalFundingTotal > 0 && (
+                  <span className="text-emerald-400 font-sans ml-1">+{formatCurrency(additionalFundingTotal)}</span>
+                )}
+              </div>
+              {isHomeCare && careManagementFeePercent > 0 && (
+                <div className="text-[9.5px] text-amber-400/90 truncate" title={`Gross Subsidy: ${formatCurrency(grossAllocation)} minus ${careManagementFeePercent}% Care Management Fee (${formatCurrency(careManagementFeeAmount)})`}>
+                  Gross: {formatCurrency(grossAllocation)} • -{careManagementFeePercent}% Care Mgmt ({formatCurrency(careManagementFeeAmount)})
+                </div>
               )}
             </div>
           </div>

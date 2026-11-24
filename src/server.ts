@@ -6801,7 +6801,7 @@ function getUnreadChatCount(db: any, userId: number): number {
     try {
       const rows = db
         .prepare(
-          "SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels', 'defaultManagementFee', 'defaultCareCoordinationFee')",
+          "SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels', 'defaultManagementFee', 'defaultCareCoordinationFee', 'defaultCareManagementFee')",
         )
         .all() as any[];
       const settings = rows.reduce(
@@ -6819,6 +6819,9 @@ function getUnreadChatCount(db: any, userId: number): number {
       }
       if (settings.defaultCareCoordinationFee === undefined) {
         settings.defaultCareCoordinationFee = 20;
+      }
+      if (settings.defaultCareManagementFee === undefined) {
+        settings.defaultCareManagementFee = 10;
       }
       res.json(settings);
     } catch (e: any) {

@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Briefcase, MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, UserCheck, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap, Mail  } from 'lucide-react';
+import { Briefcase, MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, UserCheck, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap, Mail, Landmark  } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatNotificationProvider } from './context/ChatNotificationContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
@@ -31,6 +31,7 @@ import TrainingView from './components/Training/TrainingView';
 import StaffActivityReport from './components/Dashboard/StaffActivityReport';
 import ProfileView from './components/Profile/ProfileView';
 import ComplianceDashboard from './components/Compliance/ComplianceDashboard';
+import CareManagementView from './components/CareManagement/CareManagementView';
 import ActiveShiftModal from './components/Roster/ActiveShiftModal';
 import OnboardingView from './components/Onboarding/OnboardingView';
 import AdminOnboardingHub from './components/AdminOnboarding/AdminOnboardingHub';
@@ -414,6 +415,11 @@ function Layout({ children }: { children: React.ReactNode }) {
                   <FileText className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
                 </NavLink>
                 {user?.role === 'ADMIN' && (
+                  <NavLink replace={true} to="/care-management" className={getNavClasses} title="Care Management">
+                    <Landmark className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Care Management' : ''}
+                  </NavLink>
+                )}
+                {user?.role === 'ADMIN' && (
               <NavLink replace={true} to="/admin-onboarding" className={getNavClasses} title="Admin Onboarding">
                 <UserCheck className={`w-4 h-4 shrink-0 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-2'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
@@ -625,6 +631,7 @@ export default function App() {
             <Route path="/contractors" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/services" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
+            <Route path="/care-management" element={<ProtectedRoute adminOnly><Layout><CareManagementView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />
             <Route path="/progress-notes" element={<ProtectedRoute><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />
             <Route path="/compliance" element={<ProtectedRoute adminOnly><Layout><ComplianceDashboard /></Layout></ProtectedRoute>} />

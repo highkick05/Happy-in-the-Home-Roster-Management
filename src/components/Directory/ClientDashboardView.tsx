@@ -183,11 +183,17 @@ export default function ClientDashboardView() {
           } catch {}
         }
         if (Array.isArray(parsedAdd)) {
-          additionalTotal = parsedAdd.reduce((sum: number, s: any) => sum + (parseFloat(s.amount) || 0), 0);
+          additionalTotal = parsedAdd
+            .filter((s: any) => s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code)
+            .reduce((sum: number, s: any) => sum + (parseFloat(s.amount) || 0), 0);
         }
 
-        const basePackageAllocation = dailyRate * totalDays;
-        const totalAllocation = basePackageAllocation + additionalTotal;
+        const careMgmtPercent = ratesData?.defaultCareManagementFee !== undefined && ratesData?.defaultCareManagementFee !== null
+          ? Number(ratesData.defaultCareManagementFee)
+          : 10;
+        const grossPackageAllocation = dailyRate * totalDays;
+        const netPackageAllocation = grossPackageAllocation * (1 - careMgmtPercent / 100);
+        const totalAllocation = netPackageAllocation + additionalTotal;
 
         // Fetch ledger for current active quarter
         const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${actualStartDateStr}&endDate=${actualEndDateStr}`, {
