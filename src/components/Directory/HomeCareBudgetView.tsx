@@ -119,30 +119,45 @@ export default function HomeCareBudgetView() {
   const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
   const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
 
+  const DEFAULT_ADDITIONAL_STREAM_OPTIONS = [
+    { code: 'HC', name: 'HC Home Care Account' },
+    { code: 'RC', name: 'RC Restorative Care Pathway' },
+    { code: 'EL', name: 'EL End of Life Pathway' },
+    { code: 'AT', name: 'AT Assistive Technology' },
+    { code: 'HM', name: 'HM Home Modifications' },
+    { code: 'AS', name: 'AS Assistive Technology Specific Needs' },
+    { code: 'VC', name: 'VC Voluntary Contributions' }
+  ];
+
   // Form states (Rollover Pool)
   const [startingRolloverBalance, setStartingRolloverBalance] = useState<number>(0);
   const [rolloverSpentSoFar, setRolloverSpentSoFar] = useState<number>(0);
 
-  // Additional Funding Streams (Increases Total Cycle Allocation)
-  const [additionalFundingStreams, setAdditionalFundingStreams] = useState<Array<{ id: string; name: string; amount: number; notes?: string }>>([]);
+  // Additional Funding Streams
+  const [availableStreamOptions, setAvailableStreamOptions] = useState<Array<{ code: string; name: string }>>(DEFAULT_ADDITIONAL_STREAM_OPTIONS);
+  const [additionalFundingStreams, setAdditionalFundingStreams] = useState<Array<{
+    id: string;
+    code?: string;
+    name: string;
+    amount: number;
+    spentAmount?: number;
+    addToOngoing?: boolean;
+    notes?: string;
+  }>>([]);
   const [isAdditionalModalOpen, setIsAdditionalModalOpen] = useState(false);
   const [isManageAdditionalModalOpen, setIsManageAdditionalModalOpen] = useState(false);
   const [editingAdditionalStreamId, setEditingAdditionalStreamId] = useState<string | null>(null);
+  const [selectedStreamCode, setSelectedStreamCode] = useState<string>('HC');
+  const [isCustomStreamMode, setIsCustomStreamMode] = useState<boolean>(false);
+  const [customStreamCode, setCustomStreamCode] = useState<string>('');
   const [streamName, setStreamName] = useState('');
   const [streamAmount, setStreamAmount] = useState('');
+  const [streamSpentAmount, setStreamSpentAmount] = useState('0');
+  const [streamAddToOngoing, setStreamAddToOngoing] = useState<boolean>(false);
   const [streamNotes, setStreamNotes] = useState('');
 
-  // Assistive Technology (AT) & Home Modifications (HM) (Ringfenced Capital Schemes - Informational)
-  const [atHmFundingStreams, setAtHmFundingStreams] = useState<Array<{ id: string; name: string; type: 'AT' | 'HM'; tier: string; allocatedAmount: number; spentAmount: number; notes?: string }>>([]);
-  const [isAtHmModalOpen, setIsAtHmModalOpen] = useState(false);
-  const [isManageAtHmModalOpen, setIsManageAtHmModalOpen] = useState(false);
-  const [editingAtHmStreamId, setEditingAtHmStreamId] = useState<string | null>(null);
-  const [atHmName, setAtHmName] = useState('');
-  const [atHmType, setAtHmType] = useState<'AT' | 'HM'>('AT');
-  const [atHmTier, setAtHmTier] = useState<string>('Medium');
-  const [atHmAllocated, setAtHmAllocated] = useState('');
-  const [atHmSpent, setAtHmSpent] = useState('');
-  const [atHmNotes, setAtHmNotes] = useState('');
+  // Legacy AT/HM array kept empty on save after migration into additionalFundingStreams
+  const [atHmFundingStreams, setAtHmFundingStreams] = useState<any[]>([]);
 
   // States for Manual External Expense logging
   const [isExternalModalOpen, setIsExternalModalOpen] = useState(false);
@@ -154,8 +169,29 @@ export default function HomeCareBudgetView() {
   const [masterServices, setMasterServices] = useState<any[]>([]);
   const [submittingExternal, setSubmittingExternal] = useState<boolean>(false);
 
+  const fetchAvailableFundingStreams = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/settings/home-care-funding-streams', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.streams)) {
+          const filtered = data.streams.filter((s: any) => s.code !== 'ON');
+          if (filtered.length > 0) {
+            setAvailableStreamOptions(filtered);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching home care funding streams:', e);
+    }
+  };
+
   useEffect(() => {
     if (token) {
+      fetchAvailableFundingStreams();
       fetch('/api/services?type=HOME_CARE', { headers: { Authorization: `Bearer ${token}` } })
         .then(res => {
           if (res.ok) return res.json();
@@ -240,15 +276,27 @@ export default function HomeCareBudgetView() {
           parsedAdd = [
             {
               id: 'stream-dementia-c',
+              code: 'DC',
               name: 'Dementia C Supplement',
               amount: 1896.17,
+              spentAmount: 0,
+              addToOngoing: true,
               notes: 'Approved Services Australia / Trilogy Care Dementia and Cognition Supplement'
             }
           ];
         }
-        setAdditionalFundingStreams(Array.isArray(parsedAdd) ? parsedAdd : []);
 
-        // Parse Assistive Technology & Home Modifications (AT / HM) Streams
+        // Normalize legacy additional streams and merge any legacy AT/HM streams
+        const normalizedStreams = (Array.isArray(parsedAdd) ? parsedAdd : []).map((s: any) => ({
+          id: s.id || `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          code: s.code || (DEFAULT_ADDITIONAL_STREAM_OPTIONS.find(o => o.name.toLowerCase() === String(s.name || '').toLowerCase())?.code || 'CUSTOM'),
+          name: s.name || 'Additional Stream',
+          amount: Number(s.amount ?? s.allocatedAmount) || 0,
+          spentAmount: Number(s.spentAmount) || 0,
+          addToOngoing: s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code,
+          notes: s.notes || ''
+        }));
+
         let parsedAtHm: any[] = [];
         if (clientData.at_hm_funding_streams) {
           try {
@@ -257,7 +305,26 @@ export default function HomeCareBudgetView() {
               : clientData.at_hm_funding_streams;
           } catch {}
         }
-        setAtHmFundingStreams(Array.isArray(parsedAtHm) ? parsedAtHm : []);
+        if (Array.isArray(parsedAtHm) && parsedAtHm.length > 0) {
+          parsedAtHm.forEach((legacy: any) => {
+            const legacyId = legacy.id || `athm-${legacy.name}`;
+            if (!normalizedStreams.some(ns => ns.id === legacyId)) {
+              const code = legacy.type === 'HM' ? 'HM' : 'AT';
+              normalizedStreams.push({
+                id: legacyId,
+                code,
+                name: legacy.name ? `${code} ${legacy.name}` : (code === 'HM' ? 'HM Home Modifications' : 'AT Assistive Technology'),
+                amount: Number(legacy.allocatedAmount ?? legacy.amount) || 0,
+                spentAmount: Number(legacy.spentAmount) || 0,
+                addToOngoing: false,
+                notes: legacy.notes || (legacy.tier ? `${legacy.tier} Tier` : '')
+              });
+            }
+          });
+        }
+
+        setAdditionalFundingStreams(normalizedStreams);
+        setAtHmFundingStreams([]);
 
         await fetchQuarterLedger(clientData, selectedFyYear, selectedQuarterId);
       }
@@ -274,12 +341,12 @@ export default function HomeCareBudgetView() {
 
   const handleSaveSettings = async (
     customAdditional?: typeof additionalFundingStreams,
-    customAtHm?: typeof atHmFundingStreams
+    customAtHm?: any[]
   ) => {
     setSaving(true);
     try {
       const addStreamsToSave = customAdditional !== undefined ? customAdditional : additionalFundingStreams;
-      const atHmStreamsToSave = customAtHm !== undefined ? customAtHm : atHmFundingStreams;
+      const atHmStreamsToSave = customAtHm !== undefined ? customAtHm : [];
 
       const res = await fetch(`/api/clients/${id}/budget`, {
         method: 'PUT',
@@ -312,16 +379,37 @@ export default function HomeCareBudgetView() {
   // Additional Funding Stream Handlers
   const handleOpenAddAdditional = () => {
     setEditingAdditionalStreamId(null);
-    setStreamName('');
+    setIsCustomStreamMode(false);
+    const defaultOpt = availableStreamOptions[0] || DEFAULT_ADDITIONAL_STREAM_OPTIONS[0];
+    setSelectedStreamCode(defaultOpt.code);
+    setCustomStreamCode('');
+    setStreamName(defaultOpt.name);
     setStreamAmount('');
+    setStreamSpentAmount('0');
+    setStreamAddToOngoing(false);
     setStreamNotes('');
     setIsAdditionalModalOpen(true);
   };
 
   const handleOpenEditAdditional = (stream: any) => {
     setEditingAdditionalStreamId(stream.id);
-    setStreamName(stream.name);
+    const matchedOpt = availableStreamOptions.find(
+      o => o.code === stream.code || o.name.toLowerCase() === String(stream.name || '').toLowerCase()
+    );
+    if (matchedOpt) {
+      setIsCustomStreamMode(false);
+      setSelectedStreamCode(matchedOpt.code);
+      setCustomStreamCode('');
+      setStreamName(stream.name || matchedOpt.name);
+    } else {
+      setIsCustomStreamMode(true);
+      setSelectedStreamCode('CUSTOM');
+      setCustomStreamCode(stream.code && stream.code !== 'CUSTOM' ? stream.code : '');
+      setStreamName(stream.name || '');
+    }
     setStreamAmount(stream.amount !== undefined ? String(stream.amount) : '');
+    setStreamSpentAmount(stream.spentAmount !== undefined ? String(stream.spentAmount) : '0');
+    setStreamAddToOngoing(Boolean(stream.addToOngoing));
     setStreamNotes(stream.notes || '');
     setIsAdditionalModalOpen(true);
   };
@@ -329,8 +417,53 @@ export default function HomeCareBudgetView() {
   const handleSaveAdditionalStream = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(streamAmount) || 0;
-    if (!streamName.trim() || amt <= 0) {
-      alert('Please provide a valid stream name and an amount greater than $0.');
+    const spent = parseFloat(streamSpentAmount) || 0;
+
+    let finalCode = selectedStreamCode;
+    let finalName = streamName.trim();
+
+    if (isCustomStreamMode) {
+      if (!finalName) {
+        alert('Please enter a custom funding stream name.');
+        return;
+      }
+      const words = finalName.split(/\s+/).filter(Boolean);
+      const fallbackCode = words.length >= 2
+        ? (words[0][0] + words[1][0]).toUpperCase()
+        : finalName.slice(0, 3).toUpperCase();
+      finalCode = (customStreamCode.trim() || fallbackCode).toUpperCase();
+      if (!finalName.toUpperCase().startsWith(finalCode + ' ')) {
+        finalName = `${finalCode} ${finalName}`;
+      }
+      // Persist custom funding stream globally so it is also selectable in Settings > Home Care Pricing
+      try {
+        const res = await fetch('/api/settings/home-care-funding-streams', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ code: finalCode, name: finalName })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.streams)) {
+            setAvailableStreamOptions(data.streams.filter((s: any) => s.code !== 'ON'));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to register custom funding stream globally:', err);
+      }
+    } else {
+      const found = availableStreamOptions.find(o => o.code === selectedStreamCode);
+      if (found) {
+        finalCode = found.code;
+        finalName = finalName || found.name;
+      }
+    }
+
+    if (!finalName || amt <= 0) {
+      alert('Please provide a valid funding stream and an allocated amount greater than $0.');
       return;
     }
 
@@ -338,14 +471,25 @@ export default function HomeCareBudgetView() {
     if (editingAdditionalStreamId) {
       updated = additionalFundingStreams.map(s =>
         s.id === editingAdditionalStreamId
-          ? { ...s, name: streamName.trim(), amount: amt, notes: streamNotes.trim() }
+          ? {
+              ...s,
+              code: finalCode,
+              name: finalName,
+              amount: amt,
+              spentAmount: spent,
+              addToOngoing: streamAddToOngoing,
+              notes: streamNotes.trim()
+            }
           : s
       );
     } else {
       const newStream = {
         id: `stream-${Date.now()}`,
-        name: streamName.trim(),
+        code: finalCode,
+        name: finalName,
         amount: amt,
+        spentAmount: spent,
+        addToOngoing: streamAddToOngoing,
         notes: streamNotes.trim()
       };
       updated = [...additionalFundingStreams, newStream];
@@ -353,86 +497,14 @@ export default function HomeCareBudgetView() {
 
     setAdditionalFundingStreams(updated);
     setIsAdditionalModalOpen(false);
-    await handleSaveSettings(updated, undefined);
+    await handleSaveSettings(updated, []);
   };
 
   const handleDeleteAdditionalStream = async (streamId: string) => {
     if (!confirm('Are you sure you want to remove this additional funding stream?')) return;
     const updated = additionalFundingStreams.filter(s => s.id !== streamId);
     setAdditionalFundingStreams(updated);
-    await handleSaveSettings(updated, undefined);
-  };
-
-  // AT & HM Funding Stream Handlers
-  const handleOpenAddAtHm = () => {
-    setEditingAtHmStreamId(null);
-    setAtHmName('');
-    setAtHmType('AT');
-    setAtHmTier('Medium');
-    setAtHmAllocated('');
-    setAtHmSpent('0');
-    setAtHmNotes('');
-    setIsAtHmModalOpen(true);
-  };
-
-  const handleOpenEditAtHm = (stream: any) => {
-    setEditingAtHmStreamId(stream.id);
-    setAtHmName(stream.name);
-    setAtHmType(stream.type || 'AT');
-    setAtHmTier(stream.tier || 'Medium');
-    setAtHmAllocated(stream.allocatedAmount !== undefined ? String(stream.allocatedAmount) : '');
-    setAtHmSpent(stream.spentAmount !== undefined ? String(stream.spentAmount) : '0');
-    setAtHmNotes(stream.notes || '');
-    setIsAtHmModalOpen(true);
-  };
-
-  const handleSaveAtHmStream = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const alloc = parseFloat(atHmAllocated) || 0;
-    const spent = parseFloat(atHmSpent) || 0;
-    if (!atHmName.trim() || alloc <= 0) {
-      alert('Please provide a valid stream name and an allocated amount greater than $0.');
-      return;
-    }
-
-    let updated: typeof atHmFundingStreams;
-    if (editingAtHmStreamId) {
-      updated = atHmFundingStreams.map(s =>
-        s.id === editingAtHmStreamId
-          ? {
-              ...s,
-              name: atHmName.trim(),
-              type: atHmType,
-              tier: atHmTier,
-              allocatedAmount: alloc,
-              spentAmount: spent,
-              notes: atHmNotes.trim()
-            }
-          : s
-      );
-    } else {
-      const newStream = {
-        id: `athm-${Date.now()}`,
-        name: atHmName.trim(),
-        type: atHmType,
-        tier: atHmTier,
-        allocatedAmount: alloc,
-        spentAmount: spent,
-        notes: atHmNotes.trim()
-      };
-      updated = [...atHmFundingStreams, newStream];
-    }
-
-    setAtHmFundingStreams(updated);
-    setIsAtHmModalOpen(false);
-    await handleSaveSettings(undefined, updated);
-  };
-
-  const handleDeleteAtHmStream = async (streamId: string) => {
-    if (!confirm('Are you sure you want to remove this AT/HM funding stream?')) return;
-    const updated = atHmFundingStreams.filter(s => s.id !== streamId);
-    setAtHmFundingStreams(updated);
-    await handleSaveSettings(undefined, updated);
+    await handleSaveSettings(updated, []);
   };
 
   const handleAddExternalExpense = async (e: React.FormEvent) => {
@@ -581,18 +653,18 @@ export default function HomeCareBudgetView() {
     ? (client?.care_coordination_fee !== undefined && client?.care_coordination_fee !== null ? Number(client.care_coordination_fee) : defaultCareCoordRate) 
     : 0;
   
-  // Custom additional funding streams (e.g. Dementia C Supplement) that increase the Total Cycle Allocation
-  const additionalFundingTotal = additionalFundingStreams.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-  const totalAllocation = grossAllocation + additionalFundingTotal; // Base Package + Custom Additional Funding Streams
+  // Additional funding streams that have addToOngoing === true increase the ON = Ongoing Funds Total Allocation
+  const additionalFundingTotal = additionalFundingStreams
+    .filter(s => Boolean(s.addToOngoing))
+    .reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  const totalAllocation = grossAllocation + additionalFundingTotal; // Base Package + Additional Streams added to ON Ongoing Funds
 
-  // Ringfenced AT & HM calculations (strictly excluded from Total Cycle Allocation)
-  const totalAtAllocated = atHmFundingStreams.filter(s => s.type === 'AT').reduce((sum, s) => sum + (Number(s.allocatedAmount) || 0), 0);
-  const totalAtSpent = atHmFundingStreams.filter(s => s.type === 'AT').reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
-  const totalAtRemaining = Math.max(0, totalAtAllocated - totalAtSpent);
-
-  const totalHmAllocated = atHmFundingStreams.filter(s => s.type === 'HM').reduce((sum, s) => sum + (Number(s.allocatedAmount) || 0), 0);
-  const totalHmSpent = atHmFundingStreams.filter(s => s.type === 'HM').reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
-  const totalHmRemaining = Math.max(0, totalHmAllocated - totalHmSpent);
+  // Separate additional funding stream codes (streams not added to ON Ongoing Funds)
+  const separateStreamCodes = new Set(
+    additionalFundingStreams
+      .filter(s => !s.addToOngoing && s.code && s.code !== 'ON')
+      .map(s => String(s.code).toUpperCase())
+  );
 
   const calculateServiceConsumptionWithFees = (baseAmount: number, ccPercent: number, mfPercent: number) => {
     if (!isHomeCare) return { baseAmount, coordinationFee: 0, subtotal: baseAmount, managementFee: 0, total: baseAmount };
@@ -610,6 +682,7 @@ export default function HomeCareBudgetView() {
   };
 
   const processedLedgerItems = ledger.items.map((item: any) => {
+    const itemFundingStream = String(item.funding_stream || 'ON').toUpperCase();
     if (item.source_type === 'external' || item.grand_total !== undefined) {
       const baseAmt = item.base_amount ?? item.amount;
       const ccFee = item.care_coord_fee ?? (isHomeCare ? baseAmt * (careCoordPercent / 100) : 0);
@@ -618,6 +691,7 @@ export default function HomeCareBudgetView() {
       const gTotal = item.grand_total ?? (sub + mgmt);
       return {
         ...item,
+        funding_stream: itemFundingStream,
         baseAmount: baseAmt,
         coordinationFee: ccFee,
         subtotal: sub,
@@ -628,6 +702,7 @@ export default function HomeCareBudgetView() {
     const fees = calculateServiceConsumptionWithFees(item.base_amount ?? item.amount, careCoordPercent, managementFeePercent);
     return {
       ...item,
+      funding_stream: itemFundingStream,
       baseAmount: fees.baseAmount,
       coordinationFee: fees.coordinationFee,
       subtotal: fees.subtotal,
@@ -636,7 +711,10 @@ export default function HomeCareBudgetView() {
     };
   });
 
-  const liveSystemConsumptions = processedLedgerItems.reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
+  // Ongoing Funds (ON) drawdown: all items with funding_stream === 'ON' or not drawn from a separate active additional stream card
+  const liveSystemConsumptions = processedLedgerItems
+    .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || 'ON').toUpperCase()))
+    .reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
   const totalCombinedSpent = liveSystemConsumptions;
   const remainingBalance = totalAllocation - totalCombinedSpent;
 
@@ -739,25 +817,50 @@ export default function HomeCareBudgetView() {
   return (
     <div className="w-full flex flex-col h-full space-y-2">
       {/* Compact Header */}
-      <div className="flex items-center space-x-2.5 shrink-0">
-        <button 
-          onClick={() => navigate(`/clients/${id}`, { replace: true })}
-          className="p-1 -ml-1 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <h2 className="text-base sm:text-lg font-semibold text-[#E6EDF3] tracking-tight leading-tight">
-            Client Budget
-          </h2>
-          <div className="flex items-center text-xs text-[#8B949E] space-x-1.5 mt-0.5">
-            <span className="font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</span>
-            <span>•</span>
-            <span>{client.home_care_sub_type || 'HCP'} {client.home_care_level_or_class || 'Level 1'}</span>
-            <span>•</span>
-            <span className="text-brand-green font-medium">{formatCurrency(dailyRate)}/day</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center space-x-2.5">
+          <button 
+            onClick={() => navigate(`/clients/${id}`, { replace: true })}
+            className="p-1 -ml-1 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold text-[#E6EDF3] tracking-tight leading-tight">
+              Client Budget
+            </h2>
+            <div className="flex items-center text-xs text-[#8B949E] space-x-1.5 mt-0.5">
+              <span className="font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</span>
+              <span>•</span>
+              <span>{client.home_care_sub_type || 'HCP'} {client.home_care_level_or_class || 'Level 1'}</span>
+              <span>•</span>
+              <span className="text-brand-green font-medium">{formatCurrency(dailyRate)}/day</span>
+            </div>
           </div>
         </div>
+
+        {isHomeCare && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {additionalFundingStreams.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsManageAdditionalModalOpen(true)}
+                className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Layers className="w-3.5 h-3.5 text-brand-teal" />
+                <span>Manage Streams ({additionalFundingStreams.length})</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleOpenAddAdditional}
+              className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-white rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Additional Funding Streams</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2 space-y-2.5">
@@ -843,12 +946,17 @@ export default function HomeCareBudgetView() {
           )}
         </div>
 
-        {/* Top Summary Cards Row - Ordered by Importance */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
-          {/* Card 1: Total Allocation */}
+        {/* Top Summary Cards Row - ON Ongoing Funds, Created Additional Funding Streams, and Participant Share at the end */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          {/* Card 1: Total Allocation (ON = Ongoing Funds) */}
           <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider mb-0.5">Total Allocation</div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider">Total Allocation</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 whitespace-nowrap">
+                  ON = Ongoing Funds
+                </span>
+              </div>
               <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalAllocation)}</div>
             </div>
             <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04]">
@@ -859,21 +967,31 @@ export default function HomeCareBudgetView() {
             </div>
           </div>
 
-          {/* Card 2: Total Spent */}
+          {/* Card 2: Total Spent (ON = Ongoing Funds) */}
           <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider mb-0.5">Total Spent</div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider">Total Spent</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 whitespace-nowrap">
+                  ON = Ongoing Funds
+                </span>
+              </div>
               <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalCombinedSpent)}</div>
             </div>
             <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] truncate">
-              {activeQuarter.shortLabel} • {isCurrentRealTimeQuarter ? 'Active' : 'Archived'}
+              {activeQuarter.shortLabel} • {isCurrentRealTimeQuarter ? 'Active' : 'Archived'} • ON Drawdown
             </div>
           </div>
 
-          {/* Card 3: Remaining Balance */}
+          {/* Card 3: Remaining Balance (ON = Ongoing Funds) */}
           <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-md p-2.5 shadow-xs flex flex-col justify-between relative overflow-hidden`}>
             <div>
-              <div className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider mb-0.5">Remaining Balance</div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider">Remaining Balance</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 whitespace-nowrap">
+                  ON = Ongoing Funds
+                </span>
+              </div>
               <div className={`text-lg font-bold tracking-tight ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-400'}`}>
                 {formatCurrency(remainingBalance)}
               </div>
@@ -883,55 +1001,81 @@ export default function HomeCareBudgetView() {
             </div>
           </div>
 
-          {/* Card 4: Unspent Funds Pool */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1">
-                <Calculator className="w-3 h-3 text-emerald-400" />
-                Unspent Pool
-              </span>
-              {user?.role === 'ADMIN' && (
-                <button
-                  onClick={handleSaveSettings}
-                  disabled={saving}
-                  className="px-1.5 py-0.5 bg-brand-blue/20 hover:bg-brand-blue/30 text-brand-blue-300 border border-brand-blue/30 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 disabled:opacity-50"
-                >
-                  <Save className="w-2.5 h-2.5" />
-                  <span>{saving ? '...' : 'Save'}</span>
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 my-0.5">
-              <div>
-                <span className="block text-[9px] text-[#8B949E] uppercase leading-tight">Start ($)</span>
-                <input 
-                  type="number"
-                  step="0.01"
-                  value={startingRolloverBalance}
-                  onChange={(e) => setStartingRolloverBalance(parseFloat(e.target.value) || 0)}
-                  disabled={user?.role !== 'ADMIN'}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded px-1.5 py-0.5 text-[11px] h-6 text-white outline-none focus:border-brand-blue disabled:opacity-50 font-mono" 
-                />
-              </div>
-              <div>
-                <span className="block text-[9px] text-[#8B949E] uppercase leading-tight">Spent ($)</span>
-                <input 
-                  type="number"
-                  step="0.01"
-                  value={rolloverSpentSoFar}
-                  onChange={(e) => setRolloverSpentSoFar(parseFloat(e.target.value) || 0)}
-                  disabled={user?.role !== 'ADMIN'}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded px-1.5 py-0.5 text-[11px] h-6 text-white outline-none focus:border-brand-blue disabled:opacity-50 font-mono" 
-                />
-              </div>
-            </div>
-            <div className="flex justify-between items-center text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04]">
-              <span>Net: <strong className="text-emerald-400 font-semibold">{formatCurrency(startingRolloverBalance - rolloverSpentSoFar)}</strong></span>
-              <span>Cap: <strong className="text-brand-blue-300 font-semibold">{formatCurrency(Math.max(1000, 0.10 * totalAllocation))}</strong></span>
-            </div>
-          </div>
+          {/* Dynamic Cards: Created Additional Funding Streams */}
+          {additionalFundingStreams.map((stream) => {
+            const streamCode = String(stream.code || 'CUSTOM').toUpperCase();
+            const allocated = Number(stream.amount) || 0;
+            const manualSpent = Number(stream.spentAmount) || 0;
+            const ledgerSpentForStream = !stream.addToOngoing
+              ? processedLedgerItems
+                  .filter((item: any) => String(item.funding_stream || '').toUpperCase() === streamCode)
+                  .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+              : 0;
+            const totalStreamSpent = manualSpent + ledgerSpentForStream;
+            const streamRemaining = allocated - totalStreamSpent;
 
-          {/* Card 5: Participant Contribution */}
+            return (
+              <div
+                key={stream.id}
+                className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span
+                      className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider truncate flex items-center gap-1"
+                      title={stream.name}
+                    >
+                      <span className="px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[10px] font-mono shrink-0">
+                        {streamCode}
+                      </span>
+                      <span className="truncate">{stream.name.replace(new RegExp(`^${streamCode}\\s+`, 'i'), '')}</span>
+                    </span>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditAdditional(stream)}
+                        className="p-1 text-zinc-400 hover:text-white rounded hover:bg-white/5 transition-colors cursor-pointer"
+                        title="Edit Funding Stream"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAdditionalStream(stream.id)}
+                        className="p-1 text-zinc-400 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title="Remove Funding Stream"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  {stream.addToOngoing ? (
+                    <div className="text-lg font-bold text-emerald-400 tracking-tight">
+                      +{formatCurrency(allocated)}
+                    </div>
+                  ) : (
+                    <div className={`text-lg font-bold tracking-tight ${streamRemaining >= 0 ? 'text-sky-400' : 'text-red-400'}`}>
+                      {formatCurrency(streamRemaining)}
+                    </div>
+                  )}
+                </div>
+                <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between gap-1">
+                  {stream.addToOngoing ? (
+                    <span className="text-emerald-400 font-sans font-medium truncate">
+                      Added to ON = Ongoing Funds
+                    </span>
+                  ) : (
+                    <>
+                      <span className="truncate">Alloc: <strong className="text-zinc-200">{formatCurrency(allocated)}</strong></span>
+                      <span className="truncate">Spent: <strong className="text-zinc-200">{formatCurrency(totalStreamSpent)}</strong></span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Last Card in Row: Participant Share (Contributions) */}
           <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-1 mb-0.5">
@@ -945,82 +1089,6 @@ export default function HomeCareBudgetView() {
             <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between">
               <span>Indep: <strong className="text-white">{formatCurrency(independenceShare)}</strong></span>
               <span>Living: <strong className="text-white">{formatCurrency(everydayLivingShare)}</strong></span>
-            </div>
-          </div>
-
-          {/* Card 6: Additional Funding Streams */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-emerald-400" />
-                  Additional Streams
-                </span>
-                <button
-                  type="button"
-                  onClick={handleOpenAddAdditional}
-                  className="px-1.5 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
-                  title="Add Funding Stream"
-                >
-                  <Plus className="w-2.5 h-2.5" />
-                  <span>Add</span>
-                </button>
-              </div>
-              <div className="text-lg font-bold text-emerald-400 tracking-tight">
-                {formatCurrency(additionalFundingTotal)}
-              </div>
-            </div>
-            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between">
-              <span>{additionalFundingStreams.length} stream{additionalFundingStreams.length === 1 ? '' : 's'}</span>
-              {additionalFundingStreams.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setIsManageAdditionalModalOpen(true)}
-                  className="text-emerald-400 hover:text-emerald-300 font-sans font-medium hover:underline cursor-pointer"
-                >
-                  Manage
-                </button>
-              ) : (
-                <span className="text-zinc-500">Adds to Cycle</span>
-              )}
-            </div>
-          </div>
-
-          {/* Card 7: Assistive Technology (AT) & Home Modifications (HM) */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1">
-                  <Wrench className="w-3 h-3 text-sky-400" />
-                  AT &amp; HM Schemes
-                </span>
-                <button
-                  type="button"
-                  onClick={handleOpenAddAtHm}
-                  className="px-1.5 py-0.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
-                  title="Add AT/HM Stream"
-                >
-                  <Plus className="w-2.5 h-2.5" />
-                  <span>Add</span>
-                </button>
-              </div>
-              <div className="text-lg font-bold text-sky-400 tracking-tight">
-                {formatCurrency(totalAtRemaining + totalHmRemaining)}
-              </div>
-            </div>
-            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between">
-              <span className="truncate">AT: {formatCurrency(totalAtRemaining)} • HM: {formatCurrency(totalHmRemaining)}</span>
-              {atHmFundingStreams.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setIsManageAtHmModalOpen(true)}
-                  className="text-sky-300 hover:text-sky-200 font-sans font-medium hover:underline cursor-pointer ml-1 shrink-0"
-                >
-                  Manage
-                </button>
-              ) : (
-                <span className="text-zinc-500 ml-1 shrink-0">Ringfenced</span>
-              )}
             </div>
           </div>
         </div>
@@ -1168,6 +1236,15 @@ export default function HomeCareBudgetView() {
                         <td className="px-3 py-2 min-w-[190px] text-xs">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span>{item.service}</span>
+                            {isHomeCare && (
+                              <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-medium border ${
+                                (item.funding_stream || 'ON') === 'ON'
+                                  ? 'bg-brand-teal/10 text-brand-teal border-brand-teal/30'
+                                  : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                              }`}>
+                                {item.funding_stream || 'ON'}
+                              </span>
+                            )}
                             {item.source_type === 'external' && (
                               <span className="inline-block px-1.5 py-0.2 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 font-medium">
                                 [Ext - {item.vendor_name || 'Generic'}]
@@ -1355,9 +1432,9 @@ export default function HomeCareBudgetView() {
           <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-emerald-400" />
+                <Layers className="w-4 h-4 text-brand-teal" />
                 <h4 className="text-sm font-semibold text-[#E6EDF3]">
-                  {editingAdditionalStreamId ? 'Edit Additional Funding Stream' : 'Add Additional Funding Stream'}
+                  {editingAdditionalStreamId ? 'Edit Additional Funding Stream' : 'Create Additional Funding Stream'}
                 </h4>
               </div>
               <button
@@ -1369,42 +1446,129 @@ export default function HomeCareBudgetView() {
             </div>
             <form onSubmit={handleSaveAdditionalStream} className="p-4 space-y-3.5">
               <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Funding Stream Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Dementia C Supplement, Enteral Feeding, Oxygen"
-                  value={streamName}
-                  onChange={(e) => setStreamName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-emerald-500 transition-colors"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-medium text-zinc-400">Funding Stream *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMode = !isCustomStreamMode;
+                      setIsCustomStreamMode(nextMode);
+                      if (nextMode) {
+                        setCustomStreamCode('');
+                        setStreamName('');
+                      } else {
+                        const firstOpt = availableStreamOptions[0] || DEFAULT_ADDITIONAL_STREAM_OPTIONS[0];
+                        setSelectedStreamCode(firstOpt.code);
+                        setStreamName(firstOpt.name);
+                      }
+                    }}
+                    className="text-[11px] text-brand-teal hover:underline font-medium cursor-pointer"
+                  >
+                    {isCustomStreamMode ? 'Select Default Stream' : '+ Create Custom Funding Stream'}
+                  </button>
+                </div>
+
+                {isCustomStreamMode ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Code (e.g. DC)"
+                        value={customStreamCode}
+                        onChange={(e) => setCustomStreamCode(e.target.value.toUpperCase())}
+                        className="w-full bg-zinc-950 border border-brand-teal/60 rounded px-2.5 py-1.5 text-xs text-zinc-200 font-mono uppercase outline-none focus:border-brand-teal transition-colors"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Custom Stream Name (e.g. Dementia Supplement)"
+                        value={streamName}
+                        onChange={(e) => setStreamName(e.target.value)}
+                        className="w-full bg-zinc-950 border border-brand-teal/60 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    required
+                    value={selectedStreamCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      setSelectedStreamCode(code);
+                      const opt = availableStreamOptions.find(o => o.code === code);
+                      if (opt) setStreamName(opt.name);
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
+                  >
+                    {availableStreamOptions.map(opt => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Total Cycle Amount ($) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  min="0.01"
-                  placeholder="e.g., 1896.17"
-                  value={streamAmount}
-                  onChange={(e) => setStreamAmount(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-emerald-500 transition-colors"
-                />
-                <p className="text-[10px] text-zinc-500 mt-1">
-                  This full amount directly increases the Total Cycle Allocation for ongoing care services.
-                </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Allocated Amount ($) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    min="0.01"
+                    placeholder="e.g., 1896.17"
+                    value={streamAmount}
+                    onChange={(e) => setStreamAmount(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Initial / Manual Spent ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.00"
+                    placeholder="0.00"
+                    value={streamSpentAmount}
+                    onChange={(e) => setStreamSpentAmount(e.target.value)}
+                    disabled={streamAddToOngoing}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="add-to-ongoing-toggle"
+                    checked={streamAddToOngoing}
+                    onChange={(e) => setStreamAddToOngoing(e.target.checked)}
+                    className="mt-0.5 text-brand-teal bg-zinc-950 border-zinc-700 rounded focus:ring-0 cursor-pointer"
+                  />
+                  <div className="leading-tight">
+                    <label htmlFor="add-to-ongoing-toggle" className="text-xs font-semibold text-zinc-200 cursor-pointer select-none">
+                      Add to current ONGOING FUNDS (ON)
+                    </label>
+                    <p className="text-[10px] text-zinc-400 mt-1 leading-normal">
+                      Enable this option if this funding stream should be added directly to the client&apos;s total quarterly Ongoing Funds (ON = Ongoing Funds) allocation. Leave unchecked to track it as its own separate funding stream balance.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div>
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1">Notes / Authority Approval</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g., Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
+                  placeholder="Optional notes or approval reference..."
                   value={streamNotes}
                   onChange={(e) => setStreamNotes(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-emerald-500 transition-colors resize-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors resize-none"
                 />
               </div>
 
@@ -1418,9 +1582,9 @@ export default function HomeCareBudgetView() {
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 rounded text-xs bg-emerald-700 hover:bg-emerald-600 font-medium text-white transition-colors"
+                  className="px-3 py-1.5 rounded text-xs bg-brand-teal hover:bg-brand-teal/90 font-medium text-white transition-colors cursor-pointer"
                 >
-                  {editingAdditionalStreamId ? 'Update Stream' : 'Add Stream'}
+                  {editingAdditionalStreamId ? 'Update Funding Stream' : 'Add Funding Stream'}
                 </button>
               </div>
             </form>
@@ -1434,7 +1598,7 @@ export default function HomeCareBudgetView() {
           <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-emerald-400" />
+                <Layers className="w-4 h-4 text-brand-teal" />
                 <h4 className="text-sm font-semibold text-[#E6EDF3]">
                   Manage Additional Funding Streams
                 </h4>
@@ -1458,7 +1622,7 @@ export default function HomeCareBudgetView() {
                     setIsManageAdditionalModalOpen(false);
                     handleOpenAddAdditional();
                   }}
-                  className="px-2.5 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500 font-medium text-white flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1 text-xs rounded bg-brand-teal hover:bg-brand-teal/90 font-medium text-white flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Stream</span>
@@ -1471,111 +1635,8 @@ export default function HomeCareBudgetView() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {additionalFundingStreams.map(stream => (
-                    <div
-                      key={stream.id}
-                      className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-zinc-200 truncate">
-                          {stream.name}
-                        </div>
-                        <div className="text-[11px] text-emerald-400 font-semibold mt-0.5">
-                          {formatCurrency(stream.amount || 0)} / cycle
-                        </div>
-                        {stream.notes && (
-                          <div className="text-[10px] text-zinc-500 mt-1 line-clamp-1">
-                            {stream.notes}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsManageAdditionalModalOpen(false);
-                            handleOpenEditAdditional(stream);
-                          }}
-                          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                          title="Edit stream"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAdditionalStream(stream.id)}
-                          className="p-1.5 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors"
-                          title="Delete stream"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 border-t border-zinc-800 flex justify-end shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsManageAdditionalModalOpen(false)}
-                className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manage AT & HM Schemes Modal */}
-      {isManageAtHmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-sky-400" />
-                <h4 className="text-sm font-semibold text-[#E6EDF3]">
-                  Manage AT & HM Scheme Streams
-                </h4>
-              </div>
-              <button
-                onClick={() => setIsManageAtHmModalOpen(false)}
-                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded hover:bg-white/5 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto flex-1 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">
-                  {atHmFundingStreams.length} scheme{atHmFundingStreams.length === 1 ? '' : 's'} registered
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsManageAtHmModalOpen(false);
-                    handleOpenAddAtHm();
-                  }}
-                  className="px-2.5 py-1 text-xs rounded bg-sky-600 hover:bg-sky-500 font-medium text-white flex items-center gap-1 transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Scheme</span>
-                </button>
-              </div>
-
-              {atHmFundingStreams.length === 0 ? (
-                <div className="text-center py-8 text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-lg">
-                  No AT/HM schemes registered.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {atHmFundingStreams.map(stream => {
-                    const alloc = stream.allocatedAmount || 0;
-                    const spent = stream.spentAmount || 0;
-                    const rem = Math.max(0, alloc - spent);
+                  {additionalFundingStreams.map(stream => {
+                    const sCode = String(stream.code || 'CUSTOM').toUpperCase();
                     return (
                       <div
                         key={stream.id}
@@ -1583,19 +1644,21 @@ export default function HomeCareBudgetView() {
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider ${
-                              stream.type === 'HM' ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'
-                            }`}>
-                              {stream.type || 'AT'} • {stream.tier || 'Tier'}
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                              {sCode}
                             </span>
                             <span className="text-xs font-semibold text-zinc-200 truncate">
                               {stream.name}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-[11px] mt-1 text-zinc-400">
-                            <span>Allocated: <strong className="text-zinc-200 font-semibold">{formatCurrency(alloc)}</strong></span>
-                            <span>Spent: <strong className="text-zinc-200 font-semibold">{formatCurrency(spent)}</strong></span>
-                            <span>Remaining: <strong className="text-sky-400 font-semibold">{formatCurrency(rem)}</strong></span>
+                          <div className="flex items-center gap-2 text-[11px] mt-1">
+                            <span className="text-emerald-400 font-semibold">
+                              Allocated: {formatCurrency(stream.amount || 0)}
+                            </span>
+                            <span className="text-zinc-500">•</span>
+                            <span className={stream.addToOngoing ? 'text-brand-teal font-medium' : 'text-sky-300 font-medium'}>
+                              {stream.addToOngoing ? 'Added to ON = Ongoing Funds' : 'Separate Funding Stream'}
+                            </span>
                           </div>
                           {stream.notes && (
                             <div className="text-[10px] text-zinc-500 mt-1 line-clamp-1">
@@ -1607,19 +1670,19 @@ export default function HomeCareBudgetView() {
                           <button
                             type="button"
                             onClick={() => {
-                              setIsManageAtHmModalOpen(false);
-                              handleOpenEditAtHm(stream);
+                              setIsManageAdditionalModalOpen(false);
+                              handleOpenEditAdditional(stream);
                             }}
-                            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                            title="Edit scheme"
+                            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                            title="Edit stream"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteAtHmStream(stream.id)}
-                            className="p-1.5 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors"
-                            title="Delete scheme"
+                            onClick={() => handleDeleteAdditionalStream(stream.id)}
+                            className="p-1.5 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                            title="Delete stream"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1634,145 +1697,12 @@ export default function HomeCareBudgetView() {
             <div className="p-3 border-t border-zinc-800 flex justify-end shrink-0">
               <button
                 type="button"
-                onClick={() => setIsManageAtHmModalOpen(false)}
+                onClick={() => setIsManageAdditionalModalOpen(false)}
                 className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
               >
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add / Edit Assistive Technology & Home Modifications Modal */}
-      {isAtHmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-sky-400" />
-                <h4 className="text-sm font-semibold text-[#E6EDF3]">
-                  {editingAtHmStreamId ? 'Edit AT / HM Funding Stream' : 'Add AT / HM Funding Stream'}
-                </h4>
-              </div>
-              <button
-                onClick={() => setIsAtHmModalOpen(false)}
-                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded-sm hover:bg-white/5 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveAtHmStream} className="p-4 space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Scheme Category *</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAtHmType('AT')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                      atHmType === 'AT'
-                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    <Wrench className="w-3.5 h-3.5" />
-                    <span>Assistive Tech (AT)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAtHmType('HM')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                      atHmType === 'HM'
-                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    <Home className="w-3.5 h-3.5" />
-                    <span>Home Mods (HM)</span>
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Stream / Equipment Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder={atHmType === 'AT' ? 'e.g., Mobility & Bathroom Aids, Shower Commode' : 'e.g., Access Ramp, Grab Rails, Door Widening'}
-                  value={atHmName}
-                  onChange={(e) => setAtHmName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Funding Tier (My Aged Care) *</label>
-                <select
-                  value={atHmTier}
-                  onChange={(e) => setAtHmTier(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
-                >
-                  <option value="Low">Low Tier (Under $500 - minor equipment &amp; grab rails)</option>
-                  <option value="Medium">Medium Tier ($500 - $2,000 - specialized equipment, bath lift)</option>
-                  <option value="High">High Tier ($2,000 - $15,000+ - complex equipment / structural mods)</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Allocated Amount ($) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    min="0.01"
-                    placeholder="0.00"
-                    value={atHmAllocated}
-                    onChange={(e) => setAtHmAllocated(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Spent Amount ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.00"
-                    placeholder="0.00"
-                    value={atHmSpent}
-                    onChange={(e) => setAtHmSpent(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Notes / Prescribing OT Information</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g., Prescribed by Occupational Therapist; OT assessment on file"
-                  value={atHmNotes}
-                  onChange={(e) => setAtHmNotes(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors resize-none"
-                />
-              </div>
-
-              <div className="pt-2 border-t border-zinc-800 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAtHmModalOpen(false)}
-                  className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded text-xs bg-sky-700 hover:bg-sky-600 font-medium text-white transition-colors"
-                >
-                  {editingAtHmStreamId ? 'Update Stream' : 'Save Scheme Stream'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

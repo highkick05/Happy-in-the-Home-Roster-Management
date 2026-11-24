@@ -210,7 +210,19 @@ export default function SettingsView() {
     'Nutrition'
   ];
 
+  const DEFAULT_HOME_CARE_FUNDING_STREAMS = [
+    { code: 'ON', name: 'ON Ongoing Funds', isDefault: true },
+    { code: 'HC', name: 'HC Home Care Account', isDefault: true },
+    { code: 'RC', name: 'RC Restorative Care Pathway', isDefault: true },
+    { code: 'EL', name: 'EL End of Life Pathway', isDefault: true },
+    { code: 'AT', name: 'AT Assistive Technology', isDefault: true },
+    { code: 'HM', name: 'HM Home Modifications', isDefault: true },
+    { code: 'AS', name: 'AS Assistive Technology Specific Needs', isDefault: true },
+    { code: 'VC', name: 'VC Voluntary Contributions', isDefault: true }
+  ];
+
   const [homeCareGroups, setHomeCareGroups] = useState<string[]>(DEFAULT_HOME_CARE_GROUPS);
+  const [homeCareFundingStreams, setHomeCareFundingStreams] = useState<Array<{ code: string; name: string; isDefault?: boolean }>>(DEFAULT_HOME_CARE_FUNDING_STREAMS);
   const [showManageGroupsModal, setShowManageGroupsModal] = useState(false);
   const [newGroupNameInput, setNewGroupNameInput] = useState('');
   const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
@@ -227,6 +239,7 @@ export default function SettingsView() {
     name: '',
     service_group: 'Equipment and Products',
     service_category: 'Independence',
+    funding_stream: '',
     unit: 'Hour',
     rates_json: {
       'Weekday': 0,
@@ -250,6 +263,22 @@ export default function SettingsView() {
       }
     } catch (e) {
       console.error('Failed to load home care groups', e);
+    }
+  };
+
+  const fetchHomeCareFundingStreams = async () => {
+    try {
+      const res = await fetch('/api/settings/home-care-funding-streams', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.streams) && data.streams.length > 0) {
+          setHomeCareFundingStreams(data.streams);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load home care funding streams', e);
     }
   };
 
@@ -286,6 +315,7 @@ export default function SettingsView() {
     if (activeTab === 'HOME_CARE') {
       fetchServices('HOME_CARE');
       fetchHomeCareGroups();
+      fetchHomeCareFundingStreams();
     }
   }, [activeTab]);
 
@@ -293,6 +323,7 @@ export default function SettingsView() {
     if (activeTab === 'HOME_CARE' && homeCareSubTab === 'PRICING') {
       fetchServices('HOME_CARE');
       fetchHomeCareGroups();
+      fetchHomeCareFundingStreams();
     }
   }, [activeTab, homeCareSubTab]);
 
@@ -499,6 +530,55 @@ export default function SettingsView() {
     }
   };
 
+  const handleFundingStreamChange = async (id: string, funding_stream: string) => {
+    setServices(prev => prev.map(s => s.id === id ? { ...s, funding_stream } : s));
+    setHomeCareServices(prev => prev.map(s => s.id === id ? { ...s, funding_stream } : s));
+    setSavingCategoryIds(prev => new Set([...prev, id]));
+
+    try {
+      const res = await fetch(`/api/settings/services/${id}/funding-stream`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ funding_stream })
+      });
+
+      if (res.ok) {
+        setSavingCategoryIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setSavedCategoryIds(prev => new Set([...prev, id]));
+        setTimeout(() => {
+          setSavedCategoryIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }, 2000);
+      } else {
+        console.error('Failed to update funding stream');
+        fetchServices(activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE');
+        setSavingCategoryIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      setSavingCategoryIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      fetchServices(activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE');
+    }
+  };
+
   const handleOpenAddServiceModal = (preselectedGroup?: string) => {
     setEditingServiceId(null);
     setIsAddingInlineGroup(false);
@@ -507,6 +587,7 @@ export default function SettingsView() {
       name: '',
       service_group: preselectedGroup || homeCareGroups[0] || 'Equipment and Products',
       service_category: 'Independence',
+      funding_stream: '',
       unit: 'Hour',
       rates_json: {
         'Weekday': 0,
@@ -542,6 +623,8 @@ export default function SettingsView() {
       }
     } catch (e) {}
 
+    const hasFixedRate = Object.values(parsedRates).some(v => Number(v) > 0);
+
     setEditingServiceId(service.id);
     setIsAddingInlineGroup(false);
     setInlineNewGroupName('');
@@ -549,6 +632,7 @@ export default function SettingsView() {
       name: service.name || '',
       service_group: service.service_group || homeCareGroups[0] || 'Equipment and Products',
       service_category: service.service_category || 'Independence',
+      funding_stream: service.funding_stream || (hasFixedRate ? 'ON' : ''),
       unit: service.unit || 'Hour',
       rates_json: parsedRates
     });
@@ -670,6 +754,7 @@ export default function SettingsView() {
           name: newServiceForm.name.trim(),
           service_group: finalGroup,
           service_category: newServiceForm.service_category,
+          funding_stream: newServiceForm.funding_stream,
           unit: newServiceForm.unit,
           rates_json: newServiceForm.rates_json,
           type: activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE'
@@ -2401,7 +2486,8 @@ export default function SettingsView() {
                           <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10">
                             <th className="px-2 py-1.5 font-semibold text-xs uppercase">Serv. ID</th>
                             <th className="px-2 py-1.5 font-semibold text-xs uppercase">Service Name</th>
-                            <th className="px-2 py-1.5 font-semibold w-48">Category</th>
+                            <th className="px-2 py-1.5 font-semibold w-44">Category</th>
+                            <th className="px-2 py-1.5 font-semibold w-52">Funding Stream</th>
                             <th className="px-2 py-1.5 font-semibold text-xs uppercase">Unit</th>
                             <th className="px-2 py-1.5 font-semibold text-right">Weekday</th>
                             <th className="px-2 py-1.5 font-semibold text-right">Non-Standard</th>
@@ -2415,7 +2501,7 @@ export default function SettingsView() {
                           {groupedHomeCareServices.map((section) => (
                             <React.Fragment key={section.groupName}>
                               <tr className="bg-[#151b26] border-y border-border-subtle">
-                                <td colSpan={10} className="px-3 py-2">
+                                <td colSpan={11} className="px-3 py-2">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <span className="w-1.5 h-4 rounded-full bg-brand-teal inline-block" />
@@ -2441,7 +2527,7 @@ export default function SettingsView() {
                               </tr>
                               {section.items.length === 0 ? (
                                 <tr>
-                                  <td colSpan={10} className="px-4 py-3 text-xs text-[#8B949E] italic bg-brand-navy/30">
+                                  <td colSpan={11} className="px-4 py-3 text-xs text-[#8B949E] italic bg-brand-navy/30">
                                     No services in this category yet. Click &ldquo;Add to {section.groupName}&rdquo; to add one.
                                   </td>
                                 </tr>
@@ -2463,6 +2549,7 @@ export default function SettingsView() {
                                   } catch (e) {
                                     isVariable = false;
                                   }
+                                  const effectiveFundingStream = s.funding_stream || (!isVariable ? 'ON' : '');
                                   return (
                                     <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
                                       <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
@@ -2481,6 +2568,28 @@ export default function SettingsView() {
                                           <option value="Clinical">Clinical</option>
                                           <option value="Independence">Independence</option>
                                           <option value="Everyday Living">Everyday Living</option>
+                                        </select>
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <select
+                                          value={effectiveFundingStream}
+                                          onChange={(e) => handleFundingStreamChange(s.id, e.target.value)}
+                                          className={`w-full bg-brand-navy border rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors ${
+                                            effectiveFundingStream === 'ON'
+                                              ? 'text-brand-teal border-brand-teal/30 font-medium'
+                                              : effectiveFundingStream
+                                              ? 'text-[#E6EDF3] border-border-subtle font-medium'
+                                              : 'text-[#8B949E] border-border-subtle'
+                                          }`}
+                                          disabled={savingCategoryIds.has(s.id)}
+                                        >
+                                          <option value="">Select Funding Stream</option>
+                                          {homeCareFundingStreams.map(fs => (
+                                            <option key={fs.code} value={fs.code}>{fs.name}</option>
+                                          ))}
+                                          {effectiveFundingStream && !homeCareFundingStreams.some(fs => fs.code === effectiveFundingStream) && (
+                                            <option value={effectiveFundingStream}>{effectiveFundingStream}</option>
+                                          )}
                                         </select>
                                       </td>
                                       <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
@@ -2564,7 +2673,7 @@ export default function SettingsView() {
                           ))}
                           {filteredHomeCareServices.length === 0 && (
                             <tr>
-                              <td colSpan={10} className="px-4 py-12 text-center">
+                              <td colSpan={11} className="px-4 py-12 text-center">
                                 <div className="flex flex-col items-center justify-center space-y-3">
                                   <div className="p-3 bg-brand-bg rounded-full border border-border-subtle">
                                     <FileDown className="w-6 h-6 text-[#8B949E]" />
@@ -2691,6 +2800,20 @@ export default function SettingsView() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Funding Stream</label>
+                  <select
+                    value={newServiceForm.funding_stream}
+                    onChange={(e) => setNewServiceForm(prev => ({ ...prev, funding_stream: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                  >
+                    <option value="">Select Funding Stream</option>
+                    {homeCareFundingStreams.map(fs => (
+                      <option key={fs.code} value={fs.code}>{fs.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-3 border-b border-border-subtle pb-2">
                     <h4 className="text-sm font-medium text-[#E6EDF3]">Rates</h4>
@@ -2725,10 +2848,18 @@ export default function SettingsView() {
                             min="0"
                             required
                             value={newServiceForm.rates_json[rateKey as keyof typeof newServiceForm.rates_json]}
-                            onChange={(e) => setNewServiceForm(prev => ({
-                              ...prev,
-                              rates_json: { ...prev.rates_json, [rateKey]: parseFloat(e.target.value) || 0 }
-                            }))}
+                            onChange={(e) => {
+                              const nextRateVal = parseFloat(e.target.value) || 0;
+                              setNewServiceForm(prev => {
+                                const nextRates = { ...prev.rates_json, [rateKey]: nextRateVal };
+                                const hasAnyPositive = Object.values(nextRates).some(v => Number(v) > 0);
+                                return {
+                                  ...prev,
+                                  funding_stream: prev.funding_stream || (hasAnyPositive ? 'ON' : ''),
+                                  rates_json: nextRates
+                                };
+                              });
+                            }}
                             className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md pl-7 pr-3 py-1.5 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors text-right"
                           />
                         </div>

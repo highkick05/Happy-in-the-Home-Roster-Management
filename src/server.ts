@@ -2329,6 +2329,95 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   }
 
   try {
+    db.exec(`
+      ALTER TABLE services ADD COLUMN funding_stream TEXT;
+    `);
+    console.log("[DEBUG] Completed services.funding_stream column check");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning adding funding_stream:", e.message);
+    }
+  }
+
+  try {
+    const DEFAULT_HC_FUNDING_STREAMS = [
+      { code: "ON", name: "ON Ongoing Funds" },
+      { code: "HC", name: "HC Home Care Account" },
+      { code: "RC", name: "RC Restorative Care Pathway" },
+      { code: "EL", name: "EL End of Life Pathway" },
+      { code: "AT", name: "AT Assistive Technology" },
+      { code: "HM", name: "HM Home Modifications" },
+      { code: "AS", name: "AS Assistive Technology Specific Needs" },
+      { code: "VC", name: "VC Voluntary Contributions" },
+    ];
+
+    const existingStreamsRow = db
+      .prepare("SELECT value FROM settings WHERE key = 'home_care_funding_streams'")
+      .get() as any;
+
+    if (!existingStreamsRow) {
+      db.prepare(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_funding_streams', ?)"
+      ).run(JSON.stringify(DEFAULT_HC_FUNDING_STREAMS));
+    } else {
+      try {
+        const parsed = JSON.parse(existingStreamsRow.value);
+        if (Array.isArray(parsed)) {
+          let updated = false;
+          for (const defStream of DEFAULT_HC_FUNDING_STREAMS) {
+            if (!parsed.some((s: any) => s.code === defStream.code)) {
+              parsed.push(defStream);
+              updated = true;
+            }
+          }
+          if (updated) {
+            db.prepare(
+              "UPDATE settings SET value = ? WHERE key = 'home_care_funding_streams'"
+            ).run(JSON.stringify(parsed));
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Automatically map Home Care services that already have rates (> 0) to the "ON" (Ongoing Funds) stream
+    const hcServices = db
+      .prepare(
+        "SELECT id, rate, rates_json, funding_stream FROM services WHERE (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') AND (status IS NULL OR status != 'ARCHIVED')"
+      )
+      .all() as any[];
+
+    const updateFundingStreamStmt = db.prepare(
+      "UPDATE services SET funding_stream = 'ON' WHERE id = ?"
+    );
+
+    db.transaction(() => {
+      for (const s of hcServices) {
+        if (s.funding_stream && String(s.funding_stream).trim() !== "") continue;
+        let hasRate = Number(s.rate) > 0;
+        if (!hasRate && s.rates_json) {
+          try {
+            const rates = JSON.parse(s.rates_json);
+            const wk = Number(rates["Weekday"]) || 0;
+            const wkn = Number(rates["Weekday (Non-Standard)"]) || 0;
+            const sat = Number(rates["Saturday"]) || 0;
+            const sun = Number(rates["Sunday"]) || 0;
+            const pub = Number(rates["Public Holiday"]) || 0;
+            if (wk > 0 || wkn > 0 || sat > 0 || sun > 0 || pub > 0) {
+              hasRate = true;
+            }
+          } catch (e) {}
+        }
+        if (hasRate) {
+          updateFundingStreamStmt.run(s.id);
+        }
+      }
+    })();
+    console.log("[DEBUG] Completed Home Care funding_stream auto-mapping to ON");
+  } catch (e: any) {
+    console.warn("Migration warning mapping Home Care funding_stream:", e.message);
+  }
+
+  try {
     // Automatically archive older duplicate NDIS services so ONLY the latest current NDIS Pricing schedule is active
     db.exec(`
       UPDATE services
@@ -15241,6 +15330,26 @@ app.get("/api/health", (req, res) => {
     return cat;
   };
 
+  const getFundingStreamOfService = (srvName: string, srvCode: string) => {
+    let stream = "ON";
+    if (srvCode) {
+      const lookup = db
+        .prepare(
+          "SELECT funding_stream FROM services WHERE code = ? OR id = ? LIMIT 1",
+        )
+        .get(srvCode, srvCode) as any;
+      if (lookup?.funding_stream) stream = lookup.funding_stream;
+    } else if (srvName) {
+      const lookup = db
+        .prepare(
+          "SELECT funding_stream FROM services WHERE name = ? LIMIT 1",
+        )
+        .get(srvName) as any;
+      if (lookup?.funding_stream) stream = lookup.funding_stream;
+    }
+    return stream;
+  };
+
   const getClientBudgetLedgerData = (
     clientId: number | string,
     startDate: string,
@@ -15352,6 +15461,7 @@ app.get("/api/health", (req, res) => {
         if (data && data.lineItems) {
           data.lineItems.forEach((li: any) => {
             const sCat = getCategoryOfService(li.serviceName, li.code);
+            const fStream = getFundingStreamOfService(li.serviceName, li.code);
             const splits = calculateBillingSplits(
               Number(clientId),
               li.date,
@@ -15380,6 +15490,7 @@ app.get("/api/health", (req, res) => {
               client_share: splits.clientShare,
               package_drawdown: splits.packageDrawdown,
               service_category: sCat,
+              funding_stream: fStream,
             });
           });
         }
@@ -15397,6 +15508,7 @@ app.get("/api/health", (req, res) => {
         if (data && data.lineItems) {
           data.lineItems.forEach((li: any) => {
             const sCat = getCategoryOfService(li.serviceName, li.code);
+            const fStream = getFundingStreamOfService(li.serviceName, li.code);
             const splits = calculateBillingSplits(
               Number(clientId),
               li.date,
@@ -15425,6 +15537,7 @@ app.get("/api/health", (req, res) => {
               client_share: splits.clientShare,
               package_drawdown: splits.packageDrawdown,
               service_category: sCat,
+              funding_stream: fStream,
             });
           });
         }
@@ -15475,6 +15588,7 @@ app.get("/api/health", (req, res) => {
       if (!serviceCat) {
         serviceCat = getCategoryOfService(entry.service_name, "");
       }
+      const fStream = getFundingStreamOfService(entry.service_name, "");
 
       const entGrandTotal = Number(entry.grand_total || (Number(entry.base_amount || 0) + Number(entry.care_coord_fee || 0) + Number(entry.management_fee || 0)));
       const entBase = Number(entry.base_amount ?? entGrandTotal);
@@ -15515,6 +15629,7 @@ app.get("/api/health", (req, res) => {
         client_share: cShare,
         package_drawdown: pDrawdown,
         service_category: serviceCat,
+        funding_stream: fStream,
       });
     }
 
@@ -22331,7 +22446,7 @@ app.get("/api/health", (req, res) => {
     }
     const selectCols = canSeeRates
       ? "*"
-      : "id, code, name, description, type, unit, service_category, service_group, reg_group_number, reg_group_name, status";
+      : "id, code, name, description, type, unit, service_category, service_group, funding_stream, reg_group_number, reg_group_name, status";
 
     let query = `SELECT ${selectCols} FROM services WHERE (status IS NULL OR status != 'ARCHIVED')`;
 
@@ -22403,6 +22518,103 @@ app.get("/api/health", (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
       }
     },
+  );
+
+  const DEFAULT_HOME_CARE_FUNDING_STREAMS = [
+    { code: "ON", name: "ON Ongoing Funds", isDefault: true },
+    { code: "HC", name: "HC Home Care Account", isDefault: true },
+    { code: "RC", name: "RC Restorative Care Pathway", isDefault: true },
+    { code: "EL", name: "EL End of Life Pathway", isDefault: true },
+    { code: "AT", name: "AT Assistive Technology", isDefault: true },
+    { code: "HM", name: "HM Home Modifications", isDefault: true },
+    { code: "AS", name: "AS Assistive Technology Specific Needs", isDefault: true },
+    { code: "VC", name: "VC Voluntary Contributions", isDefault: true },
+  ];
+
+  const getStoredHomeCareFundingStreams = (): Array<{ code: string; name: string; isDefault?: boolean }> => {
+    try {
+      const row = db
+        .prepare("SELECT value FROM settings WHERE key = 'home_care_funding_streams'")
+        .get() as any;
+      if (row && row.value) {
+        const parsed = JSON.parse(row.value);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [...DEFAULT_HOME_CARE_FUNDING_STREAMS];
+  };
+
+  app.get(
+    "/api/settings/home-care-funding-streams",
+    authenticateToken,
+    (req, res) => {
+      try {
+        const streams = getStoredHomeCareFundingStreams();
+        res.json({ streams });
+      } catch (e: any) {
+        logger.error(`Failed to load home care funding streams: ${e}`);
+        res.status(500).json({ error: "Failed to load home care funding streams" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/settings/home-care-funding-streams",
+    authenticateToken,
+    (req, res) => {
+      const { code, name } = req.body;
+      const trimmedName = String(name || "").trim();
+      if (!trimmedName) {
+        return res.status(400).json({ error: "Funding stream name is required" });
+      }
+      let trimmedCode = String(code || "").trim().toUpperCase();
+      if (!trimmedCode) {
+        const words = trimmedName.split(/\s+/).filter(Boolean);
+        trimmedCode = words.length >= 2
+          ? (words[0][0] + words[1][0]).toUpperCase()
+          : trimmedName.slice(0, 3).toUpperCase();
+      }
+      try {
+        const current = getStoredHomeCareFundingStreams();
+        const existingIdx = current.findIndex(
+          (s) => s.code.toUpperCase() === trimmedCode || s.name.toLowerCase() === trimmedName.toLowerCase()
+        );
+        const displayName = trimmedName.toUpperCase().startsWith(trimmedCode + " ")
+          ? trimmedName
+          : `${trimmedCode} ${trimmedName}`;
+        const streamObj = { code: trimmedCode, name: displayName, isDefault: false };
+        if (existingIdx === -1) {
+          current.push(streamObj);
+          db.prepare(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_funding_streams', ?)"
+          ).run(JSON.stringify(current));
+        }
+        res.json({ streams: current, stream: existingIdx === -1 ? streamObj : current[existingIdx] });
+      } catch (e: any) {
+        logger.error(`Failed to save home care funding stream: ${e}`);
+        res.status(500).json({ error: "Failed to save home care funding stream" });
+      }
+    }
+  );
+
+  app.patch(
+    "/api/settings/services/:id/funding-stream",
+    authenticateToken,
+    requireAdmin,
+    (req, res) => {
+      const { id } = req.params;
+      const { funding_stream } = req.body;
+      try {
+        const val = funding_stream ? String(funding_stream).trim() : null;
+        db.prepare("UPDATE services SET funding_stream = ? WHERE id = ?").run(val, id);
+        res.json({ success: true, funding_stream: val });
+      } catch (e: any) {
+        logger.error(`API Error updating service funding stream: ${e}`);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
   );
 
   const DEFAULT_HOME_CARE_GROUP_NAMES = [
@@ -22523,6 +22735,7 @@ app.get("/api/health", (req, res) => {
             "SERVICE NAME": s.name,
             "SERVICE GROUP": s.service_group || "",
             CATEGORY: s.service_category || "",
+            "FUNDING STREAM": s.funding_stream || "",
             UNIT: s.unit || "Hour",
             WEEKDAY:
               rates["Weekday"] !== undefined
@@ -22639,7 +22852,7 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     requireAdmin,
     (req, res) => {
-      const { name, service_category, service_group, unit, rates_json, type, description } = req.body;
+      const { name, service_category, service_group, funding_stream, unit, rates_json, type, description } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Service name is required" });
@@ -22680,9 +22893,19 @@ app.get("/api/health", (req, res) => {
           ensureGroupSavedInSettings(trimmedGroup);
         }
 
+        const hasNonZeroRate =
+          (parseFloat(String(rateStr)) || 0) > 0 ||
+          (rates_json && Object.values(rates_json).some((v: any) => (parseFloat(String(v)) || 0) > 0));
+        const resolvedFundingStream =
+          funding_stream !== undefined && funding_stream !== null && String(funding_stream).trim() !== ""
+            ? String(funding_stream).trim()
+            : hasNonZeroRate
+              ? "ON"
+              : null;
+
         const stmt = db.prepare(`
-        INSERT INTO services (code, name, description, service_category, service_group, unit, rate, rates_json, type, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+        INSERT INTO services (code, name, description, service_category, service_group, funding_stream, unit, rate, rates_json, type, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
       `);
 
         const info = stmt.run(
@@ -22691,6 +22914,7 @@ app.get("/api/health", (req, res) => {
           description ? String(description).trim() : null,
           service_category || null,
           trimmedGroup,
+          resolvedFundingStream,
           unit || "Hour",
           rateStr,
           parsedRatesJson,
@@ -22714,7 +22938,7 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     (req, res) => {
       const { id } = req.params;
-      const { name, service_category, service_group, unit, rates_json, description } = req.body;
+      const { name, service_category, service_group, funding_stream, unit, rates_json, description } = req.body;
 
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: "Service name is required" });
@@ -22738,12 +22962,22 @@ app.get("/api/health", (req, res) => {
           ensureGroupSavedInSettings(trimmedGroup);
         }
 
+        const existingRow = db.prepare("SELECT funding_stream FROM services WHERE id = ?").get(id) as any;
+        const hasNonZeroRate =
+          rateVal > 0 ||
+          (rates_json && Object.values(rates_json).some((v: any) => (parseFloat(String(v)) || 0) > 0));
+        const resolvedFundingStream =
+          funding_stream !== undefined
+            ? (funding_stream ? String(funding_stream).trim() : null)
+            : (existingRow?.funding_stream || (hasNonZeroRate ? "ON" : null));
+
         db.prepare(`
           UPDATE services
           SET name = ?,
               description = ?,
               service_category = ?,
               service_group = ?,
+              funding_stream = ?,
               unit = ?,
               rate = ?,
               rates_json = ?
@@ -22753,6 +22987,7 @@ app.get("/api/health", (req, res) => {
           description !== undefined ? (description ? String(description).trim() : null) : null,
           service_category || null,
           trimmedGroup,
+          resolvedFundingStream,
           unit || "Hour",
           rateVal,
           parsedRatesJson,
