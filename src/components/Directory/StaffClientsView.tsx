@@ -171,6 +171,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [updatingCoordinatorClientId, setUpdatingCoordinatorClientId] = useState<number | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState<string>('');
   const [clientBudgetHealthMap, setClientBudgetHealthMap] = useState<Record<number, any>>({});
+  const [budgetHealthLoaded, setBudgetHealthLoaded] = useState<boolean>(false);
   const hasInitializedCoordinatorDefaultRef = React.useRef(false);
 
   const isStaffCareCoordinator = (s: any): boolean => {
@@ -382,11 +383,14 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
           }
         }
       }
-      if (budgetHealthRes && budgetHealthRes.ok) {
-        const bhData = await budgetHealthRes.json();
-        if (bhData && typeof bhData === 'object') {
-          setClientBudgetHealthMap(bhData);
+      if (budgetHealthRes) {
+        if (budgetHealthRes.ok) {
+          const bhData = await budgetHealthRes.json();
+          if (bhData && typeof bhData === 'object') {
+            setClientBudgetHealthMap(bhData);
+          }
         }
+        setBudgetHealthLoaded(true);
       }
     } catch (e) {
       console.error(e);
@@ -906,7 +910,11 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       {(() => {
                         const bh = clientBudgetHealthMap[c.id];
                         if (!bh) {
-                          return <span className="text-[11px] text-[#8B949E] italic">Calculating...</span>;
+                          return (
+                            <span className="text-[11px] text-[#8B949E] italic">
+                              {budgetHealthLoaded ? 'No Active Plan' : 'Calculating...'}
+                            </span>
+                          );
                         }
                         if (!bh.hasBudget) {
                           return (

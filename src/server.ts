@@ -15789,12 +15789,15 @@ app.get("/api/health", (req, res) => {
               ? parseDailyRate(sahLevels.find((l: any) => l.level === levelOrClass), 29.40)
               : parseDailyRate(hcpLevels.find((l: any) => l.level === levelOrClass), 179.22);
 
-          // Check quarter-specific budget record first, falling back to client profile
-          const quarterBudgetRow = db
-            .prepare(
-              "SELECT additional_funding_streams FROM client_budgets WHERE client_id = ? AND start_date = ? AND end_date = ?",
-            )
-            .get(client.id, activeQ.startDateStr, activeQ.endDateStr) as any;
+          // Check active client_budgets record first, falling back to client profile
+          let quarterBudgetRow: any = null;
+          try {
+            quarterBudgetRow = db
+              .prepare(
+                "SELECT additional_funding_streams FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1",
+              )
+              .get(client.id) as any;
+          } catch {}
 
           let parsedStreams: any[] = [];
           const rawStreams =
