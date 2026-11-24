@@ -170,6 +170,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [updatingPayCategoryStaffId, setUpdatingPayCategoryStaffId] = useState<number | null>(null);
   const [updatingCoordinatorClientId, setUpdatingCoordinatorClientId] = useState<number | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState<string>('');
+  const [clientBudgetHealthMap, setClientBudgetHealthMap] = useState<Record<number, any>>({});
   const hasInitializedCoordinatorDefaultRef = React.useRef(false);
 
   const isStaffCareCoordinator = (s: any): boolean => {
@@ -352,11 +353,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
       ];
       if (activeTab === 'CLIENTS') {
         requests.push(
-          fetch('/api/staff?t=' + Date.now(), { headers: { Authorization: `Bearer ${token}` } })
+          fetch('/api/staff?t=' + Date.now(), { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/clients-budget-health?t=' + Date.now(), { headers: { Authorization: `Bearer ${token}` } })
         );
       }
 
-      const [res, staffRes] = await Promise.all(requests);
+      const [res, staffRes, budgetHealthRes] = await Promise.all(requests);
       if (res.ok) {
         const data = await res.json();
         if (activeTab === 'STAFF') setStaff(data);
@@ -378,6 +380,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             }
             hasInitializedCoordinatorDefaultRef.current = true;
           }
+        }
+      }
+      if (budgetHealthRes && budgetHealthRes.ok) {
+        const bhData = await budgetHealthRes.json();
+        if (bhData && typeof bhData === 'object') {
+          setClientBudgetHealthMap(bhData);
         }
       }
     } catch (e) {
@@ -631,6 +639,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
                     {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Care Coordinator</th>}
                     <th className="px-4 py-2 font-semibold">Contact Info</th>
+                    {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Budget Health</th>}
                     <th className="px-4 py-2 font-semibold text-right">Actions</th>
                   </>
                 )}
@@ -892,6 +901,64 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       {c.representative_name && (
                         <div className="text-[#8B949E] text-[11px] mt-0.5">Rep: {c.representative_name}</div>
                       )}
+                    </td>
+                    <td className="px-4 py-2" onClick={(e) => { e.stopPropagation(); navigate(`/clients/${c.id}/budget`); }}>
+                      {(() => {
+                        const bh = clientBudgetHealthMap[c.id];
+                        if (!bh) {
+                          return <span className="text-[11px] text-[#8B949E] italic">Calculating...</span>;
+                        }
+                        if (!bh.hasBudget) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800/60 text-zinc-400 border border-zinc-700/50">
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0" />
+                              No Active Plan
+                            </span>
+                          );
+                        }
+                        const fmtMoney = (val: number) =>
+                          new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val || 0);
+                        const rem = Number(bh.remainingBalance || 0);
+                        const util = Number(bh.utilizationPct || 0);
+                        const isCrit = bh.status === 'CRITICAL' || rem < 0;
+                        const isWarn = !isCrit && bh.status === 'WARNING';
+
+                        const pillClasses = isCrit
+                          ? 'bg-red-500/10 text-red-300 border-red-500/30'
+                          : isWarn
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                          : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+                        const dotClass = isCrit
+                          ? 'bg-red-400'
+                          : isWarn
+                          ? 'bg-amber-400'
+                          : 'bg-emerald-400';
+                        const barClass = isCrit
+                          ? 'bg-red-500'
+                          : isWarn
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500';
+
+                        return (
+                          <div
+                            className="space-y-1 min-w-[165px] max-w-[200px]"
+                            title={`${bh.packageLabel ? bh.packageLabel + ' • ' : ''}${bh.periodLabel || ''} — Allocated: ${fmtMoney(bh.totalAllocated)} • Spent: ${fmtMoney(bh.totalSpent)} • Remaining: ${fmtMoney(rem)} (${util.toFixed(0)}% used)`}
+                          >
+                            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10.5px] font-mono font-semibold ${pillClasses}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
+                              <span className="truncate">
+                                {rem >= 0 ? `${fmtMoney(rem)} left` : `${fmtMoney(Math.abs(rem))} over`} • {util.toFixed(0)}% used
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full bg-black/50 rounded-full border border-white/[0.06] overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${barClass}`}
+                                style={{ width: `${Math.min(100, Math.max(3, util))}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => handleEditClient(c)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]" title="Edit Client Details">

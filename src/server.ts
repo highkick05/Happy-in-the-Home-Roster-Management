@@ -15674,6 +15674,321 @@ app.get("/api/health", (req, res) => {
     }
   });
 
+  app.get("/api/clients-budget-health", authenticateToken, (req, res) => {
+    try {
+      const settingsRows = db
+        .prepare(
+          "SELECT key, value FROM settings WHERE key IN ('timezone', 'hcpFundingLevels', 'sahFundingLevels', 'defaultCareManagementFee')",
+        )
+        .all() as any[];
+      const settingsMap = settingsRows.reduce((acc, row) => {
+        let parsed = row.value;
+        try {
+          parsed = JSON.parse(row.value);
+        } catch {}
+        return { ...acc, [row.key]: parsed };
+      }, {} as any);
+
+      const timezone = settingsMap.timezone || "Australia/Perth";
+      const careMgmtPercent =
+        settingsMap.defaultCareManagementFee !== undefined &&
+        settingsMap.defaultCareManagementFee !== null
+          ? Number(settingsMap.defaultCareManagementFee)
+          : 10;
+
+      const hcpLevels = settingsMap.hcpFundingLevels || [
+        { level: "Level 1", amountDaily: 30.93 },
+        { level: "Level 2", amountDaily: 54.39 },
+        { level: "Level 3", amountDaily: 118.40 },
+        { level: "Level 4", amountDaily: 179.22 },
+      ];
+      const sahLevels = settingsMap.sahFundingLevels || [
+        { level: "Class 1", amountDaily: 29.40 },
+        { level: "Class 2", amountDaily: 43.93 },
+        { level: "Class 3", amountDaily: 60.18 },
+        { level: "Class 4", amountDaily: 81.36 },
+        { level: "Class 5", amountDaily: 108.76 },
+        { level: "Class 6", amountDaily: 131.82 },
+        { level: "Class 7", amountDaily: 159.31 },
+        { level: "Class 8", amountDaily: 213.99 },
+      ];
+
+      const parseDailyRate = (item: any, fallback: number) => {
+        if (!item) return fallback;
+        if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
+        if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
+        if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
+        if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
+        return fallback;
+      };
+
+      const now = new Date();
+      let todayStr = "";
+      try {
+        todayStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: timezone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(now);
+      } catch {
+        todayStr = now.toISOString().split("T")[0];
+      }
+      const [cY, cM, cD] = todayStr.split("-").map((n) => parseInt(n, 10));
+      const isPastJun30 = cM > 6 || (cM === 6 && cD >= 30);
+      const fyStartYear = isPastJun30 ? cY : cY - 1;
+      const isLeap = (yr: number) => (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
+      const q3Days = isLeap(fyStartYear + 1) ? 91 : 90;
+      const quarters = [
+        { id: 1, label: "Q1", startDateStr: `${fyStartYear}-06-30`, endDateStr: `${fyStartYear}-09-30`, totalDays: 92 },
+        { id: 2, label: "Q2", startDateStr: `${fyStartYear}-09-30`, endDateStr: `${fyStartYear}-12-31`, totalDays: 92 },
+        { id: 3, label: "Q3", startDateStr: `${fyStartYear}-12-31`, endDateStr: `${fyStartYear + 1}-03-31`, totalDays: q3Days },
+        { id: 4, label: "Q4", startDateStr: `${fyStartYear + 1}-03-31`, endDateStr: `${fyStartYear + 1}-06-30`, totalDays: 91 },
+      ];
+      const activeQ =
+        quarters.slice().reverse().find((q) => todayStr >= q.startDateStr && todayStr <= q.endDateStr) ||
+        quarters[0];
+
+      const allClients = db.prepare("SELECT * FROM clients").all() as any[];
+      const summaryByClientId: Record<number, any> = {};
+
+      for (const client of allClients) {
+        const fType = String(client.funding_type || "").toUpperCase().trim();
+        const isNdis = fType === "NDIS";
+        const isHomeCare =
+          !isNdis &&
+          (fType === "HOME_CARE" ||
+            fType === "HOME CARE" ||
+            fType === "HCP" ||
+            (!fType && Boolean(client.home_care_sub_type)));
+
+        if (isHomeCare) {
+          let actualStartDateStr = activeQ.startDateStr;
+          const actualEndDateStr = activeQ.endDateStr;
+          let totalDays = activeQ.totalDays;
+
+          if (client.joined_date) {
+            const joinedStr = String(client.joined_date).split("T")[0];
+            if (joinedStr > actualEndDateStr) {
+              totalDays = 0;
+            } else if (joinedStr >= actualStartDateStr && joinedStr <= actualEndDateStr) {
+              actualStartDateStr = joinedStr;
+              const jDate = new Date(`${joinedStr}T00:00:00`);
+              const eDate = new Date(`${actualEndDateStr}T23:59:59`);
+              totalDays = Math.max(
+                1,
+                Math.floor((eDate.getTime() - jDate.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+              );
+            }
+          }
+
+          const subType = String(client.home_care_sub_type || "HCP").toUpperCase();
+          const levelOrClass = client.home_care_level_or_class || (subType === "SAH" ? "Class 1" : "Level 1");
+          const dailyRate =
+            subType === "SAH"
+              ? parseDailyRate(sahLevels.find((l: any) => l.level === levelOrClass), 29.40)
+              : parseDailyRate(hcpLevels.find((l: any) => l.level === levelOrClass), 179.22);
+
+          // Check quarter-specific budget record first, falling back to client profile
+          const quarterBudgetRow = db
+            .prepare(
+              "SELECT additional_funding_streams FROM client_budgets WHERE client_id = ? AND start_date = ? AND end_date = ?",
+            )
+            .get(client.id, activeQ.startDateStr, activeQ.endDateStr) as any;
+
+          let parsedStreams: any[] = [];
+          const rawStreams =
+            quarterBudgetRow?.additional_funding_streams || client.additional_funding_streams;
+          if (rawStreams) {
+            try {
+              parsedStreams = typeof rawStreams === "string" ? JSON.parse(rawStreams) : rawStreams;
+            } catch {}
+          }
+          if (!Array.isArray(parsedStreams)) parsedStreams = [];
+
+          const additionalOngoingTotal = parsedStreams
+            .filter((s: any) => (s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code))
+            .reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
+
+          const separateStreamCodes = new Set(
+            parsedStreams
+              .filter((s: any) => !(s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code) && s.code && s.code !== "ON")
+              .map((s: any) => String(s.code).toUpperCase()),
+          );
+
+          const grossAllocation = totalDays * dailyRate;
+          const netOngoingSubsidy = grossAllocation * (1 - careMgmtPercent / 100);
+          const totalAllocated = parseFloat((netOngoingSubsidy + additionalOngoingTotal).toFixed(2));
+
+          let totalSpent = 0;
+          try {
+            const ledgerData = getClientBudgetLedgerData(
+              client.id,
+              actualStartDateStr,
+              actualEndDateStr,
+            );
+            if (ledgerData && Array.isArray(ledgerData.items)) {
+              totalSpent = ledgerData.items
+                .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || "ON").toUpperCase()))
+                .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
+            } else {
+              totalSpent = Number(ledgerData?.grandTotal ?? ledgerData?.total ?? 0);
+            }
+          } catch {}
+          totalSpent = parseFloat(totalSpent.toFixed(2));
+
+          const remainingBalance = parseFloat((totalAllocated - totalSpent).toFixed(2));
+          const utilizationPct =
+            totalAllocated > 0 ? parseFloat(((totalSpent / totalAllocated) * 100).toFixed(1)) : 0;
+
+          const startMs = new Date(`${actualStartDateStr}T00:00:00`).getTime();
+          const endMs = new Date(`${actualEndDateStr}T23:59:59`).getTime();
+          const curMs = Math.min(endMs, Math.max(startMs, now.getTime()));
+          const timePct =
+            endMs > startMs
+              ? parseFloat(Math.min(100, Math.max(0, ((curMs - startMs) / (endMs - startMs)) * 100)).toFixed(1))
+              : 0;
+
+          let status: "HEALTHY" | "WARNING" | "CRITICAL" = "HEALTHY";
+          if (remainingBalance < 0 || utilizationPct >= 100) {
+            status = "CRITICAL";
+          } else if (utilizationPct >= 85 || utilizationPct - timePct > 15) {
+            status = "WARNING";
+          }
+
+          summaryByClientId[client.id] = {
+            hasBudget: true,
+            fundingType: "HOME_CARE",
+            periodLabel: activeQ.label,
+            packageLabel: subType === "SAH" ? `SaH ${levelOrClass}` : `HCP ${levelOrClass}`,
+            totalAllocated,
+            totalSpent,
+            remainingBalance,
+            utilizationPct,
+            timePct,
+            status,
+          };
+        } else {
+          // NDIS Client
+          const activeAgr = db
+            .prepare(
+              `SELECT * FROM ndis_service_agreements WHERE client_id = ? ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END, start_date DESC LIMIT 1`,
+            )
+            .get(client.id) as any;
+
+          if (!activeAgr) {
+            summaryByClientId[client.id] = {
+              hasBudget: false,
+              fundingType: "NDIS",
+              periodLabel: "No Agreement",
+              totalAllocated: 0,
+              totalSpent: 0,
+              remainingBalance: 0,
+              utilizationPct: 0,
+              timePct: 0,
+              status: "NONE",
+            };
+            continue;
+          }
+
+          const shifts = db
+            .prepare(
+              `SELECT s.id, s.status, s.start_time, s.end_time, s.service_id, s.services_json
+               FROM shifts s
+               WHERE s.client_id = ?
+                 AND s.start_time >= ?
+                 AND s.start_time <= ?
+                 AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')`,
+            )
+            .all(
+              client.id,
+              `${activeAgr.start_date}T00:00:00`,
+              `${activeAgr.end_date}T23:59:59`,
+            ) as any[];
+
+          let totalAmountSpent = 0;
+          for (const shiftRow of shifts) {
+            try {
+              const data = getInvoiceDataForShift(shiftRow.id);
+              if (data && Array.isArray(data.lineItems) && data.lineItems.length > 0) {
+                for (const li of data.lineItems) {
+                  totalAmountSpent += Number(li.amount || 0);
+                }
+              } else if (shiftRow.services_json) {
+                let parsedServices: any[] = [];
+                try {
+                  parsedServices = JSON.parse(shiftRow.services_json);
+                } catch {}
+                if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+                  const sMs = new Date(shiftRow.start_time).getTime();
+                  const eMs = new Date(shiftRow.end_time).getTime();
+                  const durHrs = Math.max(0, (eMs - sMs) / 3600000);
+                  for (const sd of parsedServices) {
+                    const srv = sd.serviceId
+                      ? (db.prepare("SELECT rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any)
+                      : null;
+                    const effRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
+                    const isKm = (sd.serviceUnit || srv?.unit || "").toUpperCase() === "KM";
+                    const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durHrs));
+                    totalAmountSpent += qty * effRate;
+                  }
+                }
+              } else {
+                const sMs = new Date(shiftRow.start_time).getTime();
+                const eMs = new Date(shiftRow.end_time).getTime();
+                const durHrs = Math.max(0, (eMs - sMs) / 3600000);
+                const srv = shiftRow.service_id
+                  ? (db.prepare("SELECT rate FROM services WHERE id = ?").get(shiftRow.service_id) as any)
+                  : null;
+                totalAmountSpent += durHrs * Number(srv?.rate || 0);
+              }
+            } catch {}
+          }
+
+          const totalAllocated = parseFloat(Number(activeAgr.total_budget || 0).toFixed(2));
+          const totalSpent = parseFloat(totalAmountSpent.toFixed(2));
+          const remainingBalance = parseFloat((totalAllocated - totalSpent).toFixed(2));
+          const utilizationPct =
+            totalAllocated > 0 ? parseFloat(((totalSpent / totalAllocated) * 100).toFixed(1)) : 0;
+
+          const startMs = new Date(activeAgr.start_date).getTime();
+          const endMs = new Date(activeAgr.end_date).getTime();
+          const nowMs = Date.now();
+          const timePct =
+            endMs > startMs
+              ? parseFloat(Math.min(100, Math.max(0, ((nowMs - startMs) / (endMs - startMs)) * 100)).toFixed(1))
+              : 0;
+
+          let status: "HEALTHY" | "WARNING" | "CRITICAL" = "HEALTHY";
+          if (remainingBalance < 0 || utilizationPct >= 100) {
+            status = "CRITICAL";
+          } else if (utilizationPct >= 85 || utilizationPct - timePct > 15) {
+            status = "WARNING";
+          }
+
+          summaryByClientId[client.id] = {
+            hasBudget: true,
+            fundingType: "NDIS",
+            periodLabel: activeAgr.name || "NDIS Plan",
+            totalAllocated,
+            totalSpent,
+            remainingBalance,
+            utilizationPct,
+            timePct,
+            status,
+          };
+        }
+      }
+
+      res.json(summaryByClientId);
+    } catch (e: any) {
+      logger.error(`API Error fetching clients budget health: ${e}`, {
+        error: "Internal Server Error",
+      });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   app.get("/api/clients/:id/ndis-agreements", authenticateToken, (req, res) => {
     const { id } = req.params;
     try {
