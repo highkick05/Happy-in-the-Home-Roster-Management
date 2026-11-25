@@ -1448,6 +1448,38 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     executeGenerateRoster('all');
   };
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const handleDownloadPdf = async () => {
+    if (!token || !clientId) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch(
+        `/api/clients/${clientId}/roster-templates/pdf?templateName=${encodeURIComponent(activeTemplateName)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        alert('Failed to generate PDF schedule.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const firstName = (activeClient?.first_name || 'Client').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const lastName = (activeClient?.last_name || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.href = url;
+      a.download = `Service_Schedule_${firstName}_${lastName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Error downloading PDF:', e);
+      alert('Error generating PDF schedule.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   if (loading) return <div className="p-4 text-zinc-400">Loading templates...</div>;
 
   return (
@@ -1483,239 +1515,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             )}
           </div>
         </div>
-
-        {/* Home Care Quarterly Budget & ON -> HC Cascade Summary Panel (Strictly Home Care Clients Only, Zero Mention of Care Mgmt Fee) */}
-        {isClientHomeCare && homeCareQuarterlySummary && (
-          <div className="px-4 py-2.5 bg-[#0d1117] border-b border-white/[0.08] shrink-0 space-y-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {/* Card 1: Total Quarterly Allocated Funds (ON + Linked HC Reserve) */}
-              <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-2.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Quarterly Allocated Funds
-                    </span>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
-                      ON — Ongoing Funds
-                    </span>
-                  </div>
-                  <div className="text-base font-bold text-white tracking-tight">
-                    {formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}
-                  </div>
-                </div>
-                <div className="text-[10px] text-zinc-400 font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
-                  {homeCareQuarterlySummary.hcAllocated > 0 ? (
-                    <>
-                      <span className="text-sky-300 font-sans font-medium truncate" title="If ON quarterly funds are exhausted, excess automatically draws from the linked HC Home Care Account">
-                        🔗 Linked HC Reserve: <strong>{formatCurrency(homeCareQuarterlySummary.hcAvailableBeforeOverflow)}</strong>
-                      </span>
-                      <span className="text-zinc-400 truncate" title="Total Combined ON + HC Spendable Pool">
-                        Pool: <strong className="text-zinc-200">{formatCurrency(homeCareQuarterlySummary.combinedSpendablePool)}</strong>
-                      </span>
-                    </>
-                  ) : (
-                    <span>{activeQuarter.shortLabel} • {homeCareQuarterlySummary.totalDays} Days</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Card 2: Planned Roster Spend (Weekly & Full Quarter) */}
-              <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-2.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Planned Roster ({activeTemplateName})
-                    </span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                      {templateSettings[activeTemplateName] || 'Weekly'}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="text-base font-bold text-white tracking-tight">
-                      {formatCurrency(homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown)}
-                      <span className="text-[10px] font-normal text-zinc-400 ml-1">/ qtr (ON)</span>
-                    </div>
-                    <div className="text-xs font-semibold text-brand-teal">
-                      {formatCurrency(homeCareQuarterlySummary.weeklyPlannedOnDrawdown)}/wk
-                    </div>
-                  </div>
-                </div>
-                <div className="text-[10px] font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
-                  {homeCareQuarterlySummary.plannedUnfundedDeficit > 0 ? (
-                    <span className="text-red-400 font-sans font-medium truncate">
-                      Over Combined ON + HC by {formatCurrency(homeCareQuarterlySummary.plannedUnfundedDeficit)}
-                    </span>
-                  ) : homeCareQuarterlySummary.plannedHcOverflowUsed > 0 ? (
-                    <span className="text-amber-300 font-sans font-medium truncate">
-                      ⚡ Uses 100% ON + {formatCurrency(homeCareQuarterlySummary.plannedHcOverflowUsed)} from HC
-                    </span>
-                  ) : (
-                    <span className="text-emerald-400 font-sans font-medium truncate">
-                      ✓ Within ON Budget ({formatCurrency(Math.max(0, homeCareQuarterlySummary.totalOnAllocation - homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown))} buffer)
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Card 3: Actual Spent vs Remaining Planned in Current Quarter */}
-              <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-2.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Actual Spent vs Remaining
-                    </span>
-                    <span className="text-[10px] font-mono text-zinc-400">
-                      Day {homeCareQuarterlySummary.daysElapsed}/{homeCareQuarterlySummary.totalDays}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] text-zinc-500 mr-1">Spent:</span>
-                      <span className="text-base font-bold text-white tracking-tight">
-                        {formatCurrency(homeCareQuarterlySummary.actualOnSpentToDate)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-zinc-500 mr-1">Rem. Planned:</span>
-                      <span className="text-xs font-semibold text-zinc-200">
-                        {formatCurrency(homeCareQuarterlySummary.remainingQuarterPlannedOnDrawdown)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-[10px] text-zinc-400 font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
-                  <span>{homeCareQuarterlySummary.daysRemaining} days left in {activeQuarter.shortLabel}</span>
-                  <span>
-                    Pace: <strong className="text-zinc-200">{formatCurrency(homeCareQuarterlySummary.burnRateProjectedOnSpend)}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* Card 4: Projected End-of-Quarter Spend & ON -> HC Cascade Status */}
-              <div
-                className={`bg-[#121214] border rounded-lg p-2.5 flex flex-col justify-between ${
-                  homeCareQuarterlySummary.projectedUnfundedDeficit > 0
-                    ? 'border-red-500/40'
-                    : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
-                    ? 'border-amber-500/40'
-                    : 'border-brand-green/30'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Projected E.O.Q. Spend
-                    </span>
-                    {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">
-                        <Flame className="w-2.5 h-2.5" /> Over ON + HC
-                      </span>
-                    ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                        ⚡ Drawing from HC
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-green/15 text-brand-green border border-brand-green/30">
-                        <CheckCircle2 className="w-2.5 h-2.5" /> Within ON
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div
-                      className={`text-base font-bold tracking-tight ${
-                        homeCareQuarterlySummary.projectedUnfundedDeficit > 0
-                          ? 'text-red-400'
-                          : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
-                          ? 'text-amber-300'
-                          : 'text-brand-green'
-                      }`}
-                    >
-                      {formatCurrency(homeCareQuarterlySummary.scheduleProjectedOnSpend)}
-                    </div>
-                    <div className="text-[11px] font-mono text-zinc-300">
-                      ON Rem: <strong>{formatCurrency(homeCareQuarterlySummary.projectedOnRemaining)}</strong>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-[10px] font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
-                  {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
-                    <span className="text-red-400 font-sans font-medium truncate">
-                      Deficit: -{formatCurrency(homeCareQuarterlySummary.projectedUnfundedDeficit)} (after {formatCurrency(homeCareQuarterlySummary.projectedHcOverflowUsed)} HC)
-                    </span>
-                  ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
-                    <>
-                      <span className="text-amber-300 font-sans font-medium truncate">
-                        ⚡ HC Draw: -{formatCurrency(homeCareQuarterlySummary.projectedHcOverflowUsed)}
-                      </span>
-                      <span className="text-sky-300 truncate">
-                        HC Left: <strong>{formatCurrency(homeCareQuarterlySummary.projectedHcRemainingAfterOverflow)}</strong>
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-zinc-400 truncate">
-                      Projected ON Surplus: <strong className="text-brand-green">+{formatCurrency(homeCareQuarterlySummary.projectedOnRemaining)}</strong>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Funding Streams Summary Strip (HC, AT, HM, RC, EL, etc.) */}
-            {homeCareQuarterlySummary.additionalStreamsSummary.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pt-0.5">
-                <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 shrink-0 pr-1">
-                  <Layers className="w-3 h-3 text-sky-400" />
-                  <span>Additional Streams:</span>
-                </div>
-                {homeCareQuarterlySummary.additionalStreamsSummary.map(s => (
-                  <div
-                    key={s.code}
-                    className={`flex items-center gap-2.5 px-2.5 py-1 rounded-md border text-[11px] shrink-0 ${
-                      s.onOverflowDraw > 0
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
-                        : 'bg-[#121214] border-white/[0.08] text-zinc-300'
-                    }`}
-                  >
-                    <span className="px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[10px] font-mono font-semibold">
-                      {s.code}
-                    </span>
-                    <span className="font-medium text-zinc-200 truncate max-w-[150px]" title={s.name}>
-                      {s.name.replace(new RegExp(`^${s.code}\\s*[-—]?\\s*`, 'i'), '')}
-                    </span>
-                    {s.code === 'HC' && (
-                      <span className="text-[10px] text-sky-300/90 font-medium" title="Linked to ON Ongoing Funds for automatic overflow">
-                        🔗 Linked to ON
-                      </span>
-                    )}
-                    <span className="text-zinc-400 font-mono">
-                      Alloc: <strong className="text-zinc-200">{formatCurrency(s.allocated)}</strong>
-                    </span>
-                    <span className="text-zinc-400 font-mono">
-                      Spent: <strong className="text-zinc-200">{formatCurrency(s.actualSpent)}</strong>
-                    </span>
-                    {s.plannedFullQuarter > 0 && (
-                      <span className="text-indigo-300 font-mono">
-                        Planned: <strong>{formatCurrency(s.plannedFullQuarter)}</strong>
-                      </span>
-                    )}
-                    {s.onOverflowDraw > 0 && (
-                      <span className="text-amber-300 font-mono">
-                        ⚡ ON Overflow: <strong>-{formatCurrency(s.onOverflowDraw)}</strong>
-                      </span>
-                    )}
-                    <span
-                      className={`font-mono font-semibold ${
-                        s.projectedRemaining < 0 ? 'text-red-400' : s.onOverflowDraw > 0 ? 'text-amber-300' : 'text-sky-400'
-                      }`}
-                    >
-                      Rem: {formatCurrency(s.projectedRemaining)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Template Tabs */}
         <div className="bg-[#121214] border-b border-white/[0.08] px-4 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0 pt-1 pb-1">
@@ -1929,6 +1728,239 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           )}
         </div>
 
+        {/* Home Care Quarterly Budget & ON -> HC Cascade Summary Panel (Positioned at Bottom Above Footer) */}
+        {isClientHomeCare && homeCareQuarterlySummary && (
+          <div className="px-4 py-2.5 bg-[#0d1117] border-t border-white/[0.08] shrink-0 space-y-2">
+            {/* Additional Funding Streams Summary Strip (HC, AT, HM, RC, EL, etc.) */}
+            {homeCareQuarterlySummary.additionalStreamsSummary.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5">
+                <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 shrink-0 pr-1">
+                  <Layers className="w-3 h-3 text-sky-400" />
+                  <span>Additional Streams:</span>
+                </div>
+                {homeCareQuarterlySummary.additionalStreamsSummary.map(s => (
+                  <div
+                    key={s.code}
+                    className={`flex items-center gap-2.5 px-2.5 py-1 rounded-md border text-[11px] shrink-0 ${
+                      s.onOverflowDraw > 0
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                        : 'bg-[#121214] border-white/[0.08] text-zinc-300'
+                    }`}
+                  >
+                    <span className="px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[10px] font-mono font-semibold">
+                      {s.code}
+                    </span>
+                    <span className="font-medium text-zinc-200 truncate max-w-[150px]" title={s.name}>
+                      {s.name.replace(new RegExp(`^${s.code}\\s*[-—]?\\s*`, 'i'), '')}
+                    </span>
+                    {s.code === 'HC' && (
+                      <span className="text-[10px] text-sky-300/90 font-medium" title="Linked to ON Ongoing Funds for automatic overflow">
+                        🔗 Linked to ON
+                      </span>
+                    )}
+                    <span className="text-zinc-400 font-mono">
+                      Alloc: <strong className="text-zinc-200">{formatCurrency(s.allocated)}</strong>
+                    </span>
+                    <span className="text-zinc-400 font-mono">
+                      Spent: <strong className="text-zinc-200">{formatCurrency(s.actualSpent)}</strong>
+                    </span>
+                    {s.plannedFullQuarter > 0 && (
+                      <span className="text-indigo-300 font-mono">
+                        Planned: <strong>{formatCurrency(s.plannedFullQuarter)}</strong>
+                      </span>
+                    )}
+                    {s.onOverflowDraw > 0 && (
+                      <span className="text-amber-300 font-mono">
+                        ⚡ ON Overflow: <strong>-{formatCurrency(s.onOverflowDraw)}</strong>
+                      </span>
+                    )}
+                    <span
+                      className={`font-mono font-semibold ${
+                        s.projectedRemaining < 0 ? 'text-red-400' : s.onOverflowDraw > 0 ? 'text-amber-300' : 'text-sky-400'
+                      }`}
+                    >
+                      Rem: {formatCurrency(s.projectedRemaining)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {/* Card 1: Total Quarterly Allocated Funds (ON + Linked HC Reserve) */}
+              <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-2.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      Quarterly Allocated Funds
+                    </span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
+                      ON — Ongoing Funds
+                    </span>
+                  </div>
+                  <div className="text-base font-bold text-white tracking-tight">
+                    {formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}
+                  </div>
+                </div>
+                <div className="text-[10px] text-zinc-400 font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
+                  {homeCareQuarterlySummary.hcAllocated > 0 ? (
+                    <>
+                      <span className="text-sky-300 font-sans font-medium truncate" title="If ON quarterly funds are exhausted, excess automatically draws from the linked HC Home Care Account">
+                        🔗 Linked HC Reserve: <strong>{formatCurrency(homeCareQuarterlySummary.hcAvailableBeforeOverflow)}</strong>
+                      </span>
+                      <span className="text-zinc-400 truncate" title="Total Combined ON + HC Spendable Pool">
+                        Pool: <strong className="text-zinc-200">{formatCurrency(homeCareQuarterlySummary.combinedSpendablePool)}</strong>
+                      </span>
+                    </>
+                  ) : (
+                    <span>{activeQuarter.shortLabel} • {homeCareQuarterlySummary.totalDays} Days</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 2: Planned Roster Spend (Weekly & Full Quarter) */}
+              <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-2.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      Planned Roster ({activeTemplateName})
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                      {templateSettings[activeTemplateName] || 'Weekly'}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="text-base font-bold text-white tracking-tight">
+                      {formatCurrency(homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown)}
+                      <span className="text-[10px] font-normal text-zinc-400 ml-1">/ qtr (ON)</span>
+                    </div>
+                    <div className="text-xs font-semibold text-brand-teal">
+                      {formatCurrency(homeCareQuarterlySummary.weeklyPlannedOnDrawdown)}/wk
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[10px] font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
+                  {homeCareQuarterlySummary.plannedUnfundedDeficit > 0 ? (
+                    <span className="text-red-400 font-sans font-medium truncate">
+                      Over Combined ON + HC by {formatCurrency(homeCareQuarterlySummary.plannedUnfundedDeficit)}
+                    </span>
+                  ) : homeCareQuarterlySummary.plannedHcOverflowUsed > 0 ? (
+                    <span className="text-amber-300 font-sans font-medium truncate">
+                      ⚡ Uses 100% ON + {formatCurrency(homeCareQuarterlySummary.plannedHcOverflowUsed)} from HC
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 font-sans font-medium truncate">
+                      ✓ Within ON Budget ({formatCurrency(Math.max(0, homeCareQuarterlySummary.totalOnAllocation - homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown))} buffer)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 3: Actual Spent vs Remaining Planned in Current Quarter */}
+              <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-2.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      Actual Spent vs Remaining
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      Day {homeCareQuarterlySummary.daysElapsed}/{homeCareQuarterlySummary.totalDays}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] text-zinc-500 mr-1">Spent:</span>
+                      <span className="text-base font-bold text-white tracking-tight">
+                        {formatCurrency(homeCareQuarterlySummary.actualOnSpentToDate)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-500 mr-1">Rem. Planned:</span>
+                      <span className="text-xs font-semibold text-zinc-200">
+                        {formatCurrency(homeCareQuarterlySummary.remainingQuarterPlannedOnDrawdown)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-zinc-400 font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
+                  <span>{homeCareQuarterlySummary.daysRemaining} days left in {activeQuarter.shortLabel}</span>
+                  <span>
+                    Pace: <strong className="text-zinc-200">{formatCurrency(homeCareQuarterlySummary.burnRateProjectedOnSpend)}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 4: Projected End-of-Quarter Spend & ON -> HC Cascade Status */}
+              <div
+                className={`bg-[#121214] border rounded-lg p-2.5 flex flex-col justify-between ${
+                  homeCareQuarterlySummary.projectedUnfundedDeficit > 0
+                    ? 'border-red-500/40'
+                    : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
+                    ? 'border-amber-500/40'
+                    : 'border-brand-green/30'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      Projected E.O.Q. Spend
+                    </span>
+                    {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">
+                        <Flame className="w-2.5 h-2.5" /> Over ON + HC
+                      </span>
+                    ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        ⚡ Drawing from HC
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-green/15 text-brand-green border border-brand-green/30">
+                        <CheckCircle2 className="w-2.5 h-2.5" /> Within ON
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div
+                      className={`text-base font-bold tracking-tight ${
+                        homeCareQuarterlySummary.projectedUnfundedDeficit > 0
+                          ? 'text-red-400'
+                          : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
+                          ? 'text-amber-300'
+                          : 'text-brand-green'
+                      }`}
+                    >
+                      {formatCurrency(homeCareQuarterlySummary.scheduleProjectedOnSpend)}
+                    </div>
+                    <div className="text-[11px] font-mono text-zinc-300">
+                      ON Rem: <strong>{formatCurrency(homeCareQuarterlySummary.projectedOnRemaining)}</strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[10px] font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
+                  {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
+                    <span className="text-red-400 font-sans font-medium truncate">
+                      Deficit: -{formatCurrency(homeCareQuarterlySummary.projectedUnfundedDeficit)} (after {formatCurrency(homeCareQuarterlySummary.projectedHcOverflowUsed)} HC)
+                    </span>
+                  ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
+                    <>
+                      <span className="text-amber-300 font-sans font-medium truncate">
+                        ⚡ HC Draw: -{formatCurrency(homeCareQuarterlySummary.projectedHcOverflowUsed)}
+                      </span>
+                      <span className="text-sky-300 truncate">
+                        HC Left: <strong>{formatCurrency(homeCareQuarterlySummary.projectedHcRemainingAfterOverflow)}</strong>
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-zinc-400 truncate">
+                      Projected ON Surplus: <strong className="text-brand-green">+{formatCurrency(homeCareQuarterlySummary.projectedOnRemaining)}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Weekly & Quarterly Total Footer */}
         <div className="p-4 border-t border-white/[0.08] bg-[#09090b] flex flex-wrap justify-between items-center gap-3 shrink-0">
           <div className="flex items-center flex-wrap gap-5">
@@ -1950,15 +1982,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               </>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {user?.role === 'ADMIN' && (
               <>
-                <div className="flex items-center gap-2 mr-2">
+                {/* 1. Template Frequency */}
+                <div className="flex items-center gap-2">
                   <span className="text-sm text-zinc-400 font-medium">Frequency:</span>
                   <select
                     value={templateSettings[activeTemplateName] || 'Weekly'}
                     onChange={(e) => handleFrequencyChange(e.target.value)}
-                    className="bg-[#121214] border border-white/[0.08] rounded-md px-2 py-1.5 text-sm text-white focus:border-brand-teal outline-none transition-colors"
+                    className="bg-[#121214] border border-white/[0.08] rounded-md px-2.5 py-1.5 text-sm text-white focus:border-brand-teal outline-none transition-colors"
                   >
                     <option value="Weekly">Weekly</option>
                     <option value="Fortnightly">Fortnightly</option>
@@ -1970,25 +2003,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     <option value="12 Monthly">12 Monthly</option>
                   </select>
                 </div>
-                <a
-                  href={`/api/clients/${clientId}/roster-templates/pdf?token=${token}&templateName=${encodeURIComponent(activeTemplateName)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  PDF
-                </a>
-                <button
-                  onClick={() => {
-                    setRunBuilderTemplate(activeTemplateName);
-                    setShowRunBuilderModal(true);
-                  }}
-                  className="px-3 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center"
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Run Builder
-                </button>
+
+                {/* 2. Add Shift to Template */}
                 <button
                   onClick={() => {
                     setEditingTemplateId(null);
@@ -2003,10 +2019,36 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
                     setShowAddTemplateModal(true);
                   }}
-                  className="px-3 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center"
+                  className="px-3.5 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-4 h-4 mr-1.5" />
                   Add Shift
+                </button>
+
+                {/* 3. Run Builder (Generate Roster Shifts) */}
+                <button
+                  onClick={() => {
+                    setRunBuilderTemplate(activeTemplateName);
+                    setShowRunBuilderModal(true);
+                  }}
+                  className="px-3.5 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                >
+                  <Calendar className="w-4 h-4 mr-1.5" />
+                  Run Builder
+                </button>
+
+                <div className="h-5 w-[1px] bg-white/[0.1] mx-0.5 hidden sm:block" />
+
+                {/* 4. Export Client-Facing PDF Schedule */}
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="px-3.5 py-1.5 bg-[#121214] hover:bg-zinc-800 disabled:opacity-50 text-white border border-white/[0.12] rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                  title="Download Client-Readable Service Schedule & Quarterly Budget PDF"
+                >
+                  <Download className="w-4 h-4 mr-1.5 text-brand-teal" />
+                  {downloadingPdf ? 'Generating...' : 'Export PDF'}
                 </button>
               </>
             )}

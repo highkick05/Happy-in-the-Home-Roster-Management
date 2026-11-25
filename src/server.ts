@@ -18062,7 +18062,7 @@ app.get("/api/health", (req, res) => {
     (req: any, res: any) => {
       try {
         const clientId = req.params.id;
-        const templateName = req.query.templateName || "Default Template";
+        const templateName = String(req.query.templateName || "Default Template");
         const client = db
           .prepare("SELECT * FROM clients WHERE id = ?")
           .get(clientId) as any;
@@ -18085,30 +18085,258 @@ app.get("/api/health", (req, res) => {
           )
           .all(clientId, templateName, templateName) as any[];
 
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="Roster_Templates_${client.first_name}_${client.last_name}.pdf"`,
-        );
+        const allServices = db.prepare("SELECT * FROM services").all() as any[];
+        const templateSettingRow = db
+          .prepare(
+            "SELECT frequency FROM client_template_settings WHERE client_id = ? AND template_name = ? LIMIT 1",
+          )
+          .get(clientId, templateName) as any;
+        const activeFrequency = templateSettingRow?.frequency || "Weekly";
 
-        const doc = new PDFDocument({
-          margin: 20,
-          size: "A4",
-          layout: "landscape",
-        });
-        doc.pipe(res);
+        const settingsRows = db
+          .prepare(
+            "SELECT key, value FROM settings WHERE key IN ('timezone', 'ndisRegion', 'hcpFundingLevels', 'sahFundingLevels', 'defaultCareManagementFee', 'defaultCareCoordinationFee', 'defaultManagementFee')",
+          )
+          .all() as any[];
+        const settingsMap = settingsRows.reduce((acc, row) => {
+          let parsed = row.value;
+          try {
+            parsed = JSON.parse(row.value);
+          } catch {}
+          return { ...acc, [row.key]: parsed };
+        }, {} as any);
 
-        doc
-          .fontSize(16)
-          .font("Helvetica-Bold")
-          .text(`Roster Templates: ${client.first_name} ${client.last_name}`, {
-            align: "center",
-          });
-        doc.moveDown(1);
+        const timezone = settingsMap.timezone || "Australia/Perth";
+        const ndisRegion = settingsMap.ndisRegion || "NSW";
 
-        // We want Monday to Sunday order
-        const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 1=Monday... 0=Sunday
-        const DAY_NAMES = {
+        const fType = String(client.funding_type || "").toUpperCase().trim();
+        const isClientHomeCare =
+          fType === "HOME_CARE" ||
+          fType === "HOME CARE" ||
+          fType === "HCP" ||
+          (!fType && Boolean(client.home_care_sub_type));
+
+        const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+        const fmtAud = (v: number) =>
+          new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(v || 0);
+        const fmtDateDmy = (dStr?: string | null) => {
+          if (!dStr) return "";
+          const clean = String(dStr).split("T")[0];
+          const p = clean.split("-");
+          if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+          return clean;
+        };
+
+        // Determine active quarter in timezone
+        const now = new Date();
+        let todayStr = "";
+        try {
+          todayStr = new Intl.DateTimeFormat("en-CA", {
+            timeZone: timezone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(now);
+        } catch {
+          todayStr = now.toISOString().split("T")[0];
+        }
+        const [cY, cM, cD] = todayStr.split("-").map((n) => parseInt(n, 10));
+        const isPastJun30 = cM > 6 || (cM === 6 && cD >= 30);
+        const fyStartYear = isPastJun30 ? cY : cY - 1;
+        const isLeap = (yr: number) => (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
+        const q3Days = isLeap(fyStartYear + 1) ? 91 : 90;
+        const quarters = [
+          {
+            id: 1,
+            shortLabel: "Q1",
+            startDateStr: `${fyStartYear}-06-30`,
+            endDateStr: `${fyStartYear}-09-30`,
+            displayRange: `30/06/${fyStartYear} - 30/09/${fyStartYear}`,
+            totalDays: 92,
+          },
+          {
+            id: 2,
+            shortLabel: "Q2",
+            startDateStr: `${fyStartYear}-09-30`,
+            endDateStr: `${fyStartYear}-12-31`,
+            displayRange: `30/09/${fyStartYear} - 31/12/${fyStartYear}`,
+            totalDays: 92,
+          },
+          {
+            id: 3,
+            shortLabel: "Q3",
+            startDateStr: `${fyStartYear}-12-31`,
+            endDateStr: `${fyStartYear + 1}-03-31`,
+            displayRange: `31/12/${fyStartYear} - 31/03/${fyStartYear + 1}`,
+            totalDays: q3Days,
+          },
+          {
+            id: 4,
+            shortLabel: "Q4",
+            startDateStr: `${fyStartYear + 1}-03-31`,
+            endDateStr: `${fyStartYear + 1}-06-30`,
+            displayRange: `31/03/${fyStartYear + 1} - 30/06/${fyStartYear + 1}`,
+            totalDays: 91,
+          },
+        ];
+        const activeQ =
+          quarters.slice().reverse().find((q) => todayStr >= q.startDateStr && todayStr <= q.endDateStr) ||
+          quarters[0];
+
+        let actualStartDateStr = activeQ.startDateStr;
+        let totalDays = activeQ.totalDays;
+        if (client.joined_date) {
+          const joinedClean = String(client.joined_date).split("T")[0];
+          if (joinedClean > activeQ.startDateStr && joinedClean <= activeQ.endDateStr) {
+            actualStartDateStr = joinedClean;
+            const jDate = new Date(`${joinedClean}T00:00:00`);
+            const eDate = new Date(`${activeQ.endDateStr}T23:59:59`);
+            totalDays = Math.max(1, Math.floor((eDate.getTime() - jDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          }
+        }
+
+        const defaultCareCoordRate =
+          settingsMap.defaultCareCoordinationFee !== undefined ? Number(settingsMap.defaultCareCoordinationFee) : 20;
+        const defaultMgmtRate =
+          settingsMap.defaultManagementFee !== undefined ? Number(settingsMap.defaultManagementFee) : 10;
+        const careCoordPercent = isClientHomeCare
+          ? client.care_coordination_fee !== undefined && client.care_coordination_fee !== null && client.care_coordination_fee !== ""
+            ? Number(client.care_coordination_fee)
+            : defaultCareCoordRate
+          : 0;
+        const serviceLoadingPercent = isClientHomeCare
+          ? client.management_fee !== undefined && client.management_fee !== null && client.management_fee !== ""
+            ? Number(client.management_fee)
+            : defaultMgmtRate
+          : 0;
+
+        const applyShiftDrawdownFees = (baseAmt: number) => {
+          if (!isClientHomeCare) return baseAmt;
+          const cc = baseAmt * (careCoordPercent / 100);
+          const sub = baseAmt + cc;
+          const loading = sub * (serviceLoadingPercent / 100);
+          return sub + loading;
+        };
+
+        const resolveServiceDetails = (serviceId: string | number, dayOfWeek: number, timeStr?: string) => {
+          let service = allServices.find((x) => String(x.id) === String(serviceId));
+          if (!service) return { rate: 0, unit: "Hour", name: "Service", fundingStream: "ON" };
+
+          if (
+            isClientHomeCare &&
+            service.type !== "HOME_CARE" &&
+            service.type !== "Home Care" &&
+            service.type !== "HCP"
+          ) {
+            const matchingHc = allServices.find(
+              (s) =>
+                (s.type === "HOME_CARE" ||
+                  s.type === "Home Care" ||
+                  s.type === "HCP" ||
+                  (s.rates_json && String(s.rates_json).includes("Weekday"))) &&
+                ((s.code && service.code && s.code.trim().toLowerCase() === service.code.trim().toLowerCase()) ||
+                  (s.name && service.name && s.name.trim().toLowerCase() === service.name.trim().toLowerCase())),
+            );
+            if (matchingHc) service = matchingHc;
+          }
+
+          let rates: Record<string, any> = {};
+          if (typeof service.rates_json === "string") {
+            try {
+              rates = JSON.parse(service.rates_json);
+            } catch {
+              rates = {};
+            }
+          } else if (service.rates_json && typeof service.rates_json === "object") {
+            rates = service.rates_json;
+          }
+
+          const baseRate = Number(service.rate) || 0;
+          let finalRate = baseRate;
+          const isHomeCareService =
+            service.type === "HOME_CARE" ||
+            service.type === "Home Care" ||
+            service.type === "HCP" ||
+            isClientHomeCare ||
+            rates["Weekday"] !== undefined;
+
+          if (isHomeCareService && Object.keys(rates).length > 0) {
+            const findRate = (...keys: string[]): number | undefined => {
+              for (const k of keys) {
+                if (rates[k] !== undefined && rates[k] !== null && rates[k] !== "" && !isNaN(Number(rates[k]))) {
+                  return Number(rates[k]);
+                }
+              }
+              return undefined;
+            };
+            const weekdayRate = findRate("Weekday", "Weekday (Standard)", "Standard") ?? (baseRate > 0 ? baseRate : undefined);
+            const nonStandardRate = findRate("Weekday (Non-Standard)", "Non-Standard") ?? weekdayRate;
+            const saturdayRate = findRate("Saturday", "Sat") ?? weekdayRate;
+            const sundayRate = findRate("Sunday", "Sun") ?? weekdayRate;
+            const isEvening = timeStr ? timeStr >= "18:00" || timeStr < "06:00" : false;
+
+            if (dayOfWeek === 0) finalRate = sundayRate ?? weekdayRate ?? baseRate;
+            else if (dayOfWeek === 6) finalRate = saturdayRate ?? weekdayRate ?? baseRate;
+            else finalRate = isEvening ? (nonStandardRate ?? weekdayRate ?? baseRate) : (weekdayRate ?? baseRate);
+          } else if (service.type === "NDIS" && rates[ndisRegion] !== undefined && rates[ndisRegion] !== "") {
+            finalRate = Number(rates[ndisRegion]);
+          }
+          if (finalRate === 0 && baseRate > 0) finalRate = baseRate;
+
+          return {
+            rate: finalRate,
+            unit: service.unit || "Hour",
+            name: service.name || "Service",
+            fundingStream: String(service.funding_stream || "ON").toUpperCase(),
+          };
+        };
+
+        const countShiftOccurrencesInRange = (
+          t: any,
+          rangeStartStr: string,
+          rangeEndStr: string,
+          freq: string,
+        ) => {
+          if (!rangeStartStr || !rangeEndStr || rangeStartStr > rangeEndStr) return 0;
+          const sType = t.schedule_type || "ONGOING";
+          if (sType === "ONE_OFF") {
+            const targetDate = t.one_off_date || t.start_date;
+            if (!targetDate) return 1;
+            return targetDate >= rangeStartStr && targetDate <= rangeEndStr ? 1 : 0;
+          }
+          const effStart = t.start_date && t.start_date > rangeStartStr ? t.start_date : rangeStartStr;
+          const effEnd = sType === "FIXED" && t.end_date && t.end_date < rangeEndStr ? t.end_date : rangeEndStr;
+          if (effStart > effEnd) return 0;
+
+          const [sy, sm, sd] = effStart.split("-").map(Number);
+          const [ey, em, ed] = effEnd.split("-").map(Number);
+          const anchorStr = t.start_date || rangeStartStr;
+          const [ay, am, ad] = anchorStr.split("-").map(Number);
+          const startD = new Date(sy, sm - 1, sd, 12, 0, 0);
+          const endD = new Date(ey, em - 1, ed, 12, 0, 0);
+          const anchorD = new Date(ay, am - 1, ad, 12, 0, 0);
+
+          let count = 0;
+          for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() !== Number(t.day_of_week)) continue;
+            const diffDays = Math.max(0, Math.round((d.getTime() - anchorD.getTime()) / (1000 * 60 * 60 * 24)));
+            const weekIndex = Math.floor(diffDays / 7);
+            let valid = true;
+            if (freq === "Fortnightly" && weekIndex % 2 !== 0) valid = false;
+            else if (freq === "3 Weekly" && weekIndex % 3 !== 0) valid = false;
+            else if (freq === "1 Monthly" && weekIndex % 4 !== 0) valid = false;
+            else if (freq === "2 Monthly" && weekIndex % 8 !== 0) valid = false;
+            else if (freq === "3 Monthly" && weekIndex % 13 !== 0) valid = false;
+            else if (freq === "6 Monthly" && weekIndex % 26 !== 0) valid = false;
+            else if (freq === "12 Monthly" && weekIndex % 52 !== 0) valid = false;
+            if (valid) count++;
+          }
+          return count;
+        };
+
+        // Pre-process all template shift lines
+        const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0];
+        const DAY_NAMES: Record<number, string> = {
           1: "Monday",
           2: "Tuesday",
           3: "Wednesday",
@@ -18118,94 +18346,580 @@ app.get("/api/health", (req, res) => {
           0: "Sunday",
         };
 
-        const templatesByDay: Record<number, any[]> = {
-          0: [],
-          1: [],
-          2: [],
-          3: [],
-          4: [],
-          5: [],
-          6: [],
-        };
-        templates.forEach((t) => {
-          templatesByDay[t.day_of_week].push(t);
+        const orderedTemplates = [...templates].sort((a, b) => {
+          const dayPosA = DAYS_ORDER.indexOf(Number(a.day_of_week));
+          const dayPosB = DAYS_ORDER.indexOf(Number(b.day_of_week));
+          if (dayPosA !== dayPosB) return dayPosA - dayPosB;
+          return String(a.start_time || "").localeCompare(String(b.start_time || ""));
         });
 
-        const startY = doc.y;
-        const colWidth = 110;
-        const marginX = 20;
-        const spacing = 5;
+        const [ty, tm, td] = todayStr.split("-").map(Number);
+        const tomorrowD = new Date(ty, tm - 1, td + 1, 12, 0, 0);
+        const tomorrowStr = `${tomorrowD.getFullYear()}-${String(tomorrowD.getMonth() + 1).padStart(2, "0")}-${String(tomorrowD.getDate()).padStart(2, "0")}`;
+        const remainingStartStr = tomorrowStr > actualStartDateStr ? tomorrowStr : actualStartDateStr;
 
-        DAYS_ORDER.forEach((dayIdx, i) => {
-          const x = marginX + i * (colWidth + spacing);
-          const dayTemplates = templatesByDay[dayIdx] || [];
+        let weeklyBaseTotal = 0;
+        let fullQuarterPlannedOnDrawdown = 0;
+        let remainingQuarterPlannedOnDrawdown = 0;
 
-          // Draw column header
-          doc
-            .roundedRect(x, startY, colWidth, 25, 4)
-            .fillAndStroke("#f4f4f5", "#e4e4e7");
-          doc.fillColor("#18181b").font("Helvetica-Bold").fontSize(10);
+        interface PdfShiftServiceLine {
+          dayName: string;
+          timeRange: string;
+          hoursText: string;
+          scheduleBadge: string;
+          staffName: string;
+          serviceName: string;
+          streamCode: string;
+          unit: string;
+          qty: number;
+          rate: number;
+          lineBaseTotal: number;
+          qOccurrences: number;
+          qEstimatedTotal: number;
+        }
 
-          const headerText = `${DAY_NAMES[dayIdx]}  ${dayTemplates.length} SHIFT${dayTemplates.length !== 1 ? "S" : ""}`;
-          doc.text(headerText, x + 5, startY + 7, {
-            width: colWidth - 10,
-            align: "left",
+        const pdfRows: PdfShiftServiceLine[] = [];
+
+        orderedTemplates.forEach((t) => {
+          const tStart = new Date(`1970-01-01T${t.start_time}:00`);
+          let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
+          if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
+          const shiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
+
+          const sType = t.schedule_type || "ONGOING";
+          let scheduleBadge = "ONGOING";
+          if (sType === "ONE_OFF") {
+            scheduleBadge = `ONE OFF${t.one_off_date ? ` (${fmtDateDmy(t.one_off_date)})` : ""}`;
+          } else if (sType === "FIXED") {
+            scheduleBadge = `FIXED${t.start_date && t.end_date ? ` (${fmtDateDmy(t.start_date)} - ${fmtDateDmy(t.end_date)})` : ""}`;
+          } else if (t.start_date) {
+            scheduleBadge = `ONGOING (From ${fmtDateDmy(t.start_date)})`;
+          }
+
+          const staffName = t.staff_first_name
+            ? `${t.staff_first_name} ${t.staff_last_name}`.trim()
+            : "Unassigned";
+
+          const qOccurrences = countShiftOccurrencesInRange(t, actualStartDateStr, activeQ.endDateStr, activeFrequency);
+          const remOccurrences = countShiftOccurrencesInRange(t, remainingStartStr, activeQ.endDateStr, activeFrequency);
+
+          let parsedServices: any[] = [];
+          if (t.services_json) {
+            try {
+              parsedServices = JSON.parse(t.services_json);
+            } catch {
+              parsedServices = [];
+            }
+          }
+          if ((!parsedServices || parsedServices.length === 0) && t.service_id) {
+            parsedServices = [{ serviceId: t.service_id }];
+          }
+
+          parsedServices.forEach((sd: any) => {
+            const sDetails = resolveServiceDetails(sd.serviceId, Number(t.day_of_week), t.start_time);
+            const qty =
+              sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ""
+                ? Number(sd.qtyOverride)
+                : sDetails.unit === "Hour"
+                ? shiftHours
+                : 1;
+            const rate =
+              sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ""
+                ? Number(sd.rateOverride)
+                : sDetails.rate;
+            const streamCode = String(sd.fundingStream || sDetails.fundingStream || "ON").toUpperCase();
+            const lineBaseTotal = round2(rate * qty);
+            const lineDrawdown = round2(applyShiftDrawdownFees(lineBaseTotal));
+
+            if (sType !== "ONE_OFF") {
+              weeklyBaseTotal += lineBaseTotal;
+            }
+            fullQuarterPlannedOnDrawdown += lineDrawdown * qOccurrences;
+            remainingQuarterPlannedOnDrawdown += lineDrawdown * remOccurrences;
+
+            pdfRows.push({
+              dayName: DAY_NAMES[Number(t.day_of_week)] || "Monday",
+              timeRange: `${t.start_time} - ${t.end_time}`,
+              hoursText: `${shiftHours.toFixed(2)}h`,
+              scheduleBadge,
+              staffName,
+              serviceName: sDetails.name,
+              streamCode,
+              unit: sDetails.unit,
+              qty: round2(qty),
+              rate: round2(rate),
+              lineBaseTotal,
+              qOccurrences,
+              qEstimatedTotal: round2((isClientHomeCare ? lineDrawdown : lineBaseTotal) * qOccurrences),
+            });
+          });
+        });
+
+        weeklyBaseTotal = round2(weeklyBaseTotal);
+        const weeklyPlannedDrawdown = round2(applyShiftDrawdownFees(weeklyBaseTotal));
+        fullQuarterPlannedOnDrawdown = round2(fullQuarterPlannedOnDrawdown);
+        remainingQuarterPlannedOnDrawdown = round2(remainingQuarterPlannedOnDrawdown);
+
+        // Calculate Home Care Quarterly Budget Summary for PDF (with zero mention of Care Mgmt Fee)
+        let hcSummary: any = null;
+        if (isClientHomeCare) {
+          const hcpLevels = settingsMap.hcpFundingLevels || [
+            { level: "Level 1", amountAnnual: 11294.22 },
+            { level: "Level 2", amountAnnual: 19860.56 },
+            { level: "Level 3", amountAnnual: 43233.21 },
+            { level: "Level 4", amountAnnual: 65543.98 },
+          ];
+          const sahLevels = settingsMap.sahFundingLevels || [
+            { level: "Class 1", amountAnnual: 10731.0 },
+            { level: "Class 2", amountAnnual: 16034.45 },
+            { level: "Class 3", amountAnnual: 21965.7 },
+            { level: "Class 4", amountAnnual: 29696.4 },
+            { level: "Class 5", amountAnnual: 39697.4 },
+            { level: "Class 6", amountAnnual: 48114.3 },
+            { level: "Class 7", amountAnnual: 58148.15 },
+            { level: "Class 8", amountAnnual: 78106.35 },
+          ];
+          const parseDailyRate = (item: any, fallbackAnnual: number) => {
+            if (!item) return fallbackAnnual / 365;
+            if (item.amountAnnual !== undefined && Number(item.amountAnnual) > 0) return Number(item.amountAnnual) / 365;
+            if (item.amount !== undefined && Number(item.amount) > 0) return Number(item.amount) / 365;
+            if (item.amountDaily !== undefined) return Number(item.amountDaily);
+            return fallbackAnnual / 365;
+          };
+          const subType = String(client.home_care_sub_type || "HCP").toUpperCase();
+          const levelOrClass = client.home_care_level_or_class || (subType === "SAH" ? "Class 1" : "Level 1");
+          const dailyRate =
+            subType === "SAH"
+              ? parseDailyRate(sahLevels.find((l: any) => l.level === levelOrClass), 10731.0)
+              : parseDailyRate(hcpLevels.find((l: any) => l.level === levelOrClass), 65543.98);
+
+          const grossAllocation = totalDays * dailyRate;
+          const careMgmtPct =
+            settingsMap.defaultCareManagementFee !== undefined && settingsMap.defaultCareManagementFee !== null
+              ? Number(settingsMap.defaultCareManagementFee)
+              : 10;
+          const netOngoingSubsidy = grossAllocation - grossAllocation * (careMgmtPct / 100);
+
+          let rawStreams: any[] = [];
+          try {
+            const activeBudgetRow = db
+              .prepare("SELECT additional_funding_streams FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1")
+              .get(client.id) as any;
+            const rawJson = activeBudgetRow?.additional_funding_streams || client.additional_funding_streams;
+            if (rawJson) {
+              rawStreams = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+            }
+          } catch {
+            rawStreams = [];
+          }
+          if (!Array.isArray(rawStreams)) rawStreams = [];
+
+          const activeQuarterStreams = rawStreams.filter((s: any) => {
+            if (s?.fyYear !== undefined && s?.quarterId !== undefined) {
+              return Number(s.fyYear) === fyStartYear && Number(s.quarterId) === activeQ.id;
+            }
+            return true;
           });
 
-          let currentY = startY + 30;
+          const getEffectiveStreamAmount = (s: any) => {
+            const pct = Number(s?.percentageOfOngoing ?? s?.percentage_of_ongoing);
+            if (!isNaN(pct) && pct > 0) return round2(grossAllocation * (pct / 100));
+            if (
+              (String(s?.name || "").toLowerCase().includes("dementia") || String(s?.code || "").toUpperCase() === "DC") &&
+              (Number(s?.amount) === 1896.17 || Number(s?.amount) === 1899.88)
+            ) {
+              return round2(grossAllocation * 0.115);
+            }
+            return round2(Number(s?.amount) || 0);
+          };
 
-          // Draw cards
-          dayTemplates.forEach((t) => {
-            // Basic calculations for card height
-            let servicesText = t.service_name || "";
-            if (t.services_json) {
-              try {
-                const parsed = JSON.parse(t.services_json);
-                if (parsed.length > 0) {
-                  servicesText = `${parsed.length} service(s)`;
-                  // If we want more detail, we could read it here
-                }
-              } catch (e) {}
+          const addToOngoingTotal = round2(
+            activeQuarterStreams
+              .filter((s: any) => Boolean(s.addToOngoing))
+              .reduce((sum: number, s: any) => sum + getEffectiveStreamAmount(s), 0),
+          );
+          const totalOnAllocation = round2(round2(netOngoingSubsidy) + addToOngoingTotal);
+
+          const separateStreams = activeQuarterStreams.filter(
+            (s: any) => !s.addToOngoing && s.code && String(s.code).toUpperCase() !== "ON",
+          );
+          const separateCodes = new Set(separateStreams.map((s: any) => String(s.code).toUpperCase()));
+
+          const ledgerData = getClientBudgetLedgerData(client.id, actualStartDateStr, activeQ.endDateStr);
+          const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
+          const actualOnSpent = round2(
+            ledgerItems
+              .filter((item: any) => !separateCodes.has(String(item.funding_stream || "ON").toUpperCase()))
+              .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0),
+          );
+
+          const scheduleProjectedOnSpend = round2(
+            actualOnSpent > 0 ? actualOnSpent + remainingQuarterPlannedOnDrawdown : fullQuarterPlannedOnDrawdown,
+          );
+
+          const hcStreams = separateStreams.filter((s: any) => String(s.code).toUpperCase() === "HC");
+          const hcAllocated = round2(hcStreams.reduce((sum: number, s: any) => sum + getEffectiveStreamAmount(s), 0));
+          const hcDirectSpent = round2(
+            hcStreams.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0) +
+              ledgerItems
+                .filter((item: any) => String(item.funding_stream || "").toUpperCase() === "HC")
+                .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0),
+          );
+          const hcAvailable = Math.max(0, round2(hcAllocated - hcDirectSpent));
+          const projectedOnOverrun = Math.max(0, round2(scheduleProjectedOnSpend - totalOnAllocation));
+          const projectedHcOverflow = hcAllocated > 0 ? Math.min(hcAvailable, projectedOnOverrun) : 0;
+          const projectedUnfundedDeficit = Math.max(0, round2(projectedOnOverrun - projectedHcOverflow));
+          const projectedOnRemaining =
+            projectedOnOverrun > 0
+              ? projectedUnfundedDeficit > 0
+                ? -projectedUnfundedDeficit
+                : 0
+              : round2(totalOnAllocation - scheduleProjectedOnSpend);
+
+          hcSummary = {
+            subType,
+            levelOrClass,
+            totalOnAllocation,
+            hcAllocated,
+            hcAvailable,
+            actualOnSpent,
+            remainingQuarterPlannedOnDrawdown,
+            scheduleProjectedOnSpend,
+            projectedHcOverflow,
+            projectedOnRemaining,
+          };
+        }
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="Service_Schedule_${client.first_name}_${client.last_name}.pdf"`,
+        );
+
+        const doc = new PDFDocument({
+          margin: 28,
+          size: "A4",
+          layout: "landscape",
+        });
+        doc.pipe(res);
+
+        const pageWidth = doc.page.width;
+        const pageHeight = doc.page.height;
+        const margin = 28;
+        const contentWidth = pageWidth - margin * 2;
+
+        // --- 1. Top Branded Header Banner ---
+        doc.roundedRect(margin, margin, contentWidth, 54, 6).fill("#0f172a");
+        doc
+          .fillColor("#2dd4bf")
+          .font("Helvetica-Bold")
+          .fontSize(10)
+          .text("HAPPY IN THE HOME", margin + 16, margin + 11);
+        doc
+          .fillColor("#ffffff")
+          .font("Helvetica-Bold")
+          .fontSize(16)
+          .text(
+            `Client Service Schedule: ${client.first_name} ${client.last_name}`,
+            margin + 16,
+            margin + 25,
+          );
+
+        const rightInfoX = pageWidth - margin - 260;
+        doc
+          .fillColor("#cbd5e1")
+          .font("Helvetica")
+          .fontSize(9)
+          .text(`Template: ${templateName} (${activeFrequency})`, rightInfoX, margin + 11, {
+            width: 245,
+            align: "right",
+          });
+        doc
+          .fillColor("#cbd5e1")
+          .font("Helvetica")
+          .fontSize(9)
+          .text(
+            isClientHomeCare && hcSummary
+              ? `${hcSummary.subType === "SAH" ? "Support at Home" : "Home Care Package"} (${hcSummary.levelOrClass}) • ${activeQ.shortLabel}: ${activeQ.displayRange}`
+              : `Funding: ${client.funding_type || "NDIS"}`,
+            rightInfoX,
+            margin + 24,
+            { width: 245, align: "right" },
+          );
+        doc
+          .fillColor("#94a3b8")
+          .font("Helvetica")
+          .fontSize(8)
+          .text(`Generated: ${fmtDateDmy(todayStr)}`, rightInfoX, margin + 37, {
+            width: 245,
+            align: "right",
+          });
+
+        let curY = margin + 66;
+
+        // --- 2. Service Schedule Table ---
+        const cols = [
+          { label: "DAY", width: 62, align: "left" as const },
+          { label: "TIME (HRS)", width: 78, align: "left" as const },
+          { label: "SCHEDULE TYPE", width: 120, align: "left" as const },
+          { label: "SUPPORT WORKER", width: 95, align: "left" as const },
+          { label: "SERVICE PROVIDED", width: isClientHomeCare ? 215 : 265, align: "left" as const },
+          { label: "QTY / UNIT", width: 58, align: "right" as const },
+          { label: "RATE", width: 54, align: "right" as const },
+          { label: "SHIFT TOTAL", width: 64, align: "right" as const },
+          ...(isClientHomeCare
+            ? [{ label: `${activeQ.shortLabel} EST. (INCL. FEES)`, width: 40, align: "right" as const }]
+            : []),
+        ];
+        // Rebalance last column width to fill contentWidth cleanly
+        const usedWidth = cols.slice(0, -1).reduce((s, c) => s + c.width, 0);
+        cols[cols.length - 1].width = contentWidth - usedWidth;
+
+        const drawTableHeader = (yPos: number) => {
+          doc.roundedRect(margin, yPos, contentWidth, 22, 4).fill("#1e293b");
+          let colX = margin;
+          cols.forEach((col) => {
+            doc
+              .fillColor("#f8fafc")
+              .font("Helvetica-Bold")
+              .fontSize(7.5)
+              .text(col.label, colX + 6, yPos + 7, {
+                width: col.width - 12,
+                align: col.align,
+              });
+            colX += col.width;
+          });
+          return yPos + 24;
+        };
+
+        curY = drawTableHeader(curY);
+
+        if (pdfRows.length === 0) {
+          doc
+            .roundedRect(margin, curY, contentWidth, 36, 4)
+            .fillAndStroke("#f8fafc", "#e2e8f0");
+          doc
+            .fillColor("#64748b")
+            .font("Helvetica")
+            .fontSize(10)
+            .text("No shifts defined for this template.", margin, curY + 13, {
+              width: contentWidth,
+              align: "center",
+            });
+          curY += 44;
+        } else {
+          pdfRows.forEach((row, idx) => {
+            const srvColWidth = cols[4].width - 12;
+            const serviceLabel = isClientHomeCare
+              ? `${row.serviceName} [${row.streamCode}]`
+              : row.serviceName;
+            doc.font("Helvetica").fontSize(8.5);
+            const srvHeight = doc.heightOfString(serviceLabel, { width: srvColWidth });
+            const rowHeight = Math.max(24, Math.ceil(srvHeight) + 10);
+
+            // Check if we need a page break (reserve 115px on final page for summary cards)
+            if (curY + rowHeight > pageHeight - margin - 25) {
+              doc.addPage({ margin: 28, size: "A4", layout: "landscape" });
+              curY = drawTableHeader(margin);
             }
 
-            const cardHeight = 70;
-
-            // Background
+            const bgFill = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
             doc
-              .roundedRect(x, currentY, colWidth, cardHeight, 4)
-              .fillAndStroke("#ffffff", "#e4e4e7");
+              .rect(margin, curY, contentWidth, rowHeight)
+              .fillAndStroke(bgFill, "#e2e8f0");
 
-            // Time
-            doc.fillColor("#18181b").font("Helvetica-Bold").fontSize(10);
-            doc.text(`${t.start_time} - ${t.end_time}`, x + 5, currentY + 5);
+            let colX = margin;
+            const textY = curY + 7;
 
-            // Staff
-            const staffName = t.staff_first_name
-              ? `${t.staff_first_name} ${t.staff_last_name}`
-              : "Unassigned";
-            // Tag for staff
+            // Col 0: Day
             doc
-              .roundedRect(x + 5, currentY + 20, colWidth - 10, 14, 2)
-              .fillAndStroke("#f4f4f5", "#e4e4e7");
-            doc.fillColor("#52525b").font("Helvetica").fontSize(8);
-            doc.text(staffName, x + 7, currentY + 23, {
-              width: colWidth - 14,
-              ellipsis: true,
-            });
+              .fillColor("#0f172a")
+              .font("Helvetica-Bold")
+              .fontSize(8.5)
+              .text(row.dayName, colX + 6, textY, { width: cols[0].width - 12 });
+            colX += cols[0].width;
 
-            // Service
-            // Tiny bullet point
-            doc.circle(x + 8, currentY + 45, 2).fill("#3b82f6");
-            doc.fillColor("#18181b").font("Helvetica").fontSize(9);
-            doc.text(servicesText, x + 13, currentY + 42, {
-              width: colWidth - 18,
-              height: 24,
-              ellipsis: true,
-            });
+            // Col 1: Time
+            doc
+              .fillColor("#1e293b")
+              .font("Helvetica")
+              .fontSize(8.5)
+              .text(`${row.timeRange} (${row.hoursText})`, colX + 6, textY, { width: cols[1].width - 12 });
+            colX += cols[1].width;
 
-            currentY += cardHeight + 5;
+            // Col 2: Schedule Type
+            doc
+              .fillColor("#334155")
+              .font("Helvetica")
+              .fontSize(7.5)
+              .text(row.scheduleBadge, colX + 6, textY + 0.5, { width: cols[2].width - 12 });
+            colX += cols[2].width;
+
+            // Col 3: Support Worker
+            doc
+              .fillColor("#1e293b")
+              .font("Helvetica")
+              .fontSize(8.5)
+              .text(row.staffName, colX + 6, textY, { width: cols[3].width - 12 });
+            colX += cols[3].width;
+
+            // Col 4: Service Provided
+            doc
+              .fillColor("#0f172a")
+              .font("Helvetica")
+              .fontSize(8.5)
+              .text(serviceLabel, colX + 6, textY, { width: cols[4].width - 12 });
+            colX += cols[4].width;
+
+            // Col 5: Qty / Unit
+            doc
+              .fillColor("#334155")
+              .font("Helvetica")
+              .fontSize(8.5)
+              .text(`${row.qty} ${row.unit}`, colX + 6, textY, {
+                width: cols[5].width - 12,
+                align: "right",
+              });
+            colX += cols[5].width;
+
+            // Col 6: Rate
+            doc
+              .fillColor("#334155")
+              .font("Helvetica")
+              .fontSize(8.5)
+              .text(fmtAud(row.rate), colX + 6, textY, {
+                width: cols[6].width - 12,
+                align: "right",
+              });
+            colX += cols[6].width;
+
+            // Col 7: Shift Base Total
+            doc
+              .fillColor("#0f766e")
+              .font("Helvetica-Bold")
+              .fontSize(8.5)
+              .text(fmtAud(row.lineBaseTotal), colX + 6, textY, {
+                width: cols[7].width - 12,
+                align: "right",
+              });
+            colX += cols[7].width;
+
+            // Col 8: Quarter Estimate (Home Care)
+            if (isClientHomeCare && cols[8]) {
+              doc
+                .fillColor("#0f172a")
+                .font("Helvetica-Bold")
+                .fontSize(8)
+                .text(
+                  `${row.qOccurrences}x • ${fmtAud(row.qEstimatedTotal)}`,
+                  colX + 6,
+                  textY,
+                  { width: cols[8].width - 12, align: "right" },
+                );
+            }
+
+            curY += rowHeight;
           });
-        });
+        }
+
+        curY += 12;
+
+        // --- 3. Bottom Summary Cards & Footer Totals ---
+        const summaryBlockHeight = isClientHomeCare ? 94 : 42;
+        if (curY + summaryBlockHeight > pageHeight - margin) {
+          doc.addPage({ margin: 28, size: "A4", layout: "landscape" });
+          curY = margin;
+        }
+
+        if (isClientHomeCare && hcSummary) {
+          const gap = 8;
+          const cardW = (contentWidth - gap * 3) / 4;
+          const cardH = 54;
+
+          const summaryCards = [
+            {
+              title: "QUARTERLY ALLOCATED FUNDS (ON)",
+              mainValue: fmtAud(hcSummary.totalOnAllocation),
+              subText:
+                hcSummary.hcAllocated > 0
+                  ? `Linked HC Reserve: ${fmtAud(hcSummary.hcAvailable)}`
+                  : `${activeQ.shortLabel} (${activeQ.displayRange})`,
+              borderColor: "#0d9488",
+            },
+            {
+              title: `PLANNED ROSTER (${templateName.toUpperCase()})`,
+              mainValue: `${fmtAud(fullQuarterPlannedOnDrawdown)} / qtr`,
+              subText: `Weekly Package Drawdown: ${fmtAud(weeklyPlannedDrawdown)}/wk`,
+              borderColor: "#4f46e5",
+            },
+            {
+              title: "ACTUAL SPENT VS REMAINING PLANNED",
+              mainValue: `Spent: ${fmtAud(hcSummary.actualOnSpent)}`,
+              subText: `Remaining Planned (${activeQ.shortLabel}): ${fmtAud(hcSummary.remainingQuarterPlannedOnDrawdown)}`,
+              borderColor: "#475569",
+            },
+            {
+              title: "PROJECTED END-OF-QUARTER SPEND",
+              mainValue: fmtAud(hcSummary.scheduleProjectedOnSpend),
+              subText:
+                hcSummary.projectedHcOverflow > 0
+                  ? `ON Rem: $0.00 • Drawing ${fmtAud(hcSummary.projectedHcOverflow)} from HC`
+                  : `Projected ON Remaining: ${fmtAud(hcSummary.projectedOnRemaining)}`,
+              borderColor: hcSummary.projectedOnRemaining < 0 ? "#dc2626" : "#16a34a",
+            },
+          ];
+
+          summaryCards.forEach((c, i) => {
+            const cx = margin + i * (cardW + gap);
+            doc
+              .roundedRect(cx, curY, cardW, cardH, 5)
+              .lineWidth(1)
+              .fillAndStroke("#f8fafc", c.borderColor);
+            doc
+              .fillColor("#475569")
+              .font("Helvetica-Bold")
+              .fontSize(7)
+              .text(c.title, cx + 8, curY + 7, { width: cardW - 16 });
+            doc
+              .fillColor("#0f172a")
+              .font("Helvetica-Bold")
+              .fontSize(11.5)
+              .text(c.mainValue, cx + 8, curY + 20, { width: cardW - 16 });
+            doc
+              .fillColor("#334155")
+              .font("Helvetica")
+              .fontSize(7.5)
+              .text(c.subText, cx + 8, curY + 37, { width: cardW - 16 });
+          });
+
+          curY += cardH + 8;
+        }
+
+        // Final Footer Strip (Total Weekly Value & Planned Quarter Total)
+        doc.roundedRect(margin, curY, contentWidth, 28, 4).fill("#0f172a");
+        doc
+          .fillColor("#94a3b8")
+          .font("Helvetica-Bold")
+          .fontSize(9)
+          .text("Total Weekly Service Value:", margin + 12, curY + 9);
+        doc
+          .fillColor("#4ade80")
+          .font("Helvetica-Bold")
+          .fontSize(10.5)
+          .text(fmtAud(weeklyBaseTotal), margin + 148, curY + 8);
+
+        if (isClientHomeCare) {
+          doc
+            .fillColor("#94a3b8")
+            .font("Helvetica-Bold")
+            .fontSize(9)
+            .text(`Planned ${activeQ.shortLabel} Total (incl. fees):`, margin + 245, curY + 9);
+          doc
+            .fillColor("#2dd4bf")
+            .font("Helvetica-Bold")
+            .fontSize(10.5)
+            .text(fmtAud(fullQuarterPlannedOnDrawdown), margin + 395, curY + 8);
+        }
 
         doc.end();
       } catch (e: any) {
