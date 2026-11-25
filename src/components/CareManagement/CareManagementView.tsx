@@ -101,10 +101,14 @@ export default function CareManagementView() {
 
   const parseDailyRate = (item: any, fallback: number) => {
     if (!item) return fallback;
+    if (item.amountAnnual !== undefined && item.amountAnnual !== null && Number(item.amountAnnual) > 0) {
+      return Number(item.amountAnnual) / 365;
+    }
+    if (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0) {
+      return Number(item.amount) / 365;
+    }
     if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
-    if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
-    if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
-    if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
+    if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number(item.amountQuarterly) / 91.25;
     return fallback;
   };
 
@@ -115,28 +119,28 @@ export default function CareManagementView() {
       const levels = fundingRates?.sahFundingLevels?.length
         ? fundingRates.sahFundingLevels
         : [
-            { level: 'Class 1', amountDaily: 29.40 },
-            { level: 'Class 2', amountDaily: 43.93 },
-            { level: 'Class 3', amountDaily: 60.18 },
-            { level: 'Class 4', amountDaily: 81.36 },
-            { level: 'Class 5', amountDaily: 108.76 },
-            { level: 'Class 6', amountDaily: 131.82 },
-            { level: 'Class 7', amountDaily: 159.31 },
-            { level: 'Class 8', amountDaily: 213.99 }
+            { level: 'Class 1', amountAnnual: 10731.00, amountDaily: 29.40 },
+            { level: 'Class 2', amountAnnual: 16034.45, amountDaily: 43.93 },
+            { level: 'Class 3', amountAnnual: 21965.70, amountDaily: 60.18 },
+            { level: 'Class 4', amountAnnual: 29696.40, amountDaily: 81.36 },
+            { level: 'Class 5', amountAnnual: 39697.40, amountDaily: 108.76 },
+            { level: 'Class 6', amountAnnual: 48114.30, amountDaily: 131.82 },
+            { level: 'Class 7', amountAnnual: 58148.15, amountDaily: 159.31 },
+            { level: 'Class 8', amountAnnual: 78106.35, amountDaily: 213.99 }
           ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return parseDailyRate(match, 29.40);
+      return parseDailyRate(match, 10731.00 / 365);
     } else {
       const levels = fundingRates?.hcpFundingLevels?.length
         ? fundingRates.hcpFundingLevels
         : [
-            { level: 'Level 1', amountDaily: 30.93 },
-            { level: 'Level 2', amountDaily: 54.39 },
-            { level: 'Level 3', amountDaily: 118.40 },
-            { level: 'Level 4', amountDaily: 179.22 }
+            { level: 'Level 1', amountAnnual: 11294.22, amountDaily: 30.94 },
+            { level: 'Level 2', amountAnnual: 19860.56, amountDaily: 54.41 },
+            { level: 'Level 3', amountAnnual: 43233.21, amountDaily: 118.45 },
+            { level: 'Level 4', amountAnnual: 65543.98, amountDaily: 179.57 }
           ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return parseDailyRate(match, 179.22);
+      return parseDailyRate(match, 65543.98 / 365);
     }
   };
 

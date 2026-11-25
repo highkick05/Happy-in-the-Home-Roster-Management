@@ -15,10 +15,10 @@ export default function FundingTypesSettings() {
   const [defaultCareManagementFee, setDefaultCareManagementFee] = useState<number>(10);
 
   const [hcpLevels, setHcpLevels] = useState([
-    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 11289.45, amountQuarterly: 2822.36, amountDaily: 30.93, billingCycle: 'annual' },
-    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19852.35, amountQuarterly: 4963.09, amountDaily: 54.39, billingCycle: 'annual' },
-    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 43216.00, amountQuarterly: 10804.00, amountDaily: 118.40, billingCycle: 'annual' },
-    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 65415.30, amountQuarterly: 16353.83, amountDaily: 179.22, billingCycle: 'annual' },
+    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 11294.22, amountQuarterly: 2823.56, amountDaily: Number((11294.22 / 365).toFixed(4)), billingCycle: 'annual' },
+    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19860.56, amountQuarterly: 4965.14, amountDaily: Number((19860.56 / 365).toFixed(4)), billingCycle: 'annual' },
+    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 43233.21, amountQuarterly: 10808.30, amountDaily: Number((43233.21 / 365).toFixed(4)), billingCycle: 'annual' },
+    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 65543.98, amountQuarterly: 16386.00, amountDaily: Number((65543.98 / 365).toFixed(4)), billingCycle: 'annual' },
   ]);
 
   const [sahLevels, setSahLevels] = useState([
@@ -55,9 +55,9 @@ export default function FundingTypesSettings() {
         }
         if (data.hcpFundingLevels) {
           setHcpLevels(data.hcpFundingLevels.map((lvl: any) => {
-             const amountAnnual = lvl.amountAnnual !== undefined ? lvl.amountAnnual : (lvl.amount || 0);
-             const amountQuarterly = lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : (amountAnnual / 4);
-             const amountDaily = lvl.amountDaily !== undefined ? lvl.amountDaily : Number((amountAnnual / 365).toFixed(2));
+             const amountAnnual = lvl.amountAnnual !== undefined ? Number(lvl.amountAnnual) : (Number(lvl.amount) || 0);
+             const amountQuarterly = lvl.amountQuarterly !== undefined ? Number(lvl.amountQuarterly) : Number((amountAnnual / 4).toFixed(2));
+             const amountDaily = Number((amountAnnual / 365).toFixed(4));
              return {
                 ...lvl,
                 amountAnnual,
@@ -68,9 +68,9 @@ export default function FundingTypesSettings() {
         }
         if (data.sahFundingLevels) {
           setSahLevels(data.sahFundingLevels.map((lvl: any) => {
-             const amountQuarterly = lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : (lvl.amount || 0);
-             const amountAnnual = lvl.amountAnnual !== undefined ? lvl.amountAnnual : (amountQuarterly * 4);
-             const amountDaily = lvl.amountDaily !== undefined ? lvl.amountDaily : Number((amountAnnual / 365).toFixed(2));
+             const amountQuarterly = lvl.amountQuarterly !== undefined ? Number(lvl.amountQuarterly) : (Number(lvl.amount) || 0);
+             const amountAnnual = lvl.amountAnnual !== undefined ? Number(lvl.amountAnnual) : Number((amountQuarterly * 4).toFixed(2));
+             const amountDaily = Number((amountAnnual / 365).toFixed(4));
              return {
                 ...lvl,
                 amountAnnual,
@@ -139,6 +139,30 @@ export default function FundingTypesSettings() {
   const updateSah = (index: number, field: string, value: any) => {
     const newLevels = [...sahLevels];
     newLevels[index] = { ...newLevels[index], [field]: value };
+    setSahLevels(newLevels);
+  };
+
+  const handleHcpAnnualChange = (index: number, valueStr: string) => {
+    const val = Number(valueStr) || 0;
+    const newLevels = [...hcpLevels];
+    newLevels[index] = {
+      ...newLevels[index],
+      amountAnnual: val,
+      amountQuarterly: Number((val / 4).toFixed(2)),
+      amountDaily: Number((val / 365).toFixed(4))
+    };
+    setHcpLevels(newLevels);
+  };
+
+  const handleSahAnnualChange = (index: number, valueStr: string) => {
+    const val = Number(valueStr) || 0;
+    const newLevels = [...sahLevels];
+    newLevels[index] = {
+      ...newLevels[index],
+      amountAnnual: val,
+      amountQuarterly: Number((val / 4).toFixed(2)),
+      amountDaily: Number((val / 365).toFixed(4))
+    };
     setSahLevels(newLevels);
   };
 
@@ -349,8 +373,9 @@ export default function FundingTypesSettings() {
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-3 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-2">Level</div>
-                  <div className="col-span-7">Description</div>
-                  <div className="col-span-3 text-right">Daily Funding Rate ($)</div>
+                  <div className="col-span-5">Description</div>
+                  <div className="col-span-3 text-right">Annual Subsidy ($ Source of Truth)</div>
+                  <div className="col-span-2 text-right">Daily Rate (Annual ÷ 365)</div>
                 </div>
                 {hcpLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-3 items-center">
@@ -363,7 +388,7 @@ export default function FundingTypesSettings() {
                         placeholder="e.g. Level 1"
                       />
                     </div>
-                    <div className="col-span-7">
+                    <div className="col-span-5">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
@@ -376,16 +401,27 @@ export default function FundingTypesSettings() {
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
                       <input
                         type="number"
-                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amountDaily !== undefined ? lvl.amountDaily : Number((lvl.amountAnnual / 365).toFixed(2))}
-                        onChange={(e) => handleHcpDailyChange(idx, e.target.value)}
+                        className="w-full text-right bg-brand-navy border border-brand-teal/40 rounded-md pl-6 pr-3 py-1.5 text-xs text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountAnnual !== undefined ? lvl.amountAnnual : Number((lvl.amountDaily * 365).toFixed(2))}
+                        onChange={(e) => handleHcpAnnualChange(idx, e.target.value)}
                         step="0.01"
+                      />
+                    </div>
+                    <div className="col-span-2 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
+                      <input
+                        type="number"
+                        className="w-full text-right bg-brand-navy/60 border border-border-subtle rounded-md pl-6 pr-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountAnnual !== undefined ? Number((lvl.amountAnnual / 365).toFixed(4)) : lvl.amountDaily}
+                        onChange={(e) => handleHcpDailyChange(idx, e.target.value)}
+                        step="0.0001"
+                        title="Full floating-point precision (Annual / 365) is used for quarterly budget calculations"
                       />
                     </div>
                   </div>
                 ))}
                 <div className="text-xs text-[#8B949E] mt-4 font-sans leading-relaxed">
-                   These default properties indicate typical daily Government subsidy levels as of 2026. Custom amounts can still be overridden on individual client profiles.
+                   Annual Subsidy is stored as the source of truth ($65,543.98 for HCP 4, $43,233.21 for HCP 3, $19,860.56 for HCP 2, $11,294.22 for HCP 1). Quarterly calculations use full floating-point precision <code className="text-brand-teal">(Annual ÷ 365) × Days in Quarter</code> to match Trilogy Care to $0.00.
                 </div>
               </div>
             )}
@@ -394,8 +430,9 @@ export default function FundingTypesSettings() {
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-3 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-2">Class Level</div>
-                  <div className="col-span-7">Description</div>
-                  <div className="col-span-3 text-right">Daily Funding Rate ($)</div>
+                  <div className="col-span-5">Description</div>
+                  <div className="col-span-3 text-right">Annual Subsidy ($ Source of Truth)</div>
+                  <div className="col-span-2 text-right">Daily Rate (Annual ÷ 365)</div>
                 </div>
                 {sahLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-3 items-center">
@@ -408,7 +445,7 @@ export default function FundingTypesSettings() {
                         placeholder="e.g. Class 1"
                       />
                     </div>
-                    <div className="col-span-7">
+                    <div className="col-span-5">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
@@ -421,16 +458,27 @@ export default function FundingTypesSettings() {
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
                       <input
                         type="number"
-                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amountDaily !== undefined ? lvl.amountDaily : Number((lvl.amountAnnual / 365).toFixed(2))}
-                        onChange={(e) => handleSahDailyChange(idx, e.target.value)}
+                        className="w-full text-right bg-brand-navy border border-brand-teal/40 rounded-md pl-6 pr-3 py-1.5 text-xs text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountAnnual !== undefined ? lvl.amountAnnual : Number((lvl.amountDaily * 365).toFixed(2))}
+                        onChange={(e) => handleSahAnnualChange(idx, e.target.value)}
                         step="0.01"
+                      />
+                    </div>
+                    <div className="col-span-2 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
+                      <input
+                        type="number"
+                        className="w-full text-right bg-brand-navy/60 border border-border-subtle rounded-md pl-6 pr-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountAnnual !== undefined ? Number((lvl.amountAnnual / 365).toFixed(4)) : lvl.amountDaily}
+                        onChange={(e) => handleSahDailyChange(idx, e.target.value)}
+                        step="0.0001"
+                        title="Full floating-point precision (Annual / 365) is used for quarterly budget calculations"
                       />
                     </div>
                   </div>
                 ))}
                 <div className="text-xs text-[#8B949E] mt-4 font-sans leading-relaxed">
-                   These properties define default daily budget expectations for the new Support at Home (SaH) model starting July 2025/2026.
+                   Annual Subsidy is stored as the source of truth for Support at Home (SaH) classifications. Quarterly calculations use full floating-point precision <code className="text-brand-teal">(Annual ÷ 365) × Days in Quarter</code>.
                 </div>
               </div>
             )}

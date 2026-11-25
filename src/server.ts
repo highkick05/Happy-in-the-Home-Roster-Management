@@ -1614,16 +1614,65 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   } catch {}
 
   try {
-    const marleneCheck = db.prepare("SELECT id FROM clients WHERE id = 13 OR (first_name = 'Marlene' AND last_name = 'Coombs')").get();
-    if (!marleneCheck) {
-      const defaultAdditionalFunding = JSON.stringify([
-        {
-          id: "stream-dementia-c",
-          name: "Dementia C Supplement",
-          amount: 1896.17,
-          notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
+    // Ensure HCP Annual Subsidies in settings use official Trilogy Care / Services Australia annual figures as source of truth
+    const officialHcpLevels = [
+      { level: "Level 1", title: "Basic care needs for safety and independence", amountAnnual: 11294.22, amountQuarterly: 2823.56, amountDaily: Number((11294.22 / 365).toFixed(4)), billingCycle: "annual" },
+      { level: "Level 2", title: "Low-level care needs for basic assistance", amountAnnual: 19860.56, amountQuarterly: 4965.14, amountDaily: Number((19860.56 / 365).toFixed(4)), billingCycle: "annual" },
+      { level: "Level 3", title: "Intermediate care needs for daily support", amountAnnual: 43233.21, amountQuarterly: 10808.30, amountDaily: Number((43233.21 / 365).toFixed(4)), billingCycle: "annual" },
+      { level: "Level 4", title: "High-level care needs with complex requirements", amountAnnual: 65543.98, amountQuarterly: 16386.00, amountDaily: Number((65543.98 / 365).toFixed(4)), billingCycle: "annual" },
+    ];
+    const existingHcpRow = db.prepare("SELECT value FROM settings WHERE key = 'hcpFundingLevels'").get() as any;
+    if (!existingHcpRow) {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('hcpFundingLevels', ?)").run(JSON.stringify(officialHcpLevels));
+    } else {
+      try {
+        const parsedHcp = JSON.parse(existingHcpRow.value);
+        if (Array.isArray(parsedHcp)) {
+          let needsUpdate = false;
+          const legacyAnnuals: Record<string, { oldAnnuals: number[]; oldDailies: number[]; targetAnnual: number }> = {
+            "Level 1": { oldAnnuals: [11289.45], oldDailies: [30.93], targetAnnual: 11294.22 },
+            "Level 2": { oldAnnuals: [19852.35], oldDailies: [54.39], targetAnnual: 19860.56 },
+            "Level 3": { oldAnnuals: [43216, 43216.00, 43150.30], oldDailies: [118.4, 118.22], targetAnnual: 43233.21 },
+            "Level 4": { oldAnnuals: [65415.3, 65415.30], oldDailies: [179.22], targetAnnual: 65543.98 },
+          };
+          const upgraded = parsedHcp.map((item: any) => {
+            const rule = legacyAnnuals[item.level];
+            if (
+              rule &&
+              (!item.amountAnnual ||
+                rule.oldAnnuals.includes(Number(item.amountAnnual)) ||
+                rule.oldDailies.includes(Number(item.amountDaily)))
+            ) {
+              needsUpdate = true;
+              return {
+                ...item,
+                amountAnnual: rule.targetAnnual,
+                amountQuarterly: Number((rule.targetAnnual / 4).toFixed(2)),
+                amountDaily: Number((rule.targetAnnual / 365).toFixed(4)),
+              };
+            }
+            return item;
+          });
+          if (needsUpdate) {
+            db.prepare("UPDATE settings SET value = ? WHERE key = 'hcpFundingLevels'").run(JSON.stringify(upgraded));
+          }
         }
-      ]);
+      } catch {}
+    }
+
+    const marleneCheck = db.prepare("SELECT id, additional_funding_streams FROM clients WHERE id = 13 OR (first_name = 'Marlene' AND last_name = 'Coombs')").get() as any;
+    const defaultAdditionalFunding = JSON.stringify([
+      {
+        id: "stream-dementia-c",
+        code: "DC",
+        name: "DC Dementia & Cognition Supplement",
+        amount: 1899.88,
+        percentageOfOngoing: 11.5,
+        addToOngoing: true,
+        notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement (11.5% of Gross Subsidy)"
+      }
+    ]);
+    if (!marleneCheck) {
       const defaultAtHmFunding = "[]";
 
       db.prepare(`
@@ -1645,6 +1694,57 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           additional_funding_streams, at_hm_funding_streams
         ) VALUES (?, '2026-07-14', '2026-09-30', 0, null, 1772.41, 0, 'ACTIVE', ?, ?)
       `).run(13, defaultAdditionalFunding, defaultAtHmFunding);
+    } else {
+      // Upgrade any legacy 1896.17 Dementia C Supplement stream on Marlene Coombs to 11.5% ($1,899.88)
+      const upgradeDementiaJson = (rawJson: any): string | null => {
+        if (!rawJson) return null;
+        try {
+          const arr = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+          if (!Array.isArray(arr)) return null;
+          let changed = false;
+          const next = arr.map((s: any) => {
+            if (
+              s &&
+              (String(s.id) === "stream-dementia-c" ||
+                String(s.name || "").toLowerCase().includes("dementia")) &&
+              (Number(s.amount) === 1896.17 || !s.percentageOfOngoing)
+            ) {
+              changed = true;
+              return {
+                ...s,
+                code: s.code || "DC",
+                amount: 1899.88,
+                percentageOfOngoing: 11.5,
+                addToOngoing: true,
+              };
+            }
+            return s;
+          });
+          return changed ? JSON.stringify(next) : null;
+        } catch {
+          return null;
+        }
+      };
+
+      const upgradedClientStreams = upgradeDementiaJson(marleneCheck.additional_funding_streams);
+      if (upgradedClientStreams) {
+        db.prepare("UPDATE clients SET additional_funding_streams = ? WHERE id = ?").run(
+          upgradedClientStreams,
+          marleneCheck.id,
+        );
+      }
+      const marleneBudgets = db
+        .prepare("SELECT id, additional_funding_streams FROM client_budgets WHERE client_id = ?")
+        .all(marleneCheck.id) as any[];
+      for (const mb of marleneBudgets) {
+        const upgradedMb = upgradeDementiaJson(mb.additional_funding_streams);
+        if (upgradedMb) {
+          db.prepare("UPDATE client_budgets SET additional_funding_streams = ? WHERE id = ?").run(
+            upgradedMb,
+            mb.id,
+          );
+        }
+      }
     }
   } catch (err: any) {
     console.error("Error ensuring Marlene Coombs client record:", err);
@@ -15697,30 +15797,36 @@ app.get("/api/health", (req, res) => {
           : 10;
 
       const hcpLevels = settingsMap.hcpFundingLevels || [
-        { level: "Level 1", amountDaily: 30.93 },
-        { level: "Level 2", amountDaily: 54.39 },
-        { level: "Level 3", amountDaily: 118.40 },
-        { level: "Level 4", amountDaily: 179.22 },
+        { level: "Level 1", amountAnnual: 11294.22, amountDaily: 11294.22 / 365 },
+        { level: "Level 2", amountAnnual: 19860.56, amountDaily: 19860.56 / 365 },
+        { level: "Level 3", amountAnnual: 43233.21, amountDaily: 43233.21 / 365 },
+        { level: "Level 4", amountAnnual: 65543.98, amountDaily: 65543.98 / 365 },
       ];
       const sahLevels = settingsMap.sahFundingLevels || [
-        { level: "Class 1", amountDaily: 29.40 },
-        { level: "Class 2", amountDaily: 43.93 },
-        { level: "Class 3", amountDaily: 60.18 },
-        { level: "Class 4", amountDaily: 81.36 },
-        { level: "Class 5", amountDaily: 108.76 },
-        { level: "Class 6", amountDaily: 131.82 },
-        { level: "Class 7", amountDaily: 159.31 },
-        { level: "Class 8", amountDaily: 213.99 },
+        { level: "Class 1", amountAnnual: 10731.00, amountDaily: 10731.00 / 365 },
+        { level: "Class 2", amountAnnual: 16034.45, amountDaily: 16034.45 / 365 },
+        { level: "Class 3", amountAnnual: 21965.70, amountDaily: 21965.70 / 365 },
+        { level: "Class 4", amountAnnual: 29696.40, amountDaily: 29696.40 / 365 },
+        { level: "Class 5", amountAnnual: 39697.40, amountDaily: 39697.40 / 365 },
+        { level: "Class 6", amountAnnual: 48114.30, amountDaily: 48114.30 / 365 },
+        { level: "Class 7", amountAnnual: 58148.15, amountDaily: 58148.15 / 365 },
+        { level: "Class 8", amountAnnual: 78106.35, amountDaily: 78106.35 / 365 },
       ];
 
-      const parseDailyRate = (item: any, fallback: number) => {
-        if (!item) return fallback;
+      // Keep full floating-point precision from Annual Subsidy (annual / 365) as source of truth
+      const parseDailyRate = (item: any, fallbackAnnual: number) => {
+        if (!item) return fallbackAnnual / 365;
+        if (item.amountAnnual !== undefined && item.amountAnnual !== null && Number(item.amountAnnual) > 0) {
+          return Number(item.amountAnnual) / 365;
+        }
+        if (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0) {
+          return Number(item.amount) / 365;
+        }
         if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
-        if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
-        if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
-        if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
-        return fallback;
+        if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return (Number(item.amountQuarterly) * 4) / 365;
+        return fallbackAnnual / 365;
       };
+      const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
 
       const now = new Date();
       let todayStr = "";
@@ -15786,8 +15892,8 @@ app.get("/api/health", (req, res) => {
           const levelOrClass = client.home_care_level_or_class || (subType === "SAH" ? "Class 1" : "Level 1");
           const dailyRate =
             subType === "SAH"
-              ? parseDailyRate(sahLevels.find((l: any) => l.level === levelOrClass), 29.40)
-              : parseDailyRate(hcpLevels.find((l: any) => l.level === levelOrClass), 179.22);
+              ? parseDailyRate(sahLevels.find((l: any) => l.level === levelOrClass), 10731.00)
+              : parseDailyRate(hcpLevels.find((l: any) => l.level === levelOrClass), 65543.98);
 
           // Check active client_budgets record first, falling back to client profile
           let quarterBudgetRow: any = null;
@@ -15809,9 +15915,29 @@ app.get("/api/health", (req, res) => {
           }
           if (!Array.isArray(parsedStreams)) parsedStreams = [];
 
-          const additionalOngoingTotal = parsedStreams
-            .filter((s: any) => (s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code))
-            .reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
+          // Keep full floating-point precision for gross = (annual / 365) * daysInQuarter
+          const grossAllocation = totalDays * dailyRate;
+          const netOngoingSubsidy = grossAllocation * (1 - careMgmtPercent / 100);
+
+          const resolveStreamAmount = (s: any): number => {
+            const pct = Number(s?.percentageOfOngoing);
+            if (!isNaN(pct) && pct > 0) {
+              return round2(grossAllocation * (pct / 100));
+            }
+            if (
+              String(s?.name || "").toLowerCase().includes("dementia") &&
+              (Number(s?.amount) === 1896.17 || String(s?.code || "").toUpperCase() === "DC")
+            ) {
+              return round2(grossAllocation * 0.115);
+            }
+            return round2(Number(s?.amount) || 0);
+          };
+
+          const additionalOngoingTotal = round2(
+            parsedStreams
+              .filter((s: any) => (s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code))
+              .reduce((sum: number, s: any) => sum + resolveStreamAmount(s), 0),
+          );
 
           const separateStreamCodes = new Set(
             parsedStreams
@@ -15819,9 +15945,7 @@ app.get("/api/health", (req, res) => {
               .map((s: any) => String(s.code).toUpperCase()),
           );
 
-          const grossAllocation = totalDays * dailyRate;
-          const netOngoingSubsidy = grossAllocation * (1 - careMgmtPercent / 100);
-          const totalAllocated = parseFloat((netOngoingSubsidy + additionalOngoingTotal).toFixed(2));
+          const totalAllocated = round2(round2(netOngoingSubsidy) + additionalOngoingTotal);
 
           let totalSpent = 0;
           try {
@@ -22850,9 +22974,10 @@ app.get("/api/health", (req, res) => {
     { code: "HM", name: "HM Home Modifications", isDefault: true },
     { code: "AS", name: "AS Assistive Technology Specific Needs", isDefault: true },
     { code: "VC", name: "VC Voluntary Contributions", isDefault: true },
+    { code: "DC", name: "DC Dementia & Cognition Supplement", isDefault: true, defaultPercentageOfOngoing: 11.5 },
   ];
 
-  const getStoredHomeCareFundingStreams = (): Array<{ code: string; name: string; isDefault?: boolean }> => {
+  const getStoredHomeCareFundingStreams = (): Array<{ code: string; name: string; isDefault?: boolean; defaultPercentageOfOngoing?: number }> => {
     try {
       const row = db
         .prepare("SELECT value FROM settings WHERE key = 'home_care_funding_streams'")
@@ -22860,6 +22985,14 @@ app.get("/api/health", (req, res) => {
       if (row && row.value) {
         const parsed = JSON.parse(row.value);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          if (!parsed.some((s: any) => String(s.code).toUpperCase() === "DC")) {
+            parsed.push({
+              code: "DC",
+              name: "DC Dementia & Cognition Supplement",
+              isDefault: true,
+              defaultPercentageOfOngoing: 11.5,
+            });
+          }
           return parsed;
         }
       }

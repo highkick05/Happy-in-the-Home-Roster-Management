@@ -144,33 +144,53 @@ export default function ClientDashboardView() {
           }
         }
 
-        // Calculate daily rate
+        // Calculate daily rate using Annual Subsidy / 365 in full floating-point precision
+        const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+        const parseDailyRate = (item: any, fallback: number) => {
+          if (!item) return fallback;
+          if (item.amountAnnual !== undefined && item.amountAnnual !== null && Number(item.amountAnnual) > 0) {
+            return Number(item.amountAnnual) / 365;
+          }
+          if (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0) {
+            return Number(item.amount) / 365;
+          }
+          if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
+          if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number(item.amountQuarterly) / 91.25;
+          return fallback;
+        };
+
         const subType = clientData.home_care_sub_type || 'HCP';
         const levelOrClass = clientData.home_care_level_or_class || 'Level 1';
-        let dailyRate = 30.10;
+        let dailyRate = 11294.22 / 365;
         if (subType === 'SAH') {
           const levels = ratesData?.sahFundingLevels || [
-            { level: 'Class 1', amountDaily: 29.40 },
-            { level: 'Class 2', amountDaily: 43.93 },
-            { level: 'Class 3', amountDaily: 60.18 },
-            { level: 'Class 4', amountDaily: 81.36 },
-            { level: 'Class 5', amountDaily: 108.76 },
-            { level: 'Class 6', amountDaily: 131.82 },
-            { level: 'Class 7', amountDaily: 159.31 },
-            { level: 'Class 8', amountDaily: 213.99 },
+            { level: 'Class 1', amountAnnual: 10731.00, amountDaily: 29.40 },
+            { level: 'Class 2', amountAnnual: 16034.45, amountDaily: 43.93 },
+            { level: 'Class 3', amountAnnual: 21965.70, amountDaily: 60.18 },
+            { level: 'Class 4', amountAnnual: 29696.40, amountDaily: 81.36 },
+            { level: 'Class 5', amountAnnual: 39697.40, amountDaily: 108.76 },
+            { level: 'Class 6', amountAnnual: 48114.30, amountDaily: 131.82 },
+            { level: 'Class 7', amountAnnual: 58148.15, amountDaily: 159.31 },
+            { level: 'Class 8', amountAnnual: 78106.35, amountDaily: 213.99 },
           ];
           const match = levels.find((l: any) => l.level === levelOrClass);
-          dailyRate = match ? (Number(match.amountDaily ?? (match.amountAnnual ? match.amountAnnual / 365 : 29.40))) : 29.40;
+          dailyRate = parseDailyRate(match, 10731.00 / 365);
         } else {
           const levels = ratesData?.hcpFundingLevels || [
-            { level: 'Level 1', amountDaily: 30.93 },
-            { level: 'Level 2', amountDaily: 54.39 },
-            { level: 'Level 3', amountDaily: 118.40 },
-            { level: 'Level 4', amountDaily: 179.22 },
+            { level: 'Level 1', amountAnnual: 11294.22, amountDaily: 30.94 },
+            { level: 'Level 2', amountAnnual: 19860.56, amountDaily: 54.41 },
+            { level: 'Level 3', amountAnnual: 43233.21, amountDaily: 118.45 },
+            { level: 'Level 4', amountAnnual: 65543.98, amountDaily: 179.57 },
           ];
           const match = levels.find((l: any) => l.level === levelOrClass);
-          dailyRate = match ? (Number(match.amountDaily ?? (match.amountAnnual ? match.amountAnnual / 365 : 179.22))) : 179.22;
+          dailyRate = parseDailyRate(match, 65543.98 / 365);
         }
+
+        const careMgmtPercent = ratesData?.defaultCareManagementFee !== undefined && ratesData?.defaultCareManagementFee !== null
+          ? Number(ratesData.defaultCareManagementFee)
+          : 10;
+        const grossPackageAllocation = dailyRate * totalDays;
+        const netPackageAllocation = grossPackageAllocation * (1 - careMgmtPercent / 100);
 
         // Parse additional funding safely (handling both raw array or JSON string)
         let additionalTotal = 0;
@@ -183,17 +203,26 @@ export default function ClientDashboardView() {
           } catch {}
         }
         if (Array.isArray(parsedAdd)) {
-          additionalTotal = parsedAdd
-            .filter((s: any) => s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code)
-            .reduce((sum: number, s: any) => sum + (parseFloat(s.amount) || 0), 0);
+          additionalTotal = round2(
+            parsedAdd
+              .filter((s: any) => s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code)
+              .reduce((sum: number, s: any) => {
+                const pct = Number(s?.percentageOfOngoing ?? s?.percentage_of_ongoing);
+                if (!isNaN(pct) && pct > 0) {
+                  return sum + round2(grossPackageAllocation * (pct / 100));
+                }
+                if (
+                  (String(s?.name || '').toLowerCase().includes('dementia') || String(s?.code || '').toUpperCase() === 'DC') &&
+                  (Number(s?.amount) === 1896.17 || Number(s?.amount) === 1899.88)
+                ) {
+                  return sum + round2(grossPackageAllocation * 0.115);
+                }
+                return sum + round2(parseFloat(s.amount) || 0);
+              }, 0)
+          );
         }
 
-        const careMgmtPercent = ratesData?.defaultCareManagementFee !== undefined && ratesData?.defaultCareManagementFee !== null
-          ? Number(ratesData.defaultCareManagementFee)
-          : 10;
-        const grossPackageAllocation = dailyRate * totalDays;
-        const netPackageAllocation = grossPackageAllocation * (1 - careMgmtPercent / 100);
-        const totalAllocation = netPackageAllocation + additionalTotal;
+        const totalAllocation = round2(round2(netPackageAllocation) + additionalTotal);
 
         // Fetch ledger for current active quarter
         const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${actualStartDateStr}&endDate=${actualEndDateStr}`, {

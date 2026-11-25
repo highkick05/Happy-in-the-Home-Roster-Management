@@ -441,31 +441,37 @@ export function getClientBudgetDetails(
     }
   }
 
+  const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
   const parseRate = (item: any, fallback: number) => {
     if (!item) return fallback;
+    if (item.amountAnnual !== undefined && item.amountAnnual !== null && Number(item.amountAnnual) > 0) {
+      return Number(item.amountAnnual) / 365;
+    }
+    if (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0) {
+      return Number(item.amount) / 365;
+    }
     if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
-    if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
-    if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
-    if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
+    if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number(item.amountQuarterly) / 91.25;
     return fallback;
   };
 
   const hcpLevels = settingsMap.hcpFundingLevels || [
-    { level: 'Level 1', amountDaily: 30.93 },
-    { level: 'Level 2', amountDaily: 54.39 },
-    { level: 'Level 3', amountDaily: 118.40 },
-    { level: 'Level 4', amountDaily: 179.22 }
+    { level: 'Level 1', amountAnnual: 11294.22, amountDaily: 30.94 },
+    { level: 'Level 2', amountAnnual: 19860.56, amountDaily: 54.41 },
+    { level: 'Level 3', amountAnnual: 43233.21, amountDaily: 118.45 },
+    { level: 'Level 4', amountAnnual: 65543.98, amountDaily: 179.57 }
   ];
 
   const sahLevels = settingsMap.sahFundingLevels || [
-    { level: 'Class 1', amountDaily: 29.40 },
-    { level: 'Class 2', amountDaily: 43.93 },
-    { level: 'Class 3', amountDaily: 60.18 },
-    { level: 'Class 4', amountDaily: 81.36 },
-    { level: 'Class 5', amountDaily: 108.76 },
-    { level: 'Class 6', amountDaily: 131.82 },
-    { level: 'Class 7', amountDaily: 159.31 },
-    { level: 'Class 8', amountDaily: 213.99 }
+    { level: 'Class 1', amountAnnual: 10731.00, amountDaily: 29.40 },
+    { level: 'Class 2', amountAnnual: 16034.45, amountDaily: 43.93 },
+    { level: 'Class 3', amountAnnual: 21965.70, amountDaily: 60.18 },
+    { level: 'Class 4', amountAnnual: 29696.40, amountDaily: 81.36 },
+    { level: 'Class 5', amountAnnual: 39697.40, amountDaily: 108.76 },
+    { level: 'Class 6', amountAnnual: 48114.30, amountDaily: 131.82 },
+    { level: 'Class 7', amountAnnual: 58148.15, amountDaily: 159.31 },
+    { level: 'Class 8', amountAnnual: 78106.35, amountDaily: 213.99 }
   ];
 
   if (isHomeCare) {
@@ -475,15 +481,15 @@ export function getClientBudgetDetails(
 
     if (subType === 'SAH') {
       const match = sahLevels.find((l: any) => l.level === levelOrClass);
-      dailyRate = parseRate(match, 29.40);
+      dailyRate = parseRate(match, 10731.00 / 365);
     } else {
       const match = hcpLevels.find((l: any) => l.level === levelOrClass);
-      dailyRate = parseRate(match, 179.22);
+      dailyRate = parseRate(match, 65543.98 / 365);
     }
 
     // Additional Funding Streams (e.g. Dementia C Supplement, Enteral Feeding, Oxygen, etc.)
     // These approved government supplements directly increase the Total Cycle Allocation
-    let additionalFundingStreams: Array<{ id?: string; name: string; amount: number; notes?: string }> = [];
+    let additionalFundingStreams: Array<{ id?: string; code?: string; name: string; amount: number; percentageOfOngoing?: number; addToOngoing?: boolean; notes?: string }> = [];
     if (activeClientBudget?.additional_funding_streams) {
       try {
         const parsed = JSON.parse(activeClientBudget.additional_funding_streams);
@@ -501,18 +507,15 @@ export function getClientBudgetDetails(
       additionalFundingStreams = [
         {
           id: "stream-dementia-c",
+          code: "DC",
           name: "Dementia C Supplement",
-          amount: 1896.17,
-          notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
+          amount: 1899.88,
+          percentageOfOngoing: 11.5,
+          addToOngoing: true,
+          notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement (11.5% of gross basic subsidy)"
         }
       ];
     }
-
-    const additionalFundingTotal = parseFloat(
-      additionalFundingStreams
-        .filter((s: any) => s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code)
-        .reduce((sum, s) => sum + (Number(s.amount) || 0), 0).toFixed(2)
-    );
 
     const defaultCareMgmtRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareManagementFee'").get() as any;
     let careManagementFeePercent = 10;
@@ -520,15 +523,34 @@ export function getClientBudgetDetails(
       try { careManagementFeePercent = Number(JSON.parse(defaultCareMgmtRow.value)); } catch(e) {}
     }
 
-    // Gross package cycle allocation (totalDays * dailyRate) and Net after Care Management Fee (default 10%)
-    const grossCycleAllocation = parseFloat((totalDays * dailyRate).toFixed(2));
-    const careManagementFeeDeduction = parseFloat((grossCycleAllocation * (careManagementFeePercent / 100)).toFixed(2));
-    const baseCycleAllocation = parseFloat((grossCycleAllocation - careManagementFeeDeduction).toFixed(2));
+    // Keep full floating-point precision until the final line to match Trilogy Care to $0.00
+    const unroundedGross = totalDays * dailyRate;
+    const grossCycleAllocation = round2(unroundedGross);
+    const careManagementFeeDeduction = round2(unroundedGross * (careManagementFeePercent / 100));
+    const baseCycleAllocation = round2(unroundedGross * (1 - careManagementFeePercent / 100));
+
+    const additionalFundingTotal = round2(
+      additionalFundingStreams
+        .filter((s: any) => s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code)
+        .reduce((sum, s: any) => {
+          const pct = Number(s?.percentageOfOngoing ?? s?.percentage_of_ongoing);
+          if (!isNaN(pct) && pct > 0) {
+            return sum + round2(unroundedGross * (pct / 100));
+          }
+          if (
+            (String(s?.name || '').toLowerCase().includes('dementia') || String(s?.code || '').toUpperCase() === 'DC') &&
+            (Number(s?.amount) === 1896.17 || Number(s?.amount) === 1899.88)
+          ) {
+            return sum + round2(unroundedGross * 0.115);
+          }
+          return sum + round2(Number(s.amount) || 0);
+        }, 0)
+    );
 
     // Exact cycle allocation as displayed in the Client Budget section: Net Base Package + Additional Funding Streams added to ON
     const totalCycleAllocation = customQuarterlyBudget !== undefined && customQuarterlyBudget > 0
       ? customQuarterlyBudget
-      : parseFloat((baseCycleAllocation + additionalFundingTotal).toFixed(2));
+      : round2(baseCycleAllocation + additionalFundingTotal);
 
     // Separate Ringfenced Funding Streams: Assistive Technology (AT) and Home Modifications (HM)
     // Under official My Aged Care (Support at Home) rules, these are strictly ringfenced and separate from ongoing cycle allocations

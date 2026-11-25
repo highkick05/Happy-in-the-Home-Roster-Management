@@ -119,7 +119,8 @@ export default function HomeCareBudgetView() {
   const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
   const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
 
-  const DEFAULT_ADDITIONAL_STREAM_OPTIONS = [
+  const DEFAULT_ADDITIONAL_STREAM_OPTIONS: Array<{ code: string; name: string; defaultPercentageOfOngoing?: number }> = [
+    { code: 'DC', name: 'DC Dementia & Cognition Supplement', defaultPercentageOfOngoing: 11.5 },
     { code: 'HC', name: 'HC Home Care Account' },
     { code: 'RC', name: 'RC Restorative Care Pathway' },
     { code: 'EL', name: 'EL End of Life Pathway' },
@@ -134,12 +135,13 @@ export default function HomeCareBudgetView() {
   const [rolloverSpentSoFar, setRolloverSpentSoFar] = useState<number>(0);
 
   // Additional Funding Streams
-  const [availableStreamOptions, setAvailableStreamOptions] = useState<Array<{ code: string; name: string }>>(DEFAULT_ADDITIONAL_STREAM_OPTIONS);
+  const [availableStreamOptions, setAvailableStreamOptions] = useState<Array<{ code: string; name: string; defaultPercentageOfOngoing?: number }>>(DEFAULT_ADDITIONAL_STREAM_OPTIONS);
   const [additionalFundingStreams, setAdditionalFundingStreams] = useState<Array<{
     id: string;
     code?: string;
     name: string;
     amount: number;
+    percentageOfOngoing?: number;
     spentAmount?: number;
     addToOngoing?: boolean;
     notes?: string;
@@ -151,6 +153,7 @@ export default function HomeCareBudgetView() {
   const [isCustomStreamMode, setIsCustomStreamMode] = useState<boolean>(false);
   const [customStreamCode, setCustomStreamCode] = useState<string>('');
   const [streamName, setStreamName] = useState('');
+  const [streamPercentageOfOngoing, setStreamPercentageOfOngoing] = useState<string>('');
   const [streamAmount, setStreamAmount] = useState('');
   const [streamSpentAmount, setStreamSpentAmount] = useState('0');
   const [streamAddToOngoing, setStreamAddToOngoing] = useState<boolean>(false);
@@ -278,24 +281,32 @@ export default function HomeCareBudgetView() {
               id: 'stream-dementia-c',
               code: 'DC',
               name: 'Dementia C Supplement',
-              amount: 1896.17,
+              amount: 1899.88,
+              percentageOfOngoing: 11.5,
               spentAmount: 0,
               addToOngoing: true,
-              notes: 'Approved Services Australia / Trilogy Care Dementia and Cognition Supplement'
+              notes: 'Approved Services Australia / Trilogy Care Dementia and Cognition Supplement (11.5% of gross basic subsidy)'
             }
           ];
         }
 
         // Normalize legacy additional streams and merge any legacy AT/HM streams
-        const normalizedStreams = (Array.isArray(parsedAdd) ? parsedAdd : []).map((s: any) => ({
-          id: s.id || `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          code: s.code || (DEFAULT_ADDITIONAL_STREAM_OPTIONS.find(o => o.name.toLowerCase() === String(s.name || '').toLowerCase())?.code || 'CUSTOM'),
-          name: s.name || 'Additional Stream',
-          amount: Number(s.amount ?? s.allocatedAmount) || 0,
-          spentAmount: Number(s.spentAmount) || 0,
-          addToOngoing: s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code,
-          notes: s.notes || ''
-        }));
+        const normalizedStreams: typeof additionalFundingStreams = (Array.isArray(parsedAdd) ? parsedAdd : []).map((s: any) => {
+          const isDementiaStream = String(s.name || '').toLowerCase().includes('dementia') || String(s.code || '').toUpperCase() === 'DC';
+          const pct = Number(s.percentageOfOngoing ?? s.percentage_of_ongoing) > 0
+            ? Number(s.percentageOfOngoing ?? s.percentage_of_ongoing)
+            : (isDementiaStream && (Number(s.amount) === 1896.17 || Number(s.amount) === 1899.88 || !s.amount) ? 11.5 : undefined);
+          return {
+            id: s.id || `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            code: isDementiaStream && (!s.code || s.code === 'CUSTOM') ? 'DC' : (s.code || (DEFAULT_ADDITIONAL_STREAM_OPTIONS.find(o => o.name.toLowerCase() === String(s.name || '').toLowerCase())?.code || 'CUSTOM')),
+            name: s.name || 'Additional Stream',
+            amount: Number(s.amount ?? s.allocatedAmount) || 0,
+            percentageOfOngoing: pct,
+            spentAmount: Number(s.spentAmount) || 0,
+            addToOngoing: s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code,
+            notes: s.notes || ''
+          };
+        });
 
         let parsedAtHm: any[] = [];
         if (clientData.at_hm_funding_streams) {
@@ -380,13 +391,21 @@ export default function HomeCareBudgetView() {
   const handleOpenAddAdditional = () => {
     setEditingAdditionalStreamId(null);
     setIsCustomStreamMode(false);
-    const defaultOpt = availableStreamOptions[0] || DEFAULT_ADDITIONAL_STREAM_OPTIONS[0];
+    const defaultOpt = availableStreamOptions.find(o => o.code === 'HC') || availableStreamOptions[0] || DEFAULT_ADDITIONAL_STREAM_OPTIONS[1];
     setSelectedStreamCode(defaultOpt.code);
     setCustomStreamCode('');
     setStreamName(defaultOpt.name);
-    setStreamAmount('');
+    const defaultPct = defaultOpt.defaultPercentageOfOngoing || (defaultOpt.code === 'DC' ? 11.5 : 0);
+    if (defaultPct > 0) {
+      setStreamPercentageOfOngoing(String(defaultPct));
+      setStreamAmount((Math.round(((grossAllocation * (defaultPct / 100)) + Number.EPSILON) * 100) / 100).toFixed(2));
+      setStreamAddToOngoing(true);
+    } else {
+      setStreamPercentageOfOngoing('');
+      setStreamAmount('');
+      setStreamAddToOngoing(false);
+    }
     setStreamSpentAmount('0');
-    setStreamAddToOngoing(false);
     setStreamNotes('');
     setIsAdditionalModalOpen(true);
   };
@@ -407,7 +426,12 @@ export default function HomeCareBudgetView() {
       setCustomStreamCode(stream.code && stream.code !== 'CUSTOM' ? stream.code : '');
       setStreamName(stream.name || '');
     }
-    setStreamAmount(stream.amount !== undefined ? String(stream.amount) : '');
+    const pct = Number(stream.percentageOfOngoing) > 0 ? Number(stream.percentageOfOngoing) : 0;
+    setStreamPercentageOfOngoing(pct > 0 ? String(pct) : '');
+    const effectiveAmt = pct > 0
+      ? (Math.round(((grossAllocation * (pct / 100)) + Number.EPSILON) * 100) / 100).toFixed(2)
+      : (stream.amount !== undefined ? String(stream.amount) : '');
+    setStreamAmount(effectiveAmt);
     setStreamSpentAmount(stream.spentAmount !== undefined ? String(stream.spentAmount) : '0');
     setStreamAddToOngoing(Boolean(stream.addToOngoing));
     setStreamNotes(stream.notes || '');
@@ -416,7 +440,12 @@ export default function HomeCareBudgetView() {
 
   const handleSaveAdditionalStream = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amt = parseFloat(streamAmount) || 0;
+    const pctVal = parseFloat(streamPercentageOfOngoing);
+    const hasPercentage = !isNaN(pctVal) && pctVal > 0;
+    const computedFromPct = hasPercentage
+      ? Math.round(((grossAllocation * (pctVal / 100)) + Number.EPSILON) * 100) / 100
+      : 0;
+    const amt = hasPercentage ? computedFromPct : (parseFloat(streamAmount) || 0);
     const spent = parseFloat(streamSpentAmount) || 0;
 
     let finalCode = selectedStreamCode;
@@ -476,6 +505,7 @@ export default function HomeCareBudgetView() {
               code: finalCode,
               name: finalName,
               amount: amt,
+              percentageOfOngoing: hasPercentage ? pctVal : undefined,
               spentAmount: spent,
               addToOngoing: streamAddToOngoing,
               notes: streamNotes.trim()
@@ -488,6 +518,7 @@ export default function HomeCareBudgetView() {
         code: finalCode,
         name: finalName,
         amount: amt,
+        percentageOfOngoing: hasPercentage ? pctVal : undefined,
         spentAmount: spent,
         addToOngoing: streamAddToOngoing,
         notes: streamNotes.trim()
@@ -599,7 +630,9 @@ export default function HomeCareBudgetView() {
   const isPastQuarter = (selectedFyYear < currentFyStartYear) || (selectedFyYear === currentFyStartYear && selectedQuarterId < currentQuarterId);
   const isFutureQuarter = (selectedFyYear > currentFyStartYear) || (selectedFyYear === currentFyStartYear && selectedQuarterId > currentQuarterId);
 
-  // Funding Rate calculation
+  // Funding Rate calculation: Use Annual Subsidy / 365 in full floating-point precision as source of truth
+  const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
   const getClientDailyRate = () => {
     if (!client || client.funding_type !== 'HOME_CARE') return 0;
     const subType = client.home_care_sub_type || 'HCP';
@@ -607,35 +640,39 @@ export default function HomeCareBudgetView() {
     
     const parseDailyRate = (item: any, fallback: number) => {
       if (!item) return fallback;
+      if (item.amountAnnual !== undefined && item.amountAnnual !== null && Number(item.amountAnnual) > 0) {
+        return Number(item.amountAnnual) / 365;
+      }
+      if (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0) {
+        return Number(item.amount) / 365;
+      }
       if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
-      if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
-      if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
-      if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
+      if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number(item.amountQuarterly) / 91.25;
       return fallback;
     };
 
     if (subType === 'SAH') {
       const levels = fundingRates?.sahFundingLevels || [
-        { level: 'Class 1', amountDaily: 29.40 },
-        { level: 'Class 2', amountDaily: 43.93 },
-        { level: 'Class 3', amountDaily: 60.18 },
-        { level: 'Class 4', amountDaily: 81.36 },
-        { level: 'Class 5', amountDaily: 108.76 },
-        { level: 'Class 6', amountDaily: 131.82 },
-        { level: 'Class 7', amountDaily: 159.31 },
-        { level: 'Class 8', amountDaily: 213.99 },
+        { level: 'Class 1', amountAnnual: 10731.00, amountDaily: 29.40 },
+        { level: 'Class 2', amountAnnual: 16034.45, amountDaily: 43.93 },
+        { level: 'Class 3', amountAnnual: 21965.70, amountDaily: 60.18 },
+        { level: 'Class 4', amountAnnual: 29696.40, amountDaily: 81.36 },
+        { level: 'Class 5', amountAnnual: 39697.40, amountDaily: 108.76 },
+        { level: 'Class 6', amountAnnual: 48114.30, amountDaily: 131.82 },
+        { level: 'Class 7', amountAnnual: 58148.15, amountDaily: 159.31 },
+        { level: 'Class 8', amountAnnual: 78106.35, amountDaily: 213.99 },
       ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return parseDailyRate(match, 29.40);
+      return parseDailyRate(match, 10731.00 / 365);
     } else {
       const levels = fundingRates?.hcpFundingLevels || [
-        { level: 'Level 1', amountDaily: 30.93 },
-        { level: 'Level 2', amountDaily: 54.39 },
-        { level: 'Level 3', amountDaily: 118.40 },
-        { level: 'Level 4', amountDaily: 179.22 },
+        { level: 'Level 1', amountAnnual: 11294.22, amountDaily: 30.94 },
+        { level: 'Level 2', amountAnnual: 19860.56, amountDaily: 54.41 },
+        { level: 'Level 3', amountAnnual: 43233.21, amountDaily: 118.45 },
+        { level: 'Level 4', amountAnnual: 65543.98, amountDaily: 179.57 },
       ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return parseDailyRate(match, 179.22);
+      return parseDailyRate(match, 65543.98 / 365);
     }
   };
 
@@ -659,12 +696,29 @@ export default function HomeCareBudgetView() {
   // Deduct Care Management Fee (default 10%) off the top of the quarterly subsidy before it hits Total Allocation / ON balance
   const careManagementFeeAmount = isHomeCare ? grossAllocation * (careManagementFeePercent / 100) : 0;
   const netOngoingSubsidy = grossAllocation - careManagementFeeAmount;
+
+  // Resolve effective stream amount: if percentageOfOngoing is set (e.g. 11.5% Dementia Supplement), calculate gross * (pct / 100)
+  const getEffectiveStreamAmount = (s: any) => {
+    const pct = Number(s?.percentageOfOngoing ?? s?.percentage_of_ongoing);
+    if (!isNaN(pct) && pct > 0) {
+      return round2(grossAllocation * (pct / 100));
+    }
+    if (
+      (String(s?.name || '').toLowerCase().includes('dementia') || String(s?.code || '').toUpperCase() === 'DC') &&
+      (Number(s?.amount) === 1896.17 || Number(s?.amount) === 1899.88)
+    ) {
+      return round2(grossAllocation * 0.115);
+    }
+    return round2(Number(s?.amount) || 0);
+  };
   
-  // Additional funding streams that have addToOngoing === true increase the ON = Ongoing Funds Total Allocation
-  const additionalFundingTotal = additionalFundingStreams
-    .filter(s => Boolean(s.addToOngoing))
-    .reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-  const totalAllocation = netOngoingSubsidy + additionalFundingTotal; // Net Ongoing Subsidy (after 10% Care Mgmt deduction) + Additional Streams added to ON Ongoing Funds
+  // Additional funding streams that have addToOngoing === true are added after the 10% split to match Trilogy Care to $0.00
+  const additionalFundingTotal = round2(
+    additionalFundingStreams
+      .filter(s => Boolean(s.addToOngoing))
+      .reduce((sum, s) => sum + getEffectiveStreamAmount(s), 0)
+  );
+  const totalAllocation = round2(round2(netOngoingSubsidy) + additionalFundingTotal);
 
   // Separate additional funding stream codes (streams not added to ON Ongoing Funds)
   const separateStreamCodes = new Set(
@@ -1018,7 +1072,7 @@ export default function HomeCareBudgetView() {
           {/* Dynamic Cards: Created Additional Funding Streams */}
           {additionalFundingStreams.map((stream) => {
             const streamCode = String(stream.code || 'CUSTOM').toUpperCase();
-            const allocated = Number(stream.amount) || 0;
+            const allocated = getEffectiveStreamAmount(stream);
             const manualSpent = Number(stream.spentAmount) || 0;
             const ledgerSpentForStream = !stream.addToOngoing
               ? processedLedgerItems
@@ -1076,7 +1130,7 @@ export default function HomeCareBudgetView() {
                 <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between gap-1">
                   {stream.addToOngoing ? (
                     <span className="text-emerald-400 font-sans font-medium truncate">
-                      Added to ON = Ongoing Funds
+                      Added to ON{stream.percentageOfOngoing ? ` (${stream.percentageOfOngoing}% of Gross ON)` : ' = Ongoing Funds'}
                     </span>
                   ) : (
                     <>
@@ -1513,30 +1567,81 @@ export default function HomeCareBudgetView() {
                       const code = e.target.value;
                       setSelectedStreamCode(code);
                       const opt = availableStreamOptions.find(o => o.code === code);
-                      if (opt) setStreamName(opt.name);
+                      if (opt) {
+                        setStreamName(opt.name);
+                        const defaultPct = opt.defaultPercentageOfOngoing || (code === 'DC' ? 11.5 : 0);
+                        if (defaultPct > 0) {
+                          setStreamPercentageOfOngoing(String(defaultPct));
+                          setStreamAmount(round2(grossAllocation * (defaultPct / 100)).toFixed(2));
+                          setStreamAddToOngoing(true);
+                        }
+                      }
                     }}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
                   >
                     {availableStreamOptions.map(opt => (
                       <option key={opt.code} value={opt.code}>
-                        {opt.name}
+                        {opt.name}{opt.code === 'DC' || opt.defaultPercentageOfOngoing ? ` (${opt.defaultPercentageOfOngoing || 11.5}%)` : ''}
                       </option>
                     ))}
                   </select>
                 )}
               </div>
 
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-medium text-zinc-400">
+                    Percentage of Annual / Gross ON Subsidy (%) <span className="text-zinc-500 font-normal">(Optional)</span>
+                  </label>
+                  {streamPercentageOfOngoing && parseFloat(streamPercentageOfOngoing) > 0 && (
+                    <span className="text-[10px] font-mono text-emerald-400">
+                      {formatCurrency(grossAllocation)} × {streamPercentageOfOngoing}% = {formatCurrency(round2(grossAllocation * (parseFloat(streamPercentageOfOngoing) / 100)))}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    placeholder="e.g., 11.5 for Dementia & Cognition Supplement (leave blank for fixed $ amount)"
+                    value={streamPercentageOfOngoing}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setStreamPercentageOfOngoing(val);
+                      const pct = parseFloat(val);
+                      if (!isNaN(pct) && pct > 0) {
+                        setStreamAmount(round2(grossAllocation * (pct / 100)).toFixed(2));
+                      }
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 pr-7 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-mono">%</span>
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Calculates dynamically from the client&apos;s unrounded Gross ON subsidy ({formatCurrency(grossAllocation)} for {totalDays} days) to match Trilogy Care to $0.00.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Allocated Amount ($) *</label>
+                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                    Allocated Amount ($) * {streamPercentageOfOngoing && parseFloat(streamPercentageOfOngoing) > 0 ? <span className="text-brand-teal font-normal">(Auto-calculated)</span> : null}
+                  </label>
                   <input
                     type="number"
                     step="0.01"
                     required
                     min="0.01"
-                    placeholder="e.g., 1896.17"
+                    placeholder="e.g., 1899.88"
                     value={streamAmount}
-                    onChange={(e) => setStreamAmount(e.target.value)}
+                    onChange={(e) => {
+                      setStreamAmount(e.target.value);
+                      if (streamPercentageOfOngoing) {
+                        setStreamPercentageOfOngoing('');
+                      }
+                    }}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
                   />
                 </div>
@@ -1667,7 +1772,8 @@ export default function HomeCareBudgetView() {
                           </div>
                           <div className="flex items-center gap-2 text-[11px] mt-1">
                             <span className="text-emerald-400 font-semibold">
-                              Allocated: {formatCurrency(stream.amount || 0)}
+                              Allocated: {formatCurrency(getEffectiveStreamAmount(stream))}
+                              {stream.percentageOfOngoing ? ` (${stream.percentageOfOngoing}% of Gross ON)` : ''}
                             </span>
                             <span className="text-zinc-500">•</span>
                             <span className={stream.addToOngoing ? 'text-brand-teal font-medium' : 'text-sky-300 font-medium'}>
