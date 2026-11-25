@@ -36,6 +36,35 @@ const STANDARD_FUNDING_STREAM_LABELS: Record<string, string> = {
   DC: 'DC — Dementia & Cognition Supplement'
 };
 
+const SHIFT_FREQUENCY_OPTIONS = [
+  'Weekly',
+  'Fortnightly',
+  '3 Weekly',
+  '1 Monthly',
+  '2 Monthly',
+  '3 Monthly',
+  '6 Monthly',
+  '12 Monthly'
+];
+
+const getWeeklyFrequencyMultiplier = (freq: string) => {
+  if (freq === 'Fortnightly') return 1 / 2;
+  if (freq === '3 Weekly') return 1 / 3;
+  if (freq === '1 Monthly') return 1 / 4;
+  if (freq === '2 Monthly') return 1 / 8;
+  if (freq === '3 Monthly') return 1 / 13;
+  if (freq === '6 Monthly') return 1 / 26;
+  if (freq === '12 Monthly') return 1 / 52;
+  return 1;
+};
+
+const getFrequencyBadgeStyle = (freq: string) => {
+  if (freq === 'Weekly') return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
+  if (freq === 'Fortnightly') return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+  if (freq === '3 Weekly') return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+  return 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30';
+};
+
 const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
 
 const formatDisplayDate = (dateStr?: string | null) => {
@@ -95,26 +124,23 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   // New template form state
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
-  const [activeTemplateName, setActiveTemplateName] = useState('Default Template');
-  const [customTemplateNames, setCustomTemplateNames] = useState<string[]>(['Default Template']);
+  const [activeTemplateName] = useState('Default Template');
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
 
-  // Schedule Type & Date Range State for Add/Edit Shift Modal
+  // Schedule Type, Frequency & Date Range State for Add/Edit Shift Modal
   const [scheduleType, setScheduleType] = useState<ScheduleType>('ONGOING');
+  const [shiftFrequency, setShiftFrequency] = useState<string>('Weekly');
   const [shiftStartDate, setShiftStartDate] = useState<string>('');
   const [shiftEndDate, setShiftEndDate] = useState<string>('');
   const [shiftOneOffDate, setShiftOneOffDate] = useState<string>('');
 
-  const templateNames = useMemo(() => {
-    const fromData = templates.map(t => t.template_name || 'Default Template');
-    const names = Array.from(new Set([...customTemplateNames, ...fromData, activeTemplateName]));
-    if (names.length === 0) names.push('Default Template');
-    return names;
-  }, [templates, activeTemplateName, customTemplateNames]);
+  const getShiftFrequency = (t: any) => {
+    return t?.frequency || templateSettings[t?.template_name || 'Default Template'] || 'Weekly';
+  };
 
   const currentTemplateList = useMemo(() => {
-    return templates.filter(t => (t.template_name || 'Default Template') === activeTemplateName);
-  }, [templates, activeTemplateName]);
+    return templates;
+  }, [templates]);
 
   useEffect(() => {
     if (daysOfWeek.length === 0 && displayDaysOrder.length > 0) {
@@ -541,11 +567,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     currentTemplateList.forEach(t => {
       const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
       if (sType === 'ONE_OFF') return; // One-off single date shifts don't recur weekly
+      const shiftFreq = getShiftFrequency(t);
       const { baseTotal } = getTemplateShiftOccurrenceBreakdown(t);
-      total += baseTotal;
+      total += baseTotal * getWeeklyFrequencyMultiplier(shiftFreq);
     });
-    return total;
-  }, [currentTemplateList, servicesList]);
+    return round2(total);
+  }, [currentTemplateList, servicesList, templateSettings]);
 
   // Home Care Quarterly Budget & ON -> HC Cascade Summary Calculations (Home Care Clients Only)
   const homeCareQuarterlySummary = useMemo(() => {
@@ -679,8 +706,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
 
-    // 5. Calculate Planned Roster Spend across Active Template (Full Quarter & Remaining Days in Quarter)
-    const activeFrequency = templateSettings[activeTemplateName] || 'Weekly';
+    // 5. Calculate Planned Roster Spend across All Template Shifts (Full Quarter & Remaining Days in Quarter)
     const [ty, tm, td] = todayStr.split('-').map(Number);
     const tomorrowD = new Date(ty, tm - 1, td + 1, 12, 0, 0);
     const tomorrowStr = `${tomorrowD.getFullYear()}-${String(tomorrowD.getMonth() + 1).padStart(2, '0')}-${String(tomorrowD.getDate()).padStart(2, '0')}`;
@@ -692,8 +718,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     const plannedDrawdownByStream: Record<string, { fullQuarter: number; remainingQuarter: number }> = {};
 
     currentTemplateList.forEach(t => {
-      const fullOccurrences = countShiftOccurrencesInRange(t, actualStartDateStr, activeQuarter.endDateStr, activeFrequency);
-      const remOccurrences = countShiftOccurrencesInRange(t, remainingStartStr, activeQuarter.endDateStr, activeFrequency);
+      const shiftFreq = getShiftFrequency(t);
+      const fullOccurrences = countShiftOccurrencesInRange(t, actualStartDateStr, activeQuarter.endDateStr, shiftFreq);
+      const remOccurrences = countShiftOccurrencesInRange(t, remainingStartStr, activeQuarter.endDateStr, shiftFreq);
       const { baseTotal, byStream } = getTemplateShiftOccurrenceBreakdown(t);
 
       fullQuarterPlannedBase += baseTotal * fullOccurrences;
@@ -869,7 +896,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   // Modal live cost projection over selected dates / active quarter
   const modalShiftProjection = useMemo(() => {
-    const activeFrequency = templateSettings[activeTemplateName] || 'Weekly';
+    const activeFrequency = scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency;
     const targetDays = scheduleType === 'ONE_OFF'
       ? (shiftOneOffDate ? [new Date(`${shiftOneOffDate}T12:00:00`).getDay()] : [daysOfWeek[0] ?? 1])
       : (daysOfWeek.length > 0 ? daysOfWeek : [1]);
@@ -969,8 +996,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       byStreamProjected
     };
   }, [
-    templateSettings,
-    activeTemplateName,
+    shiftFrequency,
     scheduleType,
     shiftStartDate,
     shiftEndDate,
@@ -1175,6 +1201,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             staffId: parseInt(staffId),
             servicesData: finalServicesData,
             scheduleType,
+            frequency: scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency,
             startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || null) : null,
             endDate: scheduleType === 'FIXED' ? (shiftEndDate || null) : null,
             oneOffDate: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null
@@ -1231,6 +1258,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               servicesData: dayServicesData,
               templateName: activeTemplateName,
               scheduleType,
+              frequency: scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency,
               startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || null) : null,
               endDate: scheduleType === 'FIXED' ? (shiftEndDate || null) : null,
               oneOffDate: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null
@@ -1258,28 +1286,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
   };
 
-  const handleFrequencyChange = async (newFrequency: string) => {
-    try {
-      const res = await fetch(`/api/clients/${clientId}/template-settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ templateName: activeTemplateName, frequency: newFrequency })
-      });
-      if (res.ok) {
-        setTemplateSettings(prev => ({ ...prev, [activeTemplateName]: newFrequency }));
-      } else {
-        alert('Failed to update template frequency.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Error occurred.');
-    }
-  };
-
   const handleClearTemplate = async () => {
-    if (!confirm(`Are you sure you want to clear all template shifts for "${activeTemplateName}"?`)) return;
+    if (!confirm('Are you sure you want to clear all template shifts for this client?')) return;
     try {
-      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear?templateName=${encodeURIComponent(activeTemplateName)}`, {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear?templateName=ALL`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -1296,51 +1306,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
   };
 
-  const handleRenameTemplate = async (oldName: string) => {
-    const newName = prompt(`Enter new name for "${oldName}":`, oldName);
-    if (!newName || !newName.trim() || newName.trim() === oldName) return;
-
-    if (newName.trim() === 'Default Template') {
-      alert('Cannot rename to Default Template.');
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/clients/${clientId}/roster-templates/rename`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ oldName, newName: newName.trim() })
-      });
-      if (res.ok) {
-        setCustomTemplateNames(prev => [...prev.filter(n => n !== oldName), newName.trim()]);
-        if (activeTemplateName === oldName) setActiveTemplateName(newName.trim());
-        fetchData();
-      } else {
-        alert('Failed to rename template.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Error occurred.');
-    }
-  };
-
-  const handleDeleteTemplateTab = async (name: string) => {
-    if (!confirm(`Are you sure you want to completely delete the template "${name}"? This removes all its shifts.`)) return;
-    try {
-      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear?templateName=${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setCustomTemplateNames(prev => prev.filter(n => n !== name));
-        if (activeTemplateName === name) setActiveTemplateName('Default Template');
-        fetchData();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const handleEditTemplate = (t: any) => {
     setEditingTemplateId(t.id);
     setDaysOfWeek([t.day_of_week]);
@@ -1349,6 +1314,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     setStaffId(String(t.staff_id));
     const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
     setScheduleType(sType);
+    const resolvedFreq = getShiftFrequency(t);
+    setShiftFrequency(resolvedFreq === 'One-Off' ? 'Weekly' : resolvedFreq);
     setShiftStartDate(t.start_date || activeQuarter.startDateStr);
     setShiftEndDate(t.end_date || activeQuarter.endDateStr);
     setShiftOneOffDate(t.one_off_date || todayStr);
@@ -1391,7 +1358,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: runBuilderTemplate, clearExisting: false })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: 'All Templates', clearExisting: false })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -1422,7 +1389,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: runBuilderTemplate, clearExisting })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: 'All Templates', clearExisting })
       });
       const data = await res.json();
 
@@ -1516,60 +1483,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           </div>
         </div>
 
-        {/* Template Tabs */}
-        <div className="bg-[#121214] border-b border-white/[0.08] px-4 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0 pt-1 pb-1">
-          {templateNames.map((name: string) => (
-            <div key={name} className={`group flex items-center border-b-2 transition-colors ${activeTemplateName === name ? 'border-brand-teal' : 'border-transparent'}`}>
-              <button
-                onClick={() => setActiveTemplateName(name)}
-                className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${activeTemplateName === name ? 'text-brand-teal' : 'text-zinc-400 hover:text-zinc-200'}`}
-              >
-                {name}
-              </button>
-              {name !== 'Default Template' && (
-                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity pr-2 space-x-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRenameTemplate(name);
-                    }}
-                    className="text-zinc-500 hover:text-brand-teal p-1"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteTemplateTab(name);
-                    }}
-                    className="text-zinc-500 hover:text-red-400 p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          <button
-            onClick={() => {
-              const newName = prompt('Enter a name for the new template:');
-              if (newName && newName.trim()) {
-                const trimmedName = newName.trim();
-                setCustomTemplateNames(prev => Array.from(new Set([...prev, trimmedName])));
-                setActiveTemplateName(trimmedName);
-              }
-            }}
-            className="px-3 py-1.5 ml-2 text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] rounded-md flex items-center shrink-0 whitespace-nowrap transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" /> New Template
-          </button>
-        </div>
-
         {/* 7-Day Columns Grid */}
         <div className="flex-1 overflow-x-auto p-4 flex gap-4 custom-scrollbar items-stretch bg-[#121214]/10 h-full">
           {currentTemplateList.length === 0 ? (
             <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
-              No shifts defined for this template yet.
+              No shifts defined for this client yet.
             </div>
           ) : (
             displayDaysOrder.map(dayIdx => {
@@ -1589,9 +1507,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
                     {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
                       const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
-                      const activeFrequency = templateSettings[activeTemplateName] || 'Weekly';
+                      const shiftFreq = getShiftFrequency(t);
                       const qStart = homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr;
-                      const qOccurrences = countShiftOccurrencesInRange(t, qStart, activeQuarter.endDateStr, activeFrequency);
+                      const qOccurrences = countShiftOccurrencesInRange(t, qStart, activeQuarter.endDateStr, shiftFreq);
                       const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
 
                       return (
@@ -1600,6 +1518,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                             <div className="flex-1 pr-2">
                               <div className="flex items-center flex-wrap gap-1.5 mb-1">
                                 <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
+                                {sType !== 'ONE_OFF' && (
+                                  <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
+                                    {shiftFreq}
+                                  </span>
+                                )}
                                 {sType === 'ONE_OFF' ? (
                                   <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
                                     ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
@@ -1823,10 +1746,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-0.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Planned Roster ({activeTemplateName})
+                      Planned Roster Schedule
                     </span>
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                      {templateSettings[activeTemplateName] || 'Weekly'}
+                      {currentTemplateList.length} Shift{currentTemplateList.length === 1 ? '' : 's'}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
@@ -1985,26 +1908,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           <div className="flex items-center gap-2.5">
             {user?.role === 'ADMIN' && (
               <>
-                {/* 1. Template Frequency */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-zinc-400 font-medium">Frequency:</span>
-                  <select
-                    value={templateSettings[activeTemplateName] || 'Weekly'}
-                    onChange={(e) => handleFrequencyChange(e.target.value)}
-                    className="bg-[#121214] border border-white/[0.08] rounded-md px-2.5 py-1.5 text-sm text-white focus:border-brand-teal outline-none transition-colors"
-                  >
-                    <option value="Weekly">Weekly</option>
-                    <option value="Fortnightly">Fortnightly</option>
-                    <option value="3 Weekly">3 Weekly</option>
-                    <option value="1 Monthly">1 Monthly</option>
-                    <option value="2 Monthly">2 Monthly</option>
-                    <option value="3 Monthly">3 Monthly</option>
-                    <option value="6 Monthly">6 Monthly</option>
-                    <option value="12 Monthly">12 Monthly</option>
-                  </select>
-                </div>
-
-                {/* 2. Add Shift to Template */}
+                {/* 1. Add Shift to Template */}
                 <button
                   onClick={() => {
                     setEditingTemplateId(null);
@@ -2013,6 +1917,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     setEndTime('17:00');
                     setStaffId('');
                     setScheduleType('ONGOING');
+                    setShiftFrequency('Weekly');
                     setShiftStartDate(homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr);
                     setShiftEndDate(activeQuarter.endDateStr);
                     setShiftOneOffDate(todayStr);
@@ -2025,10 +1930,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   Add Shift
                 </button>
 
-                {/* 3. Run Builder (Generate Roster Shifts) */}
+                {/* 2. Run Builder (Generate Roster Shifts) */}
                 <button
                   onClick={() => {
-                    setRunBuilderTemplate(activeTemplateName);
+                    setRunBuilderTemplate('All Templates');
                     setShowRunBuilderModal(true);
                   }}
                   className="px-3.5 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
@@ -2076,6 +1981,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     setEndTime('17:00');
                     setStaffId('');
                     setScheduleType('ONGOING');
+                    setShiftFrequency('Weekly');
                     setShiftStartDate(homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr);
                     setShiftEndDate(activeQuarter.endDateStr);
                     setShiftOneOffDate(todayStr);
@@ -2194,6 +2100,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           onChange={e => handleOneOffDateChange(e.target.value)}
                           className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
                         />
+                      </div>
+                    )}
+
+                    {/* Recurrence Frequency Selector (Shown for ONGOING and FIXED shifts) */}
+                    {scheduleType !== 'ONE_OFF' && (
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">Shift Frequency</label>
+                        <select
+                          value={shiftFrequency}
+                          onChange={e => setShiftFrequency(e.target.value)}
+                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
+                        >
+                          {SHIFT_FREQUENCY_OPTIONS.map(freqOpt => (
+                            <option key={freqOpt} value={freqOpt}>
+                              {freqOpt}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     )}
 
@@ -2418,7 +2342,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                             {modalShiftProjection.totalOccurrences} shift{modalShiftProjection.totalOccurrences === 1 ? '' : 's'}
                           </div>
                           <div className="text-[10px] text-zinc-500 font-mono">
-                            {templateSettings[activeTemplateName] || 'Weekly'}
+                            {scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency}
                           </div>
                         </div>
 
@@ -2479,19 +2403,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             </div>
 
             <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-2">Template to Build</label>
-                <select
-                  value={runBuilderTemplate}
-                  onChange={(e) => setRunBuilderTemplate(e.target.value)}
-                  className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
-                >
-                  <option value="All Templates">All Templates</option>
-                  {templateNames.map((name: string) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
 
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-2">Duration Preset</label>

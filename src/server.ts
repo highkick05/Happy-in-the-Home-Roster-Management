@@ -1306,6 +1306,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     "start_date TEXT",
     "end_date TEXT",
     "one_off_date TEXT",
+    "frequency TEXT DEFAULT 'Weekly'",
   ]) {
     try {
       db.exec(`ALTER TABLE client_roster_templates ADD COLUMN ${colDef}`);
@@ -1314,6 +1315,19 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
         console.warn("Migration warning:", e.message);
       }
     }
+  }
+
+  try {
+    db.exec(`
+      UPDATE client_roster_templates
+      SET frequency = COALESCE(
+        (SELECT cts.frequency FROM client_template_settings cts WHERE cts.client_id = client_roster_templates.client_id AND cts.template_name = client_roster_templates.template_name LIMIT 1),
+        'Weekly'
+      )
+      WHERE frequency IS NULL OR frequency = '';
+    `);
+  } catch (e: any) {
+    console.warn("Frequency backfill warning:", e.message);
   }
 
   try {
@@ -18079,19 +18093,34 @@ app.get("/api/health", (req, res) => {
         FROM client_roster_templates t
         LEFT JOIN users u ON t.staff_id = u.id
         LEFT JOIN services srv ON t.service_id = srv.id
-        WHERE t.client_id = ? AND (t.template_name = ? OR (? = 'Default Template' AND t.template_name IS NULL))
+        WHERE t.client_id = ?
         ORDER BY t.day_of_week, t.start_time
       `,
           )
-          .all(clientId, templateName, templateName) as any[];
+          .all(clientId) as any[];
 
         const allServices = db.prepare("SELECT * FROM services").all() as any[];
-        const templateSettingRow = db
+        const templateSettingsRows = db
           .prepare(
-            "SELECT frequency FROM client_template_settings WHERE client_id = ? AND template_name = ? LIMIT 1",
+            "SELECT template_name, frequency FROM client_template_settings WHERE client_id = ?",
           )
-          .get(clientId, templateName) as any;
-        const activeFrequency = templateSettingRow?.frequency || "Weekly";
+          .all(clientId) as any[];
+        const freqFallbackMap: Record<string, string> = {};
+        templateSettingsRows.forEach((r) => {
+          if (r.template_name && r.frequency) freqFallbackMap[r.template_name] = r.frequency;
+        });
+        const getShiftFrequency = (t: any) =>
+          t.frequency || freqFallbackMap[t.template_name || "Default Template"] || "Weekly";
+        const getWeeklyFrequencyMultiplier = (freq: string) => {
+          if (freq === "Fortnightly") return 1 / 2;
+          if (freq === "3 Weekly") return 1 / 3;
+          if (freq === "1 Monthly") return 1 / 4;
+          if (freq === "2 Monthly") return 1 / 8;
+          if (freq === "3 Monthly") return 1 / 13;
+          if (freq === "6 Monthly") return 1 / 26;
+          if (freq === "12 Monthly") return 1 / 52;
+          return 1;
+        };
 
         const settingsRows = db
           .prepare(
@@ -18387,21 +18416,23 @@ app.get("/api/health", (req, res) => {
           const shiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
 
           const sType = t.schedule_type || "ONGOING";
-          let scheduleBadge = "ONGOING";
+          const shiftFreq = getShiftFrequency(t);
+          const freqPrefix = sType === "ONE_OFF" ? "" : `${shiftFreq.toUpperCase()} • `;
+          let scheduleBadge = `${freqPrefix}ONGOING`;
           if (sType === "ONE_OFF") {
             scheduleBadge = `ONE OFF${t.one_off_date ? ` (${fmtDateDmy(t.one_off_date)})` : ""}`;
           } else if (sType === "FIXED") {
-            scheduleBadge = `FIXED${t.start_date && t.end_date ? ` (${fmtDateDmy(t.start_date)} - ${fmtDateDmy(t.end_date)})` : ""}`;
+            scheduleBadge = `${freqPrefix}FIXED${t.start_date && t.end_date ? ` (${fmtDateDmy(t.start_date)} - ${fmtDateDmy(t.end_date)})` : ""}`;
           } else if (t.start_date) {
-            scheduleBadge = `ONGOING (From ${fmtDateDmy(t.start_date)})`;
+            scheduleBadge = `${freqPrefix}ONGOING (From ${fmtDateDmy(t.start_date)})`;
           }
 
           const staffName = t.staff_first_name
             ? `${t.staff_first_name} ${t.staff_last_name}`.trim()
             : "Unassigned";
 
-          const qOccurrences = countShiftOccurrencesInRange(t, actualStartDateStr, activeQ.endDateStr, activeFrequency);
-          const remOccurrences = countShiftOccurrencesInRange(t, remainingStartStr, activeQ.endDateStr, activeFrequency);
+          const qOccurrences = countShiftOccurrencesInRange(t, actualStartDateStr, activeQ.endDateStr, shiftFreq);
+          const remOccurrences = countShiftOccurrencesInRange(t, remainingStartStr, activeQ.endDateStr, shiftFreq);
 
           let parsedServices: any[] = [];
           if (t.services_json) {
@@ -18432,7 +18463,7 @@ app.get("/api/health", (req, res) => {
             const lineDrawdown = round2(applyShiftDrawdownFees(lineBaseTotal));
 
             if (sType !== "ONE_OFF") {
-              weeklyBaseTotal += lineBaseTotal;
+              weeklyBaseTotal += lineBaseTotal * getWeeklyFrequencyMultiplier(shiftFreq);
             }
             fullQuarterPlannedOnDrawdown += lineDrawdown * qOccurrences;
             remainingQuarterPlannedOnDrawdown += lineDrawdown * remOccurrences;
@@ -18630,7 +18661,7 @@ app.get("/api/health", (req, res) => {
           .fillColor("#cbd5e1")
           .font("Helvetica")
           .fontSize(9)
-          .text(`Template: ${templateName} (${activeFrequency})`, rightInfoX, margin + 11, {
+          .text(`Schedule: Unified Roster Plan (${templates.length} Shift${templates.length === 1 ? "" : "s"})`, rightInfoX, margin + 11, {
             width: 245,
             align: "right",
           });
@@ -18983,10 +19014,11 @@ app.get("/api/health", (req, res) => {
           startDate = null,
           endDate = null,
           oneOffDate = null,
+          frequency = "Weekly",
         } = req.body;
         const stmt = db.prepare(`
-        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date, frequency)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
         const daysToIterate =
           Array.isArray(daysOfWeek) && daysOfWeek.length > 0
@@ -19008,6 +19040,7 @@ app.get("/api/health", (req, res) => {
                 startDate || null,
                 endDate || null,
                 oneOffDate || null,
+                frequency || "Weekly",
               );
             }
           }
@@ -19036,10 +19069,11 @@ app.get("/api/health", (req, res) => {
           startDate = null,
           endDate = null,
           oneOffDate = null,
+          frequency = "Weekly",
         } = req.body;
         db.prepare(`
           UPDATE client_roster_templates 
-          SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?, schedule_type = ?, start_date = ?, end_date = ?, one_off_date = ?
+          SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?, schedule_type = ?, start_date = ?, end_date = ?, one_off_date = ?, frequency = ?
           WHERE id = ?
         `).run(
           dayOfWeek,
@@ -19051,6 +19085,7 @@ app.get("/api/health", (req, res) => {
           startDate || null,
           endDate || null,
           oneOffDate || null,
+          frequency || "Weekly",
           req.params.id
         );
         res.json({ success: true });
@@ -19089,13 +19124,18 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     (req: any, res: any) => {
       try {
-        const { templateName = "Default Template" } = req.query;
-        db.prepare(
-          "DELETE FROM client_roster_templates WHERE client_id = ? AND template_name = ?",
-        ).run(req.params.id, templateName);
-        db.prepare(
-          "DELETE FROM client_template_settings WHERE client_id = ? AND template_name = ?",
-        ).run(req.params.id, templateName);
+        const { templateName } = req.query;
+        if (!templateName || templateName === "ALL") {
+          db.prepare("DELETE FROM client_roster_templates WHERE client_id = ?").run(req.params.id);
+          db.prepare("DELETE FROM client_template_settings WHERE client_id = ?").run(req.params.id);
+        } else {
+          db.prepare(
+            "DELETE FROM client_roster_templates WHERE client_id = ? AND template_name = ?",
+          ).run(req.params.id, templateName);
+          db.prepare(
+            "DELETE FROM client_template_settings WHERE client_id = ? AND template_name = ?",
+          ).run(req.params.id, templateName);
+        }
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -19249,9 +19289,9 @@ app.get("/api/health", (req, res) => {
             .json({ error: "Date range cannot exceed 12 months." });
         }
 
-        const templates = templateName === "All Templates" ? db.prepare("SELECT * FROM client_roster_templates WHERE client_id = ?").all(clientId) as any[] : db
-          .prepare("SELECT * FROM client_roster_templates WHERE client_id = ? AND template_name = ?")
-          .all(clientId, templateName) as any[];
+        const templates = db
+          .prepare("SELECT * FROM client_roster_templates WHERE client_id = ?")
+          .all(clientId) as any[];
         if (!templates.length)
           return res
             .status(400)
@@ -19260,51 +19300,6 @@ app.get("/api/health", (req, res) => {
         const settingsRowsDB = db.prepare("SELECT * FROM client_template_settings WHERE client_id = ?").all(clientId) as any[];
         const freqMap = new Map<string, string>();
         settingsRowsDB.forEach(s => freqMap.set(s.template_name, s.frequency));
-
-        const validMondaysMap = new Map<string, Set<string> | null>();
-        const uniqueTemplatesToGenerate = new Set(templates.map((t: any) => t.template_name || "Default Template"));
-        const startDt = new Date(startDate + "T12:00:00Z");
-        
-        const getMondayStr = (d: Date) => {
-          const dCopy = new Date(d.getTime());
-          const day = dCopy.getUTCDay();
-          const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
-          dCopy.setUTCDate(diff);
-          return dCopy.toISOString().split("T")[0];
-        };
-
-        for (const tName of Array.from(uniqueTemplatesToGenerate)) {
-          const freq = freqMap.get(tName as string) || "Weekly";
-          if (freq !== "Weekly") {
-            const vm = new Set<string>();
-            if (freq === "Fortnightly") {
-              let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
-              const endDt = new Date(endDate + "T12:00:00Z");
-              while (curr <= endDt || curr.getTime() <= startDt.getTime() + 14 * 86400000) {
-                vm.add(curr.toISOString().split("T")[0]);
-                curr.setUTCDate(curr.getUTCDate() + 14);
-              }
-            } else if (freq === "3 Weekly") {
-              let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
-              const endDt = new Date(endDate + "T12:00:00Z");
-              while (curr <= endDt || curr.getTime() <= startDt.getTime() + 21 * 86400000) {
-                vm.add(curr.toISOString().split("T")[0]);
-                curr.setUTCDate(curr.getUTCDate() + 21);
-              }
-            } else if (freq.endsWith("Monthly")) {
-              const months = parseInt(freq.split(" ")[0]) || 1;
-              let curr = new Date(startDt.getTime());
-              const endDt = new Date(endDate + "T12:00:00Z");
-              while (curr <= endDt || curr.getTime() <= startDt.getTime() + 31 * 86400000) {
-                vm.add(getMondayStr(curr));
-                curr.setUTCMonth(curr.getUTCMonth() + months);
-              }
-            }
-            validMondaysMap.set(tName as string, vm);
-          } else {
-            validMondaysMap.set(tName as string, null);
-          }
-        }
 
         const clientRow = db
           .prepare("SELECT funding_type FROM clients WHERE id = ?")
@@ -19398,13 +19393,6 @@ app.get("/api/health", (req, res) => {
             const localNoon = new Date(`${shiftDateStr}T12:00:00Z`);
             const dayOfWeek = localNoon.getUTCDay(); // 0 is Sunday, 6 is Saturday
 
-            // calculate weekMondayStr for this day
-            const dCopy = new Date(dt.getTime());
-            const day = dCopy.getUTCDay();
-            const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
-            dCopy.setUTCDate(diff);
-            const weekMondayStr = dCopy.toISOString().split("T")[0];
-
             let todaysTemplates = templates.filter((t: any) => {
               const sType = String(t.schedule_type || "ONGOING").toUpperCase();
               if (sType === "ONE_OFF" && t.one_off_date) {
@@ -19422,15 +19410,25 @@ app.get("/api/health", (req, res) => {
               return true;
             });
 
-            // Filter todaysTemplates based on their individual frequency settings (skip frequency filter for ONE_OFF)
+            // Filter todaysTemplates based on each individual shift's recurrence frequency (skip frequency filter for ONE_OFF)
             todaysTemplates = todaysTemplates.filter((t: any) => {
               const sType = String(t.schedule_type || "ONGOING").toUpperCase();
               if (sType === "ONE_OFF") return true;
-              const tName = t.template_name || "Default Template";
-              const vm = validMondaysMap.get(tName);
-              if (vm) {
-                return vm.has(weekMondayStr);
-              }
+              const shiftFreq = t.frequency || freqMap.get(t.template_name || "Default Template") || "Weekly";
+              if (shiftFreq === "Weekly") return true;
+
+              const anchorStr = (t.start_date ? String(t.start_date).split("T")[0] : null) || startDate;
+              const anchorDt = new Date(`${anchorStr}T12:00:00Z`);
+              const diffDays = Math.max(0, Math.round((localNoon.getTime() - anchorDt.getTime()) / 86400000));
+              const weekIndex = Math.floor(diffDays / 7);
+
+              if (shiftFreq === "Fortnightly") return weekIndex % 2 === 0;
+              if (shiftFreq === "3 Weekly") return weekIndex % 3 === 0;
+              if (shiftFreq === "1 Monthly") return weekIndex % 4 === 0;
+              if (shiftFreq === "2 Monthly") return weekIndex % 8 === 0;
+              if (shiftFreq === "3 Monthly") return weekIndex % 13 === 0;
+              if (shiftFreq === "6 Monthly") return weekIndex % 26 === 0;
+              if (shiftFreq === "12 Monthly") return weekIndex % 52 === 0;
               return true;
             });
 
