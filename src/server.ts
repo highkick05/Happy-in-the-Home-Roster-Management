@@ -2508,20 +2508,28 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       } catch (e) {}
     }
 
-    // Automatically map Home Care services that already have rates (> 0) to the "ON" (Ongoing Funds) stream
+    // Automatically map Home Care services that already have rates (> 0) to the "ON,HC" (Ongoing Funds + Home Care Account) streams
     const hcServices = db
       .prepare(
         "SELECT id, rate, rates_json, funding_stream FROM services WHERE (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') AND (status IS NULL OR status != 'ARCHIVED')"
       )
       .all() as any[];
 
+    const autoLinkFlag = db
+      .prepare("SELECT value FROM settings WHERE key = 'home_care_on_hc_autolink_v1'")
+      .get() as any;
+    const shouldUpgradeSingleOnToOnHc = !autoLinkFlag;
+
     const updateFundingStreamStmt = db.prepare(
-      "UPDATE services SET funding_stream = 'ON' WHERE id = ?"
+      "UPDATE services SET funding_stream = 'ON,HC' WHERE id = ?"
     );
 
     db.transaction(() => {
       for (const s of hcServices) {
-        if (s.funding_stream && String(s.funding_stream).trim() !== "") continue;
+        const currentStream = s.funding_stream ? String(s.funding_stream).trim().toUpperCase() : "";
+        if (currentStream !== "" && !(shouldUpgradeSingleOnToOnHc && currentStream === "ON")) {
+          continue;
+        }
         let hasRate = Number(s.rate) > 0;
         if (!hasRate && s.rates_json) {
           try {
@@ -2540,8 +2548,13 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           updateFundingStreamStmt.run(s.id);
         }
       }
+      if (shouldUpgradeSingleOnToOnHc) {
+        db.prepare(
+          "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_on_hc_autolink_v1', 'true')"
+        ).run();
+      }
     })();
-    console.log("[DEBUG] Completed Home Care funding_stream auto-mapping to ON");
+    console.log("[DEBUG] Completed Home Care funding_stream auto-mapping to ON,HC");
   } catch (e: any) {
     console.warn("Migration warning mapping Home Care funding_stream:", e.message);
   }
@@ -15985,11 +15998,20 @@ app.get("/api/health", (req, res) => {
               actualEndDateStr,
             );
             if (ledgerData && Array.isArray(ledgerData.items)) {
+              const getPrimaryStream = (raw?: string | null) => {
+                const codes = String(raw || "ON")
+                  .toUpperCase()
+                  .split(",")
+                  .map((c) => c.trim())
+                  .filter(Boolean);
+                if (codes.length === 0 || codes.includes("ON")) return "ON";
+                return codes.find((c) => c !== "HC") || codes[0] || "ON";
+              };
               totalSpent = ledgerData.items
-                .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || "ON").toUpperCase()))
+                .filter((item: any) => !separateStreamCodes.has(getPrimaryStream(item.funding_stream)))
                 .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
               hcDirectLedgerSpent = ledgerData.items
-                .filter((item: any) => String(item.funding_stream || "").toUpperCase() === "HC")
+                .filter((item: any) => getPrimaryStream(item.funding_stream) === "HC")
                 .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
             } else {
               totalSpent = Number(ledgerData?.grandTotal ?? ledgerData?.total ?? 0);
@@ -18458,7 +18480,12 @@ app.get("/api/health", (req, res) => {
               sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ""
                 ? Number(sd.rateOverride)
                 : sDetails.rate;
-            const streamCode = String(sd.fundingStream || sDetails.fundingStream || "ON").toUpperCase();
+            const rawSrvStream = String(sDetails.fundingStream || "ON").toUpperCase();
+            const rawShiftStream = String(sd.fundingStream || "").toUpperCase();
+            const streamCode =
+              !rawShiftStream || (rawShiftStream === "ON" && rawSrvStream.includes("ON"))
+                ? rawSrvStream
+                : rawShiftStream;
             const lineBaseTotal = round2(rate * qty);
             const lineDrawdown = round2(applyShiftDrawdownFees(lineBaseTotal));
 
@@ -18576,11 +18603,21 @@ app.get("/api/health", (req, res) => {
           );
           const separateCodes = new Set(separateStreams.map((s: any) => String(s.code).toUpperCase()));
 
+          const getPrimaryStream = (raw?: string | null) => {
+            const codes = String(raw || "ON")
+              .toUpperCase()
+              .split(",")
+              .map((c) => c.trim())
+              .filter(Boolean);
+            if (codes.length === 0 || codes.includes("ON")) return "ON";
+            return codes.find((c) => c !== "HC") || codes[0] || "ON";
+          };
+
           const ledgerData = getClientBudgetLedgerData(client.id, actualStartDateStr, activeQ.endDateStr);
           const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
           const actualOnSpent = round2(
             ledgerItems
-              .filter((item: any) => !separateCodes.has(String(item.funding_stream || "ON").toUpperCase()))
+              .filter((item: any) => !separateCodes.has(getPrimaryStream(item.funding_stream)))
               .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0),
           );
 
@@ -18593,7 +18630,7 @@ app.get("/api/health", (req, res) => {
           const hcDirectSpent = round2(
             hcStreams.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0) +
               ledgerItems
-                .filter((item: any) => String(item.funding_stream || "").toUpperCase() === "HC")
+                .filter((item: any) => getPrimaryStream(item.funding_stream) === "HC")
                 .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0),
           );
           const hcAvailable = Math.max(0, round2(hcAllocated - hcDirectSpent));
@@ -18621,7 +18658,7 @@ app.get("/api/health", (req, res) => {
             const spent = round2(
               matching.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0) +
                 ledgerItems
-                  .filter((item: any) => String(item.funding_stream || "").toUpperCase() === code)
+                  .filter((item: any) => getPrimaryStream(item.funding_stream) === code)
                   .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0),
             );
             const overflowDraw = code === "HC" ? projectedHcOverflow : 0;
@@ -24146,7 +24183,7 @@ app.get("/api/health", (req, res) => {
           funding_stream !== undefined && funding_stream !== null && String(funding_stream).trim() !== ""
             ? String(funding_stream).trim()
             : hasNonZeroRate
-              ? "ON"
+              ? "ON,HC"
               : null;
 
         const stmt = db.prepare(`
@@ -24215,7 +24252,7 @@ app.get("/api/health", (req, res) => {
         const resolvedFundingStream =
           funding_stream !== undefined
             ? (funding_stream ? String(funding_stream).trim() : null)
-            : (existingRow?.funding_stream || (hasNonZeroRate ? "ON" : null));
+            : (existingRow?.funding_stream || (hasNonZeroRate ? "ON,HC" : null));
 
         db.prepare(`
           UPDATE services

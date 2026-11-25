@@ -772,9 +772,19 @@ export default function HomeCareBudgetView() {
     };
   });
 
-  // Ongoing Funds (ON) drawdown: all items with funding_stream === 'ON' or not drawn from a separate active additional stream card
+  const getPrimaryStreamCode = (raw?: string | null): string => {
+    const codes = String(raw || 'ON')
+      .toUpperCase()
+      .split(',')
+      .map(c => c.trim())
+      .filter(Boolean);
+    if (codes.length === 0 || codes.includes('ON')) return 'ON';
+    return codes.find(c => c !== 'HC') || codes[0] || 'ON';
+  };
+
+  // Ongoing Funds (ON) drawdown: all items with primary funding_stream === 'ON' or not drawn from a separate active additional stream card
   const liveSystemConsumptions = processedLedgerItems
-    .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || 'ON').toUpperCase()))
+    .filter((item: any) => !separateStreamCodes.has(getPrimaryStreamCode(item.funding_stream)))
     .reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
   const totalCombinedSpent = liveSystemConsumptions;
 
@@ -786,7 +796,7 @@ export default function HomeCareBudgetView() {
   const hcDirectManualSpent = hcStreams.reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
   const hcDirectLedgerSpent = hcStreams.length > 0
     ? processedLedgerItems
-        .filter((item: any) => String(item.funding_stream || '').toUpperCase() === 'HC')
+        .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === 'HC')
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     : 0;
   const hcDirectSpent = round2(hcDirectManualSpent + hcDirectLedgerSpent);
@@ -1103,7 +1113,7 @@ export default function HomeCareBudgetView() {
             const manualSpent = Number(stream.spentAmount) || 0;
             const ledgerSpentForStream = !stream.addToOngoing
               ? processedLedgerItems
-                  .filter((item: any) => String(item.funding_stream || '').toUpperCase() === streamCode)
+                  .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === streamCode)
                   .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
               : 0;
             const directStreamSpent = round2(manualSpent + ledgerSpentForStream);
@@ -1351,15 +1361,26 @@ export default function HomeCareBudgetView() {
                         <td className="px-3 py-2 min-w-[190px] text-xs">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span>{item.service}</span>
-                            {isHomeCare && (
-                              <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-medium border ${
-                                (item.funding_stream || 'ON') === 'ON'
-                                  ? 'bg-brand-teal/10 text-brand-teal border-brand-teal/30'
-                                  : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                              }`}>
-                                {item.funding_stream || 'ON'}
-                              </span>
-                            )}
+                            {isHomeCare &&
+                              String(item.funding_stream || 'ON')
+                                .toUpperCase()
+                                .split(',')
+                                .map(c => c.trim())
+                                .filter(Boolean)
+                                .map(code => (
+                                  <span
+                                    key={code}
+                                    className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-medium border ${
+                                      code === 'ON'
+                                        ? 'bg-brand-teal/10 text-brand-teal border-brand-teal/30'
+                                        : code === 'HC'
+                                        ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                        : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                    }`}
+                                  >
+                                    {code}
+                                  </span>
+                                ))}
                             {item.source_type === 'external' && (
                               <span className="inline-block px-1.5 py-0.2 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 font-medium">
                                 [Ext - {item.vendor_name || 'Generic'}]

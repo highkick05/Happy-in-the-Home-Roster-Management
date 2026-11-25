@@ -231,6 +231,7 @@ export default function SettingsView() {
 
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
+  const [openFundingStreamDropdownId, setOpenFundingStreamDropdownId] = useState<string | number | null>(null);
   const [isAddingInlineGroup, setIsAddingInlineGroup] = useState(false);
   const [inlineNewGroupName, setInlineNewGroupName] = useState('');
   const [creatingService, setCreatingService] = useState(false);
@@ -579,6 +580,35 @@ export default function SettingsView() {
     }
   };
 
+  const parseFundingStreamCodes = (raw?: string | null): string[] => {
+    if (!raw) return [];
+    return String(raw)
+      .split(',')
+      .map(c => c.trim().toUpperCase())
+      .filter(Boolean);
+  };
+
+  const formatCanonicalFundingStreams = (codes: string[]): string => {
+    const unique = Array.from(new Set(codes.map(c => c.trim().toUpperCase()).filter(Boolean)));
+    const orderMap = new Map(homeCareFundingStreams.map((fs, idx) => [fs.code.toUpperCase(), idx]));
+    unique.sort((a, b) => {
+      const idxA = orderMap.has(a) ? orderMap.get(a)! : 999;
+      const idxB = orderMap.has(b) ? orderMap.get(b)! : 999;
+      if (idxA !== idxB) return idxA - idxB;
+      return a.localeCompare(b);
+    });
+    return unique.join(',');
+  };
+
+  const toggleServiceFundingStreamCode = (currentRaw: string, code: string): string => {
+    const currentCodes = parseFundingStreamCodes(currentRaw);
+    const upper = code.trim().toUpperCase();
+    const nextCodes = currentCodes.includes(upper)
+      ? currentCodes.filter(c => c !== upper)
+      : [...currentCodes, upper];
+    return formatCanonicalFundingStreams(nextCodes);
+  };
+
   const handleOpenAddServiceModal = (preselectedGroup?: string) => {
     setEditingServiceId(null);
     setIsAddingInlineGroup(false);
@@ -632,7 +662,7 @@ export default function SettingsView() {
       name: service.name || '',
       service_group: service.service_group || homeCareGroups[0] || 'Equipment and Products',
       service_category: service.service_category || 'Independence',
-      funding_stream: service.funding_stream || (hasFixedRate ? 'ON' : ''),
+      funding_stream: service.funding_stream || (hasFixedRate ? 'ON,HC' : ''),
       unit: service.unit || 'Hour',
       rates_json: parsedRates
     });
@@ -2549,7 +2579,9 @@ export default function SettingsView() {
                                   } catch (e) {
                                     isVariable = false;
                                   }
-                                  const effectiveFundingStream = s.funding_stream || (!isVariable ? 'ON' : '');
+                                  const effectiveFundingStream = s.funding_stream || (!isVariable ? 'ON,HC' : '');
+                                  const selectedStreamCodes = parseFundingStreamCodes(effectiveFundingStream);
+                                  const isDropdownOpen = openFundingStreamDropdownId === s.id;
                                   return (
                                     <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
                                       <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
@@ -2570,27 +2602,112 @@ export default function SettingsView() {
                                           <option value="Everyday Living">Everyday Living</option>
                                         </select>
                                       </td>
-                                      <td className="px-2 py-1.5">
-                                        <select
-                                          value={effectiveFundingStream}
-                                          onChange={(e) => handleFundingStreamChange(s.id, e.target.value)}
-                                          className={`w-full bg-brand-navy border rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors ${
-                                            effectiveFundingStream === 'ON'
-                                              ? 'text-brand-teal border-brand-teal/30 font-medium'
-                                              : effectiveFundingStream
-                                              ? 'text-[#E6EDF3] border-border-subtle font-medium'
-                                              : 'text-[#8B949E] border-border-subtle'
-                                          }`}
+                                      <td className="px-2 py-1.5 relative">
+                                        <button
+                                          type="button"
+                                          onClick={() => setOpenFundingStreamDropdownId(isDropdownOpen ? null : s.id)}
                                           disabled={savingCategoryIds.has(s.id)}
+                                          className={`w-full bg-brand-navy border rounded px-2 py-1 flex items-center justify-between gap-1.5 min-h-[32px] text-xs focus:border-brand-primary outline-none transition-colors ${
+                                            selectedStreamCodes.includes('ON')
+                                              ? 'border-brand-teal/35 text-[#E6EDF3]'
+                                              : selectedStreamCodes.length > 0
+                                              ? 'border-border-subtle text-[#E6EDF3]'
+                                              : 'border-border-subtle text-[#8B949E]'
+                                          }`}
                                         >
-                                          <option value="">Select Funding Stream</option>
-                                          {homeCareFundingStreams.map(fs => (
-                                            <option key={fs.code} value={fs.code}>{fs.name}</option>
-                                          ))}
-                                          {effectiveFundingStream && !homeCareFundingStreams.some(fs => fs.code === effectiveFundingStream) && (
-                                            <option value={effectiveFundingStream}>{effectiveFundingStream}</option>
-                                          )}
-                                        </select>
+                                          <div className="flex items-center flex-wrap gap-1 overflow-hidden">
+                                            {selectedStreamCodes.length > 0 ? (
+                                              selectedStreamCodes.map(code => (
+                                                <span
+                                                  key={code}
+                                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                                    code === 'ON'
+                                                      ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                      : code === 'HC'
+                                                      ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                      : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                                  }`}
+                                                >
+                                                  {code}
+                                                </span>
+                                              ))
+                                            ) : (
+                                              <span className="text-[#8B949E] truncate">Select Funding Stream</span>
+                                            )}
+                                          </div>
+                                          <ChevronDown className="w-3.5 h-3.5 text-[#8B949E] shrink-0" />
+                                        </button>
+
+                                        {isDropdownOpen && (
+                                          <>
+                                            <div
+                                              className="fixed inset-0 z-40"
+                                              onClick={() => setOpenFundingStreamDropdownId(null)}
+                                            />
+                                            <div className="absolute left-2 top-full mt-1 z-50 w-64 bg-[#161b22] border border-border-subtle rounded-lg shadow-2xl p-2 space-y-1.5">
+                                              <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-border-subtle/70">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleFundingStreamChange(s.id, 'ON,HC')}
+                                                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-teal/15 text-brand-teal border border-brand-teal/30 hover:bg-brand-teal/25 transition-colors"
+                                                >
+                                                  Link ON + HC
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleFundingStreamChange(s.id, 'ON')}
+                                                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.04] text-[#E6EDF3] border border-border-subtle hover:bg-white/[0.08] transition-colors"
+                                                >
+                                                  ON Only
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleFundingStreamChange(s.id, '')}
+                                                  className="px-2 py-0.5 rounded text-[10px] font-medium text-[#8B949E] hover:text-red-400 transition-colors"
+                                                >
+                                                  Clear
+                                                </button>
+                                              </div>
+                                              <div className="max-h-52 overflow-y-auto space-y-0.5 pr-0.5">
+                                                {homeCareFundingStreams.map(fs => {
+                                                  const isChecked = selectedStreamCodes.includes(fs.code.toUpperCase());
+                                                  return (
+                                                    <label
+                                                      key={fs.code}
+                                                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${
+                                                        isChecked
+                                                          ? 'bg-brand-primary/15 text-[#E6EDF3] font-medium'
+                                                          : 'text-[#8B949E] hover:bg-white/[0.04] hover:text-[#E6EDF3]'
+                                                      }`}
+                                                    >
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => {
+                                                          const nextVal = toggleServiceFundingStreamCode(effectiveFundingStream, fs.code);
+                                                          handleFundingStreamChange(s.id, nextVal);
+                                                        }}
+                                                        className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-0"
+                                                      />
+                                                      <span
+                                                        className={`font-mono text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                                          fs.code === 'ON'
+                                                            ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                            : fs.code === 'HC'
+                                                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                            : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                                        }`}
+                                                      >
+                                                        {fs.code}
+                                                      </span>
+                                                      <span className="truncate">{fs.name.replace(new RegExp(`^${fs.code}\\s+`, 'i'), '')}</span>
+                                                    </label>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
                                       </td>
                                       <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
                                       {isVariable ? (
@@ -2801,17 +2918,55 @@ export default function SettingsView() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Funding Stream</label>
-                  <select
-                    value={newServiceForm.funding_stream}
-                    onChange={(e) => setNewServiceForm(prev => ({ ...prev, funding_stream: e.target.value }))}
-                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
-                  >
-                    <option value="">Select Funding Stream</option>
-                    {homeCareFundingStreams.map(fs => (
-                      <option key={fs.code} value={fs.code}>{fs.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-medium text-[#8B949E]">Funding Streams (Multi-Select)</label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setNewServiceForm(prev => ({ ...prev, funding_stream: 'ON,HC' }))}
+                        className="text-[10px] px-2 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 hover:bg-brand-teal/25 font-semibold transition-colors"
+                      >
+                        Link ON + HC
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewServiceForm(prev => ({ ...prev, funding_stream: '' }))}
+                        className="text-[10px] px-1.5 py-0.5 rounded text-[#8B949E] hover:text-red-400 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 bg-brand-bg border border-border-subtle rounded-md p-2 max-h-40 overflow-y-auto">
+                    {homeCareFundingStreams.map(fs => {
+                      const selectedCodes = parseFundingStreamCodes(newServiceForm.funding_stream);
+                      const isChecked = selectedCodes.includes(fs.code.toUpperCase());
+                      return (
+                        <label
+                          key={fs.code}
+                          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs border transition-colors ${
+                            isChecked
+                              ? 'bg-brand-primary/15 border-brand-primary/40 text-[#E6EDF3] font-medium'
+                              : 'border-transparent text-[#8B949E] hover:bg-white/[0.04]'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() =>
+                              setNewServiceForm(prev => ({
+                                ...prev,
+                                funding_stream: toggleServiceFundingStreamCode(prev.funding_stream, fs.code)
+                              }))
+                            }
+                            className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-0"
+                          />
+                          <span className="font-mono text-[10px] font-bold text-brand-teal">{fs.code}</span>
+                          <span className="truncate">{fs.name.replace(new RegExp(`^${fs.code}\\s+`, 'i'), '')}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -2855,7 +3010,7 @@ export default function SettingsView() {
                                 const hasAnyPositive = Object.values(nextRates).some(v => Number(v) > 0);
                                 return {
                                   ...prev,
-                                  funding_stream: prev.funding_stream || (hasAnyPositive ? 'ON' : ''),
+                                  funding_stream: prev.funding_stream || (hasAnyPositive ? 'ON,HC' : ''),
                                   rates_json: nextRates
                                 };
                               });

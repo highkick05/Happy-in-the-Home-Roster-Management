@@ -81,6 +81,33 @@ const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val);
 };
 
+const parseFundingStreamCodes = (raw?: string | null): string[] => {
+  if (!raw) return [];
+  return String(raw)
+    .split(',')
+    .map(c => c.trim().toUpperCase())
+    .filter(Boolean);
+};
+
+const getPrimaryFundingStreamCode = (raw?: string | null): string => {
+  const codes = parseFundingStreamCodes(raw);
+  if (codes.length === 0 || codes.includes('ON')) return 'ON';
+  return codes.find(c => c !== 'HC') || codes[0] || 'ON';
+};
+
+const resolveShiftServiceFundingStream = (
+  shiftSavedStream?: string | null,
+  serviceDefaultStream?: string | null
+): string => {
+  const srvStream = String(serviceDefaultStream || 'ON,HC').toUpperCase();
+  const savedStream = String(shiftSavedStream || '').trim().toUpperCase();
+  if (!savedStream) return srvStream;
+  if (savedStream === 'ON' && parseFundingStreamCodes(srvStream).includes('ON')) {
+    return srvStream;
+  }
+  return savedStream;
+};
+
 export default function ClientRosterTemplates({ client }: ClientRosterTemplatesProps) {
   const clientId = client?.id;
   const { token, user, settings } = useAuth();
@@ -353,7 +380,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   const getServiceDetails = (serviceId: string, dayOfWeek: number, timeStr?: string) => {
     let service = servicesList.find(x => String(x.id) === String(serviceId));
-    if (!service) return { rate: 0, unit: 'Hour', name: '', fundingStream: 'ON' };
+    if (!service) return { rate: 0, unit: 'Hour', name: '', fundingStream: 'ON,HC' };
 
     if (isClientHomeCare && service.type !== 'HOME_CARE' && service.type !== 'Home Care' && service.type !== 'HCP') {
       const matchingHc = servicesList.find(s =>
@@ -431,8 +458,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       finalRate = baseRate;
     }
 
-    const fundingStream = String(service.funding_stream || 'ON').toUpperCase();
-    return { rate: finalRate, unit: service.unit || 'Hour', name: service.name, fundingStream };
+    const rawFundingStream = service.funding_stream
+      ? String(service.funding_stream).trim().toUpperCase()
+      : finalRate > 0 || baseRate > 0
+      ? 'ON,HC'
+      : 'ON';
+    return { rate: finalRate, unit: service.unit || 'Hour', name: service.name, fundingStream: rawFundingStream };
   };
 
   // Client fee percentages for Home Care shift drawdown (per-shift service consumption fees)
@@ -540,7 +571,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
             ? Number(sd.rateOverride)
             : sDetails.rate;
-        const streamCode = String(sd.fundingStream || sDetails.fundingStream || 'ON').toUpperCase();
+        const effectiveStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, sDetails.fundingStream);
+        const streamCode = getPrimaryFundingStreamCode(effectiveStreamStr);
         const srvBase = effectiveRate * effectiveQty;
         const srvDrawdown = applyShiftDrawdownFees(srvBase);
         baseTotal += srvBase;
@@ -551,7 +583,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       });
     } else if (t.service_id) {
       const sDetails = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
-      const streamCode = String(sDetails.fundingStream || 'ON').toUpperCase();
+      const streamCode = getPrimaryFundingStreamCode(sDetails.fundingStream);
       const srvBase = sDetails.rate * tShiftHours;
       const srvDrawdown = applyShiftDrawdownFees(srvBase);
       baseTotal += srvBase;
@@ -687,7 +719,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
     // 4. Process live ledger items for the current quarter
     const processedLedger = quarterLedgerItems.map((item: any) => {
-      const itemStream = String(item.funding_stream || 'ON').toUpperCase();
+      const itemStream = getPrimaryFundingStreamCode(item.funding_stream || 'ON');
       if (item.source_type === 'external' || item.grand_total !== undefined) {
         const baseAmt = Number(item.base_amount ?? item.amount) || 0;
         const ccFee = item.care_coord_fee !== undefined ? Number(item.care_coord_fee) : baseAmt * (careCoordPercent / 100);
@@ -702,7 +734,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
     const actualOnSpentToDate = round2(
       processedLedger
-        .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || 'ON').toUpperCase()))
+        .filter((item: any) => !separateStreamCodes.has(getPrimaryFundingStreamCode(item.funding_stream)))
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
 
@@ -885,6 +917,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   // Available funding stream choices for the Add/Edit Shift Modal dropdown
   const availableFundingStreamOptions = useMemo(() => {
     const optionsMap = new Map<string, string>();
+    optionsMap.set('ON,HC', 'ON + HC — Ongoing Funds + Home Care Account (Linked)');
     Object.entries(STANDARD_FUNDING_STREAM_LABELS).forEach(([code, label]) => {
       optionsMap.set(code, label);
     });
@@ -946,7 +979,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           ? Number(s.rateOverride)
           : sDetails.rate;
 
-        const streamCode = String(s.fundingStream || sDetails.fundingStream || 'ON').toUpperCase();
+        const effectiveStreamStr = resolveShiftServiceFundingStream(s.fundingStream, sDetails.fundingStream);
+        const streamCode = getPrimaryFundingStreamCode(effectiveStreamStr);
         const srvBase = effectiveRate * effectiveQty;
         const srvDrawdown = applyShiftDrawdownFees(srvBase);
         dayBase += srvBase;
@@ -1330,15 +1364,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           const sDetails = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
           return {
             ...sd,
-            fundingStream: String(sd.fundingStream || sDetails.fundingStream || 'ON').toUpperCase()
+            fundingStream: resolveShiftServiceFundingStream(sd.fundingStream, sDetails.fundingStream)
           };
         })
       );
     } else if (t.service_id) {
       const sDetails = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
-      setServicesData([{ serviceId: String(t.service_id), fundingStream: sDetails.fundingStream || 'ON' }]);
+      setServicesData([{ serviceId: String(t.service_id), fundingStream: sDetails.fundingStream || 'ON,HC' }]);
     } else {
-      setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
+      setServicesData([{ serviceId: '', fundingStream: 'ON,HC' }]);
     }
     setShowAddTemplateModal(true);
   };
@@ -1563,7 +1597,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                             {t.servicesData && t.servicesData.length > 0 ? (
                               t.servicesData.map((sd: any, idx: number) => {
                                 const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
-                                const streamCode = String(sd.fundingStream || fundingStream || 'ON').toUpperCase();
+                                const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
+                                const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
 
                                 const tStart = new Date(`1970-01-01T${t.start_time}:00`);
                                 let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
@@ -1596,16 +1631,23 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                         <div className="text-zinc-200 text-xs font-medium leading-tight">{name || 'Service'}</div>
                                       </div>
                                       {isClientHomeCare && (
-                                        <span
-                                          className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
-                                            streamCode === 'ON'
-                                              ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
-                                              : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                          }`}
-                                          title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[streamCode] || streamCode}`}
-                                        >
-                                          {streamCode}
-                                        </span>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
+                                            <span
+                                              key={code}
+                                              className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
+                                                code === 'ON'
+                                                  ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                  : code === 'HC'
+                                                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                  : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                              }`}
+                                              title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
+                                            >
+                                              {code}
+                                            </span>
+                                          ))}
+                                        </div>
                                       )}
                                     </div>
                                     <div className="grid grid-cols-4 gap-2 text-center bg-black/30 rounded-md p-2">
@@ -2246,7 +2288,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                             ? Number(s.rateOverride)
                             : rate;
                         const totalAmount = effectiveRate * effectiveQty;
-                        const activeStream = String(s.fundingStream || fundingStream || 'ON').toUpperCase();
+                        const activeStream = resolveShiftServiceFundingStream(s.fundingStream, fundingStream);
+                        const activeStreamCodes = parseFundingStreamCodes(activeStream);
 
                         return (
                           <div key={index} className="bg-[#121214] border border-white/[0.08] rounded-md p-3">
@@ -2257,21 +2300,44 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                               className="w-full bg-[#09090b] border border-white/[0.08] rounded-md px-2 py-1.5 text-sm text-white focus:border-brand-teal outline-none mb-2"
                             >
                               <option value="">-- Choose Service --</option>
-                              {clientPersonalisedServices.map(cs => (
-                                <option key={cs.id} value={String(cs.id)} className="truncate">
-                                  {cs.name}
-                                  {isClientHomeCare && cs.funding_stream ? ` [${String(cs.funding_stream).toUpperCase()}]` : ''}
-                                </option>
-                              ))}
+                              {clientPersonalisedServices.map(cs => {
+                                const srvDetails = getServiceDetails(String(cs.id), daysOfWeek[0] ?? 1, startTime);
+                                const rawCsStream = cs.funding_stream || (srvDetails.rate > 0 ? srvDetails.fundingStream : '');
+                                const csCodes = parseFundingStreamCodes(rawCsStream);
+                                return (
+                                  <option key={cs.id} value={String(cs.id)} className="truncate">
+                                    {cs.name}
+                                    {isClientHomeCare && csCodes.length > 0 ? ` [${csCodes.join(', ')}]` : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
 
                             {s.serviceId && (
                               <div className="space-y-2.5 mt-2 pt-2 border-t border-white/[0.08]">
                                 {isClientHomeCare && (
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">
-                                      Funding Stream
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">
+                                        Funding Streams
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        {activeStreamCodes.map(code => (
+                                          <span
+                                            key={code}
+                                            className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                                              code === 'ON'
+                                                ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                : code === 'HC'
+                                                ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                            }`}
+                                          >
+                                            {code}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
                                     <select
                                       value={activeStream}
                                       onChange={e => updateServiceEntry(index, 'fundingStream', e.target.value)}
@@ -2282,6 +2348,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                           {opt.label}
                                         </option>
                                       ))}
+                                      {!availableFundingStreamOptions.some(opt => opt.code === activeStream) && (
+                                        <option value={activeStream}>{activeStream.split(',').join(' + ')}</option>
+                                      )}
                                     </select>
                                   </div>
                                 )}
