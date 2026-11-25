@@ -18607,6 +18607,40 @@ app.get("/api/health", (req, res) => {
                 : 0
               : round2(totalOnAllocation - scheduleProjectedOnSpend);
 
+          const additionalCodes = Array.from(
+            new Set(separateStreams.map((s: any) => String(s.code).toUpperCase())),
+          ).sort((a, b) => {
+            if (a === "HC") return -1;
+            if (b === "HC") return 1;
+            return a.localeCompare(b);
+          });
+
+          const additionalStreamCards = additionalCodes.map((code) => {
+            const matching = separateStreams.filter((s: any) => String(s.code).toUpperCase() === code);
+            const allocated = round2(matching.reduce((sum: number, s: any) => sum + getEffectiveStreamAmount(s), 0));
+            const spent = round2(
+              matching.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0) +
+                ledgerItems
+                  .filter((item: any) => String(item.funding_stream || "").toUpperCase() === code)
+                  .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0),
+            );
+            const overflowDraw = code === "HC" ? projectedHcOverflow : 0;
+            const remaining = round2(allocated - spent - overflowDraw);
+            const rawName = matching[0]?.name || (code === "HC" ? "Home Care Account" : `${code} Funding Stream`);
+            const cleanName = String(rawName).replace(new RegExp(`^${code}\\s*[-—]?\\s*`, "i"), "");
+
+            return {
+              code,
+              title: `${code} — ${cleanName.toUpperCase()}`,
+              mainValue: `Allocated: ${fmtAud(allocated)}   •   Remaining: ${fmtAud(remaining)}`,
+              subText:
+                code === "HC"
+                  ? `Direct Spent: ${fmtAud(spent)}   •   ON Overflow Draw: ${overflowDraw > 0 ? `-${fmtAud(overflowDraw)}` : fmtAud(0)}   •   Linked to ON`
+                  : `Direct Spent: ${fmtAud(spent)}   •   ${activeQ.shortLabel} Additional Stream`,
+              borderColor: remaining < 0 ? "#dc2626" : code === "HC" ? "#0284c7" : "#4f46e5",
+            };
+          });
+
           hcSummary = {
             subType,
             levelOrClass,
@@ -18618,6 +18652,7 @@ app.get("/api/health", (req, res) => {
             scheduleProjectedOnSpend,
             projectedHcOverflow,
             projectedOnRemaining,
+            additionalStreamCards,
           };
         }
 
@@ -18863,44 +18898,23 @@ app.get("/api/health", (req, res) => {
         }
 
         if (isClientHomeCare && hcSummary) {
+          const onCard = {
+            title: `ON — ONGOING FUNDS (${activeQ.shortLabel}: ${activeQ.displayRange})`,
+            mainValue: `Allocated: ${fmtAud(hcSummary.totalOnAllocation)}   •   Planned ${activeQ.shortLabel}: ${fmtAud(fullQuarterPlannedOnDrawdown)} (${fmtAud(weeklyPlannedDrawdown)}/wk)`,
+            subText:
+              hcSummary.projectedHcOverflow > 0
+                ? `Spent: ${fmtAud(hcSummary.actualOnSpent)}   •   Projected E.O.Q.: ${fmtAud(hcSummary.scheduleProjectedOnSpend)}   •   ON Rem: $0.00 (Drawing ${fmtAud(hcSummary.projectedHcOverflow)} from HC)`
+                : `Spent: ${fmtAud(hcSummary.actualOnSpent)}   •   Projected E.O.Q.: ${fmtAud(hcSummary.scheduleProjectedOnSpend)}   •   Projected ON Remaining: ${fmtAud(hcSummary.projectedOnRemaining)}`,
+            borderColor: hcSummary.projectedOnRemaining < 0 ? "#dc2626" : "#0d9488",
+          };
+
+          const summaryCards = [onCard, ...(hcSummary.additionalStreamCards || [])];
           const gap = 8;
-          const cardW = (contentWidth - gap * 3) / 4;
+          const numCards = summaryCards.length;
+          const cardW = (contentWidth - gap * Math.max(0, numCards - 1)) / numCards;
           const cardH = 54;
 
-          const summaryCards = [
-            {
-              title: "QUARTERLY ALLOCATED FUNDS (ON)",
-              mainValue: fmtAud(hcSummary.totalOnAllocation),
-              subText:
-                hcSummary.hcAllocated > 0
-                  ? `Linked HC Reserve: ${fmtAud(hcSummary.hcAvailable)}`
-                  : `${activeQ.shortLabel} (${activeQ.displayRange})`,
-              borderColor: "#0d9488",
-            },
-            {
-              title: `PLANNED ROSTER (${templateName.toUpperCase()})`,
-              mainValue: `${fmtAud(fullQuarterPlannedOnDrawdown)} / qtr`,
-              subText: `Weekly Package Drawdown: ${fmtAud(weeklyPlannedDrawdown)}/wk`,
-              borderColor: "#4f46e5",
-            },
-            {
-              title: "ACTUAL SPENT VS REMAINING PLANNED",
-              mainValue: `Spent: ${fmtAud(hcSummary.actualOnSpent)}`,
-              subText: `Remaining Planned (${activeQ.shortLabel}): ${fmtAud(hcSummary.remainingQuarterPlannedOnDrawdown)}`,
-              borderColor: "#475569",
-            },
-            {
-              title: "PROJECTED END-OF-QUARTER SPEND",
-              mainValue: fmtAud(hcSummary.scheduleProjectedOnSpend),
-              subText:
-                hcSummary.projectedHcOverflow > 0
-                  ? `ON Rem: $0.00 • Drawing ${fmtAud(hcSummary.projectedHcOverflow)} from HC`
-                  : `Projected ON Remaining: ${fmtAud(hcSummary.projectedOnRemaining)}`,
-              borderColor: hcSummary.projectedOnRemaining < 0 ? "#dc2626" : "#16a34a",
-            },
-          ];
-
-          summaryCards.forEach((c, i) => {
+          summaryCards.forEach((c: any, i: number) => {
             const cx = margin + i * (cardW + gap);
             doc
               .roundedRect(cx, curY, cardW, cardH, 5)
@@ -18914,12 +18928,12 @@ app.get("/api/health", (req, res) => {
             doc
               .fillColor("#0f172a")
               .font("Helvetica-Bold")
-              .fontSize(11.5)
+              .fontSize(9.5)
               .text(c.mainValue, cx + 8, curY + 20, { width: cardW - 16 });
             doc
               .fillColor("#334155")
               .font("Helvetica")
-              .fontSize(7.5)
+              .fontSize(7.2)
               .text(c.subText, cx + 8, curY + 37, { width: cardW - 16 });
           });
 
