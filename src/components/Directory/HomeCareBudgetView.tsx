@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2, Calendar, Archive, Clock, RotateCcw, Search } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2, Calendar, Archive, Clock, RotateCcw, Search, Download } from 'lucide-react';
 import { motion } from 'motion/react';
+import * as XLSX from 'xlsx';
 
 // Official Australian Home Care Financial Year Quarters (July 1 to June 30)
 export interface HomeCareQuarter {
@@ -855,6 +856,124 @@ export default function HomeCareBudgetView() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedLedgerItems = filteredLedgerItems.slice(startIndex, startIndex + itemsPerPage);
 
+  const handleExportLedgerXlsx = () => {
+    if (filteredLedgerItems.length === 0) return;
+
+    const ccHeader = `Care Coord (${careCoordPercent}%)`;
+    const totalCcHeader = `Total w/ CC (${careCoordPercent}%)`;
+    const loadingHeader = `Service Loading Fee (${managementFeePercent}%)`;
+
+    let sumBase = 0;
+    let sumCc = 0;
+    let sumSubtotal = 0;
+    let sumLoading = 0;
+    let sumGrand = 0;
+
+    const exportRows = filteredLedgerItems.map((item: any) => {
+      const baseVal = round2(Number(item.baseAmount) || 0);
+      const ccVal = round2(Number(item.coordinationFee) || 0);
+      const subVal = round2(Number(item.subtotal) || 0);
+      const loadingVal = round2(Number(item.managementFee) || 0);
+      const grandVal = round2(Number(item.amount) || 0);
+
+      sumBase += baseVal;
+      sumCc += ccVal;
+      sumSubtotal += subVal;
+      sumLoading += loadingVal;
+      sumGrand += grandVal;
+
+      const streamCodes = String(item.funding_stream || 'ON')
+        .toUpperCase()
+        .split(',')
+        .map((c: string) => c.trim())
+        .filter(Boolean)
+        .join(', ');
+
+      const sourceLabel =
+        item.source_type === 'external'
+          ? `External - ${item.vendor_name || 'Generic'}`
+          : 'Internal Shift';
+
+      if (isHomeCare) {
+        return {
+          DATE: item.date || '',
+          'SERVICE ITEM': item.service || '',
+          'FUNDING STREAM': streamCodes,
+          'SOURCE / VENDOR': sourceLabel,
+          'SERVICE AMT': baseVal,
+          [ccHeader.toUpperCase()]: ccVal,
+          [totalCcHeader.toUpperCase()]: subVal,
+          [loadingHeader.toUpperCase()]: loadingVal,
+          'GRAND TOTAL': grandVal
+        };
+      }
+
+      return {
+        DATE: item.date || '',
+        'SERVICE ITEM': item.service || '',
+        'SOURCE / VENDOR': sourceLabel,
+        'SERVICE AMT': baseVal,
+        'GRAND TOTAL': grandVal
+      };
+    });
+
+    // Append Totals Row
+    if (isHomeCare) {
+      exportRows.push({
+        DATE: 'TOTAL',
+        'SERVICE ITEM': `${filteredLedgerItems.length} ${filteredLedgerItems.length === 1 ? 'entry' : 'entries'} (${activeQuarter.label}: ${activeQuarter.displayRange})`,
+        'FUNDING STREAM': '',
+        'SOURCE / VENDOR': '',
+        'SERVICE AMT': round2(sumBase),
+        [ccHeader.toUpperCase()]: round2(sumCc),
+        [totalCcHeader.toUpperCase()]: round2(sumSubtotal),
+        [loadingHeader.toUpperCase()]: round2(sumLoading),
+        'GRAND TOTAL': round2(sumGrand)
+      });
+    } else {
+      exportRows.push({
+        DATE: 'TOTAL',
+        'SERVICE ITEM': `${filteredLedgerItems.length} ${filteredLedgerItems.length === 1 ? 'entry' : 'entries'}`,
+        'SOURCE / VENDOR': '',
+        'SERVICE AMT': round2(sumBase),
+        'GRAND TOTAL': round2(sumGrand)
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+
+    // Format column widths for clean readability
+    worksheet['!cols'] = isHomeCare
+      ? [
+          { wch: 13 }, // DATE
+          { wch: 52 }, // SERVICE ITEM
+          { wch: 16 }, // FUNDING STREAM
+          { wch: 24 }, // SOURCE / VENDOR
+          { wch: 14 }, // SERVICE AMT
+          { wch: 18 }, // CARE COORD
+          { wch: 20 }, // TOTAL W/ CC
+          { wch: 24 }, // SERVICE LOADING FEE
+          { wch: 15 }  // GRAND TOTAL
+        ]
+      : [
+          { wch: 13 },
+          { wch: 52 },
+          { wch: 24 },
+          { wch: 14 },
+          { wch: 15 }
+        ];
+
+    const workbook = XLSX.utils.book_new();
+    const sheetName = `Ledger ${activeQuarter.shortLabel} FY${selectedFyYear}`.slice(0, 31);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+    const clientSafeName = `${client.first_name || 'Client'}_${client.last_name || ''}`
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${clientSafeName}_System_Ledger_${activeQuarter.shortLabel}_FY${selectedFyYear}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
   // Participant Contribution calculations
   const totalClientShare = processedLedgerItems.reduce((acc: number, item: any) => acc + (item.client_share || 0), 0);
   const independenceShare = processedLedgerItems
@@ -1231,6 +1350,16 @@ export default function HomeCareBudgetView() {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handleExportLedgerXlsx}
+                  disabled={filteredLedgerItems.length === 0}
+                  title="Export System Ledger Preview to Excel (.xlsx)"
+                  className="bg-zinc-800 border border-zinc-700 text-xs font-medium px-2.5 py-1 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-3 h-3 text-brand-teal" />
+                  <span>Export (.xlsx)</span>
+                </button>
                 <button 
                   onClick={() => {
                     setExternalDate(isCurrentRealTimeQuarter ? new Date().toISOString().split('T')[0] : activeQuarter.startDateStr);
