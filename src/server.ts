@@ -1301,6 +1301,21 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     }
   }
 
+  for (const colDef of [
+    "schedule_type TEXT DEFAULT 'ONGOING'",
+    "start_date TEXT",
+    "end_date TEXT",
+    "one_off_date TEXT",
+  ]) {
+    try {
+      db.exec(`ALTER TABLE client_roster_templates ADD COLUMN ${colDef}`);
+    } catch (e: any) {
+      if (e.message && !e.message.includes("duplicate column")) {
+        console.warn("Migration warning:", e.message);
+      }
+    }
+  }
+
   try {
     db.exec(`
       ALTER TABLE clients ADD COLUMN historical_internal_consumptions REAL DEFAULT 0;
@@ -15948,6 +15963,7 @@ app.get("/api/health", (req, res) => {
           const totalAllocated = round2(round2(netOngoingSubsidy) + additionalOngoingTotal);
 
           let totalSpent = 0;
+          let hcDirectLedgerSpent = 0;
           try {
             const ledgerData = getClientBudgetLedgerData(
               client.id,
@@ -15958,13 +15974,32 @@ app.get("/api/health", (req, res) => {
               totalSpent = ledgerData.items
                 .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || "ON").toUpperCase()))
                 .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
+              hcDirectLedgerSpent = ledgerData.items
+                .filter((item: any) => String(item.funding_stream || "").toUpperCase() === "HC")
+                .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
             } else {
               totalSpent = Number(ledgerData?.grandTotal ?? ledgerData?.total ?? 0);
             }
           } catch {}
           totalSpent = parseFloat(totalSpent.toFixed(2));
 
-          const remainingBalance = parseFloat((totalAllocated - totalSpent).toFixed(2));
+          // Linked ON -> HC (Home Care Account) Cascade
+          const hcStreams = parsedStreams.filter(
+            (s: any) =>
+              !(s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code) &&
+              String(s.code || "").toUpperCase() === "HC",
+          );
+          const hcAllocated = round2(hcStreams.reduce((sum: number, s: any) => sum + resolveStreamAmount(s), 0));
+          const hcManualSpent = round2(hcStreams.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0));
+          const hcAvailableBeforeOverflow = Math.max(0, round2(hcAllocated - hcManualSpent - hcDirectLedgerSpent));
+
+          const onOverrun = Math.max(0, round2(totalSpent - totalAllocated));
+          const hcOverflowUsed = Math.min(hcAvailableBeforeOverflow, onOverrun);
+          const hcRemaining = round2(hcAvailableBeforeOverflow - hcOverflowUsed);
+          const remainingBalance =
+            onOverrun > 0
+              ? round2(hcRemaining - Math.max(0, round2(onOverrun - hcAvailableBeforeOverflow)))
+              : parseFloat((totalAllocated - totalSpent).toFixed(2));
           const utilizationPct =
             totalAllocated > 0 ? parseFloat(((totalSpent / totalAllocated) * 100).toFixed(1)) : 0;
 
@@ -18229,11 +18264,15 @@ app.get("/api/health", (req, res) => {
           endTime,
           staffId,
           servicesData,
-          templateName = "Default Template"
+          templateName = "Default Template",
+          scheduleType = "ONGOING",
+          startDate = null,
+          endDate = null,
+          oneOffDate = null,
         } = req.body;
         const stmt = db.prepare(`
-        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
         const daysToIterate =
           Array.isArray(daysOfWeek) && daysOfWeek.length > 0
@@ -18250,7 +18289,11 @@ app.get("/api/health", (req, res) => {
                 endTime,
                 staffId || null,
                 JSON.stringify(servicesData || []),
-                templateName
+                templateName,
+                scheduleType || "ONGOING",
+                startDate || null,
+                endDate || null,
+                oneOffDate || null,
               );
             }
           }
@@ -18275,10 +18318,14 @@ app.get("/api/health", (req, res) => {
           endTime,
           staffId,
           servicesData,
+          scheduleType = "ONGOING",
+          startDate = null,
+          endDate = null,
+          oneOffDate = null,
         } = req.body;
         db.prepare(`
           UPDATE client_roster_templates 
-          SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?
+          SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?, schedule_type = ?, start_date = ?, end_date = ?, one_off_date = ?
           WHERE id = ?
         `).run(
           dayOfWeek,
@@ -18286,6 +18333,10 @@ app.get("/api/health", (req, res) => {
           endTime,
           staffId || null,
           JSON.stringify(servicesData || []),
+          scheduleType || "ONGOING",
+          startDate || null,
+          endDate || null,
+          oneOffDate || null,
           req.params.id
         );
         res.json({ success: true });
@@ -18640,12 +18691,27 @@ app.get("/api/health", (req, res) => {
             dCopy.setUTCDate(diff);
             const weekMondayStr = dCopy.toISOString().split("T")[0];
 
-            let todaysTemplates = templates.filter(
-              (t: any) => t.day_of_week === dayOfWeek,
-            );
+            let todaysTemplates = templates.filter((t: any) => {
+              const sType = String(t.schedule_type || "ONGOING").toUpperCase();
+              if (sType === "ONE_OFF" && t.one_off_date) {
+                return shiftDateStr === String(t.one_off_date).split("T")[0];
+              }
+              if (t.day_of_week !== dayOfWeek) return false;
+              if (t.start_date) {
+                const sDate = String(t.start_date).split("T")[0];
+                if (sDate && shiftDateStr < sDate) return false;
+              }
+              if (sType === "FIXED" && t.end_date) {
+                const eDate = String(t.end_date).split("T")[0];
+                if (eDate && shiftDateStr > eDate) return false;
+              }
+              return true;
+            });
 
-            // Filter todaysTemplates based on their individual frequency settings
+            // Filter todaysTemplates based on their individual frequency settings (skip frequency filter for ONE_OFF)
             todaysTemplates = todaysTemplates.filter((t: any) => {
+              const sType = String(t.schedule_type || "ONGOING").toUpperCase();
+              if (sType === "ONE_OFF") return true;
               const tName = t.template_name || "Default Template";
               const vm = validMondaysMap.get(tName);
               if (vm) {

@@ -777,7 +777,25 @@ export default function HomeCareBudgetView() {
     .filter((item: any) => !separateStreamCodes.has(String(item.funding_stream || 'ON').toUpperCase()))
     .reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
   const totalCombinedSpent = liveSystemConsumptions;
-  const remainingBalance = totalAllocation - totalCombinedSpent;
+
+  // Linked ON -> HC (Home Care Account) Cascade Calculation
+  const hcStreams = additionalFundingStreams.filter(
+    (s) => !s.addToOngoing && String(s.code || '').toUpperCase() === 'HC'
+  );
+  const hcTotalAllocated = hcStreams.reduce((sum, s) => sum + getEffectiveStreamAmount(s), 0);
+  const hcDirectManualSpent = hcStreams.reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
+  const hcDirectLedgerSpent = hcStreams.length > 0
+    ? processedLedgerItems
+        .filter((item: any) => String(item.funding_stream || '').toUpperCase() === 'HC')
+        .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+    : 0;
+  const hcDirectSpent = round2(hcDirectManualSpent + hcDirectLedgerSpent);
+  const hcAvailableBeforeOverflow = Math.max(0, round2(hcTotalAllocated - hcDirectSpent));
+  const onOverrun = Math.max(0, round2(totalCombinedSpent - totalAllocation));
+  const hcOverflowUsed = hcStreams.length > 0 ? Math.min(hcAvailableBeforeOverflow, onOverrun) : 0;
+  const unfundedOnDeficit = Math.max(0, round2(onOverrun - hcOverflowUsed));
+  const rawOnRemaining = round2(totalAllocation - totalCombinedSpent);
+  const remainingBalance = hcOverflowUsed > 0 ? (unfundedOnDeficit > 0 ? -unfundedOnDeficit : 0) : rawOnRemaining;
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val);
@@ -1052,7 +1070,7 @@ export default function HomeCareBudgetView() {
           </div>
 
           {/* Card 3: Remaining Balance (ON = Ongoing Funds) */}
-          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-md p-2.5 shadow-xs flex flex-col justify-between relative overflow-hidden`}>
+          <div className={`bg-brand-navy border ${unfundedOnDeficit > 0 || remainingBalance < 0 ? 'border-red-500/30' : hcOverflowUsed > 0 ? 'border-amber-500/40' : 'border-brand-green/30'} rounded-md p-2.5 shadow-xs flex flex-col justify-between relative overflow-hidden`}>
             <div>
               <div className="flex items-center justify-between gap-1 mb-0.5">
                 <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider">Remaining Balance</span>
@@ -1060,18 +1078,27 @@ export default function HomeCareBudgetView() {
                   ON = Ongoing Funds
                 </span>
               </div>
-              <div className={`text-lg font-bold tracking-tight ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-400'}`}>
+              <div className={`text-lg font-bold tracking-tight ${unfundedOnDeficit > 0 || remainingBalance < 0 ? 'text-red-400' : hcOverflowUsed > 0 ? 'text-amber-400' : 'text-brand-green'}`}>
                 {formatCurrency(remainingBalance)}
               </div>
             </div>
             <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] truncate">
-              {activeQuarter.shortLabel} ({activeQuarter.displayRange})
+              {hcOverflowUsed > 0 ? (
+                <span className="text-amber-300 font-sans font-medium" title={`ON overrun of ${formatCurrency(onOverrun)} drawn from Linked HC Home Care Account`}>
+                  ⚡ {formatCurrency(hcOverflowUsed)} drawn from HC Account
+                </span>
+              ) : hcStreams.length > 0 ? (
+                <span>{activeQuarter.shortLabel} • 🔗 Linked to HC Reserve</span>
+              ) : (
+                <span>{activeQuarter.shortLabel} ({activeQuarter.displayRange})</span>
+              )}
             </div>
           </div>
 
           {/* Dynamic Cards: Created Additional Funding Streams */}
           {additionalFundingStreams.map((stream) => {
             const streamCode = String(stream.code || 'CUSTOM').toUpperCase();
+            const isHcStream = !stream.addToOngoing && streamCode === 'HC';
             const allocated = getEffectiveStreamAmount(stream);
             const manualSpent = Number(stream.spentAmount) || 0;
             const ledgerSpentForStream = !stream.addToOngoing
@@ -1079,13 +1106,17 @@ export default function HomeCareBudgetView() {
                   .filter((item: any) => String(item.funding_stream || '').toUpperCase() === streamCode)
                   .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
               : 0;
-            const totalStreamSpent = manualSpent + ledgerSpentForStream;
-            const streamRemaining = allocated - totalStreamSpent;
+            const directStreamSpent = round2(manualSpent + ledgerSpentForStream);
+            const streamOverflowShare = isHcStream && hcTotalAllocated > 0
+              ? round2(hcOverflowUsed * (allocated / hcTotalAllocated))
+              : 0;
+            const totalStreamSpent = round2(directStreamSpent + streamOverflowShare);
+            const streamRemaining = round2(allocated - totalStreamSpent);
 
             return (
               <div
                 key={stream.id}
-                className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between"
+                className={`bg-brand-navy border ${isHcStream && streamOverflowShare > 0 ? 'border-amber-500/40' : 'border-border-subtle'} rounded-md p-2.5 shadow-xs flex flex-col justify-between`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-0.5">
@@ -1122,8 +1153,15 @@ export default function HomeCareBudgetView() {
                       +{formatCurrency(allocated)}
                     </div>
                   ) : (
-                    <div className={`text-lg font-bold tracking-tight ${streamRemaining >= 0 ? 'text-sky-400' : 'text-red-400'}`}>
-                      {formatCurrency(streamRemaining)}
+                    <div className="flex items-baseline justify-between gap-1">
+                      <div className={`text-lg font-bold tracking-tight ${streamRemaining >= 0 ? (streamOverflowShare > 0 ? 'text-amber-400' : 'text-sky-400') : 'text-red-400'}`}>
+                        {formatCurrency(streamRemaining)}
+                      </div>
+                      {isHcStream && (
+                        <span className="text-[9px] text-sky-300/80 font-medium truncate">
+                          🔗 Linked to ON
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1132,6 +1170,15 @@ export default function HomeCareBudgetView() {
                     <span className="text-emerald-400 font-sans font-medium truncate">
                       Added to ON{stream.percentageOfOngoing ? ` (${stream.percentageOfOngoing}% of Gross ON)` : ' = Ongoing Funds'}
                     </span>
+                  ) : isHcStream && streamOverflowShare > 0 ? (
+                    <>
+                      <span className="truncate" title={`Allocated: ${formatCurrency(allocated)} | Direct Spent: ${formatCurrency(directStreamSpent)}`}>
+                        Direct: <strong className="text-zinc-200">{formatCurrency(directStreamSpent)}</strong>
+                      </span>
+                      <span className="truncate text-amber-300" title="Auto-drawn to cover ON (Ongoing Funds) overrun">
+                        ON Overflow: <strong>-{formatCurrency(streamOverflowShare)}</strong>
+                      </span>
+                    </>
                   ) : (
                     <>
                       <span className="truncate">Alloc: <strong className="text-zinc-200">{formatCurrency(allocated)}</strong></span>
