@@ -395,34 +395,66 @@ export default function ClientDashboardView() {
   const clientServices = services.filter(s => (client.service_ids || []).includes(s.id));
   const initials = `${(client.first_name || '').charAt(0)}${(client.last_name || '').charAt(0)}`.toUpperCase();
 
+  const formatDateDDMMYYYY = (val: any): string | null => {
+    if (!val) return null;
+    const str = String(val).trim();
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      return `${isoMatch[3].padStart(2, '0')}/${isoMatch[2].padStart(2, '0')}/${isoMatch[1]}`;
+    }
+    const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+      const p1 = Number(slashMatch[1]);
+      const p2 = Number(slashMatch[2]);
+      if (p2 > 12 && p1 <= 12) {
+        return `${String(p2).padStart(2, '0')}/${String(p1).padStart(2, '0')}/${slashMatch[3]}`;
+      }
+      return `${String(p1).padStart(2, '0')}/${String(p2).padStart(2, '0')}/${slashMatch[3]}`;
+    }
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   const getClientDailyRate = () => {
     if (!client || client.funding_type !== 'HOME_CARE') return null;
     
     const subType = client.home_care_sub_type || 'HCP';
     const levelOrClass = client.home_care_level_or_class || 'Level 1';
+    const parseRate = (item: any, fallback: number) => {
+      if (!item) return fallback;
+      if (item.amountAnnual !== undefined && item.amountAnnual !== null && Number(item.amountAnnual) > 0) {
+        return Number(item.amountAnnual) / 365;
+      }
+      if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
+      return fallback;
+    };
     
     if (subType === 'SAH') {
       const levels = fundingRates?.sahFundingLevels || [
-        { level: 'Class 1', amountDaily: 29.40 },
-        { level: 'Class 2', amountDaily: 43.93 },
-        { level: 'Class 3', amountDaily: 60.18 },
-        { level: 'Class 4', amountDaily: 81.36 },
-        { level: 'Class 5', amountDaily: 108.76 },
-        { level: 'Class 6', amountDaily: 131.82 },
-        { level: 'Class 7', amountDaily: 159.31 },
-        { level: 'Class 8', amountDaily: 213.99 },
+        { level: 'Class 1', amountAnnual: 10731.00, amountDaily: 29.40 },
+        { level: 'Class 2', amountAnnual: 16034.45, amountDaily: 43.93 },
+        { level: 'Class 3', amountAnnual: 21965.70, amountDaily: 60.18 },
+        { level: 'Class 4', amountAnnual: 29696.40, amountDaily: 81.36 },
+        { level: 'Class 5', amountAnnual: 39697.40, amountDaily: 108.76 },
+        { level: 'Class 6', amountAnnual: 48114.30, amountDaily: 131.82 },
+        { level: 'Class 7', amountAnnual: 58148.15, amountDaily: 159.31 },
+        { level: 'Class 8', amountAnnual: 78106.35, amountDaily: 213.99 },
       ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return match ? match.amountDaily : 29.40;
+      return parseRate(match, 10731.00 / 365);
     } else {
       const levels = fundingRates?.hcpFundingLevels || [
-        { level: 'Level 1', amountDaily: 30.10 },
-        { level: 'Level 2', amountDaily: 52.93 },
-        { level: 'Level 3', amountDaily: 115.22 },
-        { level: 'Level 4', amountDaily: 174.68 },
+        { level: 'Level 1', amountAnnual: 11294.22, amountDaily: 30.94 },
+        { level: 'Level 2', amountAnnual: 19860.56, amountDaily: 54.41 },
+        { level: 'Level 3', amountAnnual: 43233.21, amountDaily: 118.45 },
+        { level: 'Level 4', amountAnnual: 65543.98, amountDaily: 179.57 },
       ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return match ? match.amountDaily : 30.10;
+      return parseRate(match, 11294.22 / 365);
     }
   };
 
@@ -460,14 +492,12 @@ export default function ClientDashboardView() {
                 </>
               )}
               {(() => {
-                const dateVal = client.joined_date || client.created_at;
-                if (!dateVal) return null;
-                const d = new Date(dateVal);
-                if (isNaN(d.getTime())) return null;
+                const formattedJoined = formatDateDDMMYYYY(client.joined_date || client.created_at);
+                if (!formattedJoined) return null;
                 return (
                   <>
                     <span>•</span>
-                    <span>Joined {d.toLocaleDateString()}</span>
+                    <span>Joined {formattedJoined}</span>
                   </>
                 );
               })()}
@@ -700,13 +730,12 @@ export default function ClientDashboardView() {
                   <span className="text-[#E6EDF3] leading-relaxed">{client.address || 'No address provided'}</span>
                 </div>
                 {(() => {
-                  if (!client.dob) return null;
-                  const d = new Date(client.dob);
-                  if (isNaN(d.getTime())) return null;
+                  const formattedDob = formatDateDDMMYYYY(client.dob);
+                  if (!formattedDob) return null;
                   return (
                     <div className="flex items-start space-x-2.5">
                       <Calendar className="w-3.5 h-3.5 text-[#8B949E] shrink-0 mt-0.5" />
-                      <span className="text-[#E6EDF3] font-mono">DOB: {d.toLocaleDateString()}</span>
+                      <span className="text-[#E6EDF3] font-mono">DOB: {formattedDob}</span>
                     </div>
                   );
                 })()}
@@ -868,7 +897,7 @@ export default function ClientDashboardView() {
                          <div className="flex items-center space-x-1.5">
                            <Calendar className="w-3.5 h-3.5 text-[#8B949E]" />
                            <span className="text-xs font-mono font-medium text-zinc-300">
-                             {new Date(note.start_time).toLocaleDateString()} {new Date(note.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                             {formatDateDDMMYYYY(note.start_time) || new Date(note.start_time).toLocaleDateString('en-AU')} {new Date(note.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                            </span>
                          </div>
                          <div className="text-[10px] uppercase text-[#8B949E] px-1.5 py-0.2 border border-border-subtle rounded bg-brand-bg/50">

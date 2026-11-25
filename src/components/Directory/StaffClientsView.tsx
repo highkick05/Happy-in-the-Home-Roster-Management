@@ -125,9 +125,26 @@ const ServiceIcon = ({ type }: { type: string }) => {
 
 const formatJoinedDate = (dateVal?: any): string | null => {
   if (!dateVal) return null;
-  const d = new Date(dateVal);
+  const str = String(dateVal).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[3].padStart(2, '0')}/${isoMatch[2].padStart(2, '0')}/${isoMatch[1]}`;
+  }
+  const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const p1 = Number(slashMatch[1]);
+    const p2 = Number(slashMatch[2]);
+    if (p2 > 12 && p1 <= 12) {
+      return `${String(p2).padStart(2, '0')}/${String(p1).padStart(2, '0')}/${slashMatch[3]}`;
+    }
+    return `${String(p1).padStart(2, '0')}/${String(p2).padStart(2, '0')}/${slashMatch[3]}`;
+  }
+  const d = new Date(str);
   if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString();
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 };
 
 export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' | 'CONTRACTORS' }) {

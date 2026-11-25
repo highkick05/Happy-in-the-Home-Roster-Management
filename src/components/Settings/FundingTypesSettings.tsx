@@ -256,6 +256,32 @@ export default function FundingTypesSettings() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
+                    {/* Care Management Fee (%) */}
+                    <div className="bg-black/30 border border-amber-500/20 rounded-lg p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <label className="text-xs font-semibold text-[#E6EDF3]">Care Management Fee</label>
+                          <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-mono font-medium whitespace-nowrap">Off Top of Subsidy</span>
+                        </div>
+                        <p className="text-[11px] text-[#8B949E] mb-4 leading-normal">
+                          Deducted off the top of every Home Care client&apos;s quarterly funding subsidy (HCP &amp; Support at Home) before it hits their Total Allocation (ON) balance, and credited to HITH&apos;s pooled Care Management account.
+                        </p>
+                      </div>
+                      <div className="relative mt-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={defaultCareManagementFee}
+                          onChange={(e) => setDefaultCareManagementFee(parseFloat(e.target.value) || 0)}
+                          className="w-full bg-brand-navy border border-border-subtle rounded-md pl-4 pr-10 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-brand-teal font-mono transition-colors"
+                          placeholder="10.00"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm font-medium">%</span>
+                      </div>
+                    </div>
+
                     {/* Default Service Loading Fee (%) */}
                     <div className="bg-black/30 border border-white/[0.08] rounded-lg p-5 flex flex-col justify-between">
                       <div>
@@ -303,32 +329,6 @@ export default function FundingTypesSettings() {
                           onChange={(e) => setDefaultCareCoordinationFee(parseFloat(e.target.value) || 0)}
                           className="w-full bg-brand-navy border border-border-subtle rounded-md pl-4 pr-10 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-brand-teal font-mono transition-colors"
                           placeholder="20.00"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm font-medium">%</span>
-                      </div>
-                    </div>
-
-                    {/* Care Management Fee (%) */}
-                    <div className="bg-black/30 border border-amber-500/20 rounded-lg p-5 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <label className="text-xs font-semibold text-[#E6EDF3]">Care Management Fee</label>
-                          <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-mono font-medium whitespace-nowrap">Off Top of Subsidy</span>
-                        </div>
-                        <p className="text-[11px] text-[#8B949E] mb-4 leading-normal">
-                          Deducted off the top of every Home Care client&apos;s quarterly funding subsidy (HCP &amp; Support at Home) before it hits their Total Allocation (ON) balance, and credited to HITH&apos;s pooled Care Management account.
-                        </p>
-                      </div>
-                      <div className="relative mt-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          value={defaultCareManagementFee}
-                          onChange={(e) => setDefaultCareManagementFee(parseFloat(e.target.value) || 0)}
-                          className="w-full bg-brand-navy border border-border-subtle rounded-md pl-4 pr-10 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-brand-teal font-mono transition-colors"
-                          placeholder="10.00"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm font-medium">%</span>
                       </div>

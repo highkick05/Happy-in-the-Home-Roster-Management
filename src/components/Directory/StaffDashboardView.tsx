@@ -33,6 +33,30 @@ import EmploymentContractModal from './EmploymentContractModal';
 import OnboardingView from '../Onboarding/OnboardingView';
 import { getAvatarUrl } from '../../utils/avatar';
 
+const formatDateDDMMYYYY = (dateVal?: any): string | null => {
+  if (!dateVal) return null;
+  const str = String(dateVal).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[3].padStart(2, '0')}/${isoMatch[2].padStart(2, '0')}/${isoMatch[1]}`;
+  }
+  const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const p1 = Number(slashMatch[1]);
+    const p2 = Number(slashMatch[2]);
+    if (p2 > 12 && p1 <= 12) {
+      return `${String(p2).padStart(2, '0')}/${String(p1).padStart(2, '0')}/${slashMatch[3]}`;
+    }
+    return `${String(p1).padStart(2, '0')}/${String(p2).padStart(2, '0')}/${slashMatch[3]}`;
+  }
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return str;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const parseAdditionalPositions = (val: any): string[] => {
   if (!val) return [];
   if (Array.isArray(val)) return val;
@@ -659,7 +683,7 @@ export default function StaffDashboardView() {
               {formData.joinedDate && (
                 <>
                   <span>•</span>
-                  <span>Joined {new Date(formData.joinedDate).toLocaleDateString()}</span>
+                  <span>Joined {formatDateDDMMYYYY(formData.joinedDate)}</span>
                 </>
               )}
               {!formData.isExternal && (
@@ -1696,12 +1720,12 @@ export default function StaffDashboardView() {
                                   )}
                                   {isCompleted && rec?.completion_date && (
                                     <span>
-                                      Completed: <strong className="text-zinc-200">{new Date(rec.completion_date).toLocaleDateString()}</strong>
+                                      Completed: <strong className="text-zinc-200">{formatDateDDMMYYYY(rec.completion_date)}</strong>
                                     </span>
                                   )}
                                   {isCompleted && rec?.expiry_date && (
                                     <span className={isExpired ? 'text-rose-400 font-semibold' : isExpiringSoon ? 'text-amber-400 font-semibold' : ''}>
-                                      Expires: <strong>{new Date(rec.expiry_date).toLocaleDateString()}</strong>
+                                      Expires: <strong>{formatDateDDMMYYYY(rec.expiry_date)}</strong>
                                     </span>
                                   )}
                                 </div>
