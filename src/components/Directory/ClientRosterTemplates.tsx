@@ -1655,135 +1655,158 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           )}
         </div>
 
-        {/* Home Care Compact Square-Proportioned Per-Stream Summary Cards (ON Card -> HC Card -> Other Additional Stream Cards) */}
+        {/* Home Care Low-Profile Horizontal Bar-Graph Funding Stream Cards (ON Card -> HC Card -> Other Additional Stream Cards) */}
         {isClientHomeCare && homeCareQuarterlySummary && (
-          <div className="px-4 py-2.5 bg-[#0d1117] border-t border-white/[0.08] shrink-0">
-            <div className="flex items-stretch gap-3 overflow-x-auto custom-scrollbar pb-0.5">
-              {/* Card 1: Compact Square ON — Ongoing Funds Summary Card */}
-              <div
-                className={`w-[260px] shrink-0 bg-[#121214] border rounded-lg p-2.5 flex flex-col justify-between ${
+          <div className="px-4 py-2 bg-[#0d1117] border-t border-white/[0.08] shrink-0">
+            <div className="flex items-stretch gap-3 overflow-x-auto custom-scrollbar">
+              {/* Card 1: ON — Ongoing Funds Summary Card */}
+              {(() => {
+                const alloc = Math.max(0.01, homeCareQuarterlySummary.totalOnAllocation);
+                const plannedVal = homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown;
+                const spentVal = homeCareQuarterlySummary.actualOnSpentToDate;
+                const remVal = homeCareQuarterlySummary.projectedOnRemaining;
+                const projVal = homeCareQuarterlySummary.scheduleProjectedOnSpend;
+
+                const plannedPct = Math.min(100, Math.max(0, Math.round((plannedVal / alloc) * 100)));
+                const spentPct = Math.min(100, Math.max(0, Math.round((spentVal / alloc) * 100)));
+                const remPct = Math.min(100, Math.max(0, Math.round((Math.max(0, remVal) / alloc) * 100)));
+                const projPct = Math.min(100, Math.max(0, Math.round((projVal / alloc) * 100)));
+
+                const projBarColor =
                   homeCareQuarterlySummary.projectedUnfundedDeficit > 0
-                    ? 'border-red-500/40'
+                    ? 'bg-red-400'
                     : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
-                    ? 'border-amber-500/40'
-                    : 'border-brand-teal/30'
-                }`}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between gap-1.5 mb-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-[9px] font-mono font-bold shrink-0">
-                      ON
-                    </span>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
-                      Ongoing Funds ({activeQuarter.shortLabel})
-                    </span>
+                    ? 'bg-amber-400'
+                    : 'bg-brand-green';
+
+                return (
+                  <div
+                    className={`w-[355px] shrink-0 bg-[#121214] border rounded-lg px-3 py-2 flex flex-col justify-between ${
+                      homeCareQuarterlySummary.projectedUnfundedDeficit > 0
+                        ? 'border-red-500/40'
+                        : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
+                        ? 'border-amber-500/40'
+                        : 'border-brand-teal/30'
+                    }`}
+                  >
+                    {/* Top Row: Stream Title on Left, Total Allocated on Top-Right */}
+                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-white/[0.06]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-[9px] font-mono font-bold shrink-0">
+                          ON
+                        </span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
+                          Ongoing Funds ({activeQuarter.shortLabel})
+                        </span>
+                        {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
+                          <span className="text-[9px] font-semibold px-1 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+                            Over
+                          </span>
+                        ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
+                          <span className="text-[9px] font-semibold px-1 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                            ⚡ HC Draw
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[9px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
+                        <span className="text-xs font-bold font-mono text-white">
+                          {formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 4 Horizontal Bar Graph Lines: Planned, Spent, Remaining, Projected */}
+                    <div className="space-y-1">
+                      {/* Line 1: Planned */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Planned</span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className="h-full bg-indigo-400 rounded-full transition-all"
+                            style={{ width: `${plannedPct}%` }}
+                          />
+                        </div>
+                        <span className="w-24 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                          {formatCurrency(plannedVal)}
+                        </span>
+                      </div>
+
+                      {/* Line 2: Spent */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Spent</span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className="h-full bg-sky-400 rounded-full transition-all"
+                            style={{ width: `${spentPct}%` }}
+                          />
+                        </div>
+                        <span className="w-24 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                          {formatCurrency(spentVal)}
+                        </span>
+                      </div>
+
+                      {/* Line 3: Remaining (under Spent) */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className={`h-full rounded-full transition-all ${remVal < 0 ? 'bg-red-400' : 'bg-brand-teal'}`}
+                            style={{ width: `${remPct}%` }}
+                          />
+                        </div>
+                        <span
+                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                            remVal < 0 ? 'text-red-400' : 'text-brand-teal'
+                          }`}
+                        >
+                          {formatCurrency(remVal)}
+                        </span>
+                      </div>
+
+                      {/* Line 4: Projected */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Projected</span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className={`h-full rounded-full transition-all ${projBarColor}`}
+                            style={{ width: `${projPct}%` }}
+                          />
+                        </div>
+                        <span
+                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                            homeCareQuarterlySummary.projectedUnfundedDeficit > 0
+                              ? 'text-red-400'
+                              : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
+                              ? 'text-amber-300'
+                              : 'text-brand-green'
+                          }`}
+                        >
+                          {formatCurrency(projVal)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-
-                  {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
-                      <Flame className="w-2.5 h-2.5" /> Over
-                    </span>
-                  ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                      ⚡ HC Draw
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-green/15 text-brand-green border border-brand-green/30 shrink-0">
-                      <CheckCircle2 className="w-2.5 h-2.5" /> Within ON
-                    </span>
-                  )}
-                </div>
-
-                {/* 2x2 Compact Metrics Grid */}
-                <div className="grid grid-cols-2 gap-1.5 bg-black/30 border border-white/[0.05] rounded-md p-2">
-                  <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Allocated ({activeQuarter.shortLabel})
-                    </div>
-                    <div className="text-xs font-bold text-white mt-0.5">
-                      {formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}
-                    </div>
-                    <div className="text-[9px] font-mono text-zinc-500">
-                      {homeCareQuarterlySummary.totalDays} Days
-                    </div>
-                  </div>
-
-                  <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Planned {activeQuarter.shortLabel}
-                    </div>
-                    <div className="text-xs font-bold text-white mt-0.5">
-                      {formatCurrency(homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown)}
-                    </div>
-                    <div className="text-[9px] font-mono text-brand-teal truncate">
-                      {formatCurrency(homeCareQuarterlySummary.weeklyPlannedOnDrawdown)}/wk
-                    </div>
-                  </div>
-
-                  <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Spent to Date
-                    </div>
-                    <div className="text-xs font-bold text-white mt-0.5">
-                      {formatCurrency(homeCareQuarterlySummary.actualOnSpentToDate)}
-                    </div>
-                    <div className="text-[9px] font-mono text-zinc-400 truncate">
-                      Plan: {formatCurrency(homeCareQuarterlySummary.remainingQuarterPlannedOnDrawdown)}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                    <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Projected E.O.Q.
-                    </div>
-                    <div
-                      className={`text-xs font-bold mt-0.5 ${
-                        homeCareQuarterlySummary.projectedUnfundedDeficit > 0
-                          ? 'text-red-400'
-                          : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
-                          ? 'text-amber-300'
-                          : 'text-brand-green'
-                      }`}
-                    >
-                      {formatCurrency(homeCareQuarterlySummary.scheduleProjectedOnSpend)}
-                    </div>
-                    <div className="text-[9px] font-mono text-zinc-300 truncate">
-                      Rem: {formatCurrency(homeCareQuarterlySummary.projectedOnRemaining)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Compact Footer Status Bar */}
-                <div className="text-[9px] font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
-                  {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
-                    <span className="text-red-400 font-sans font-medium truncate">
-                      Deficit: -{formatCurrency(homeCareQuarterlySummary.projectedUnfundedDeficit)}
-                    </span>
-                  ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
-                    <span className="text-amber-300 font-sans font-medium truncate">
-                      ⚡ HC Draw: -{formatCurrency(homeCareQuarterlySummary.projectedHcOverflowUsed)}
-                    </span>
-                  ) : (
-                    <span className="text-emerald-400 font-sans font-medium truncate">
-                      ✓ Surplus: +{formatCurrency(homeCareQuarterlySummary.projectedOnRemaining)}
-                    </span>
-                  )}
-                  <span className="text-zinc-400 shrink-0">
-                    Day {homeCareQuarterlySummary.daysElapsed}/{homeCareQuarterlySummary.totalDays}
-                  </span>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Card 2 (HC — Home Care Account) & Cards 3+ (Any Other Additional Funding Streams) */}
               {homeCareQuarterlySummary.additionalStreamsSummary.map(s => {
                 const isHc = s.code === 'HC';
                 const cleanTitle = s.name.replace(new RegExp(`^${s.code}\\s*[-—]?\\s*`, 'i'), '');
+                const alloc = Math.max(0.01, s.allocated);
+                const plannedVal = round2(s.plannedFullQuarter + s.onOverflowDraw);
+                const spentVal = s.actualSpent;
+                const remVal = s.projectedRemaining;
+
+                const plannedPct = s.allocated > 0 ? Math.min(100, Math.max(0, Math.round((plannedVal / alloc) * 100))) : 0;
+                const spentPct = s.allocated > 0 ? Math.min(100, Math.max(0, Math.round((spentVal / alloc) * 100))) : 0;
+                const remPct = s.allocated > 0 ? Math.min(100, Math.max(0, Math.round((Math.max(0, remVal) / alloc) * 100))) : 0;
 
                 return (
                   <div
                     key={s.code}
-                    className={`w-[260px] shrink-0 bg-[#121214] border rounded-lg p-2.5 flex flex-col justify-between ${
+                    className={`w-[340px] shrink-0 bg-[#121214] border rounded-lg px-3 py-2 flex flex-col justify-between ${
                       s.projectedRemaining < 0
                         ? 'border-red-500/40'
                         : s.onOverflowDraw > 0
@@ -1793,8 +1816,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         : 'border-indigo-500/30'
                     }`}
                   >
-                    {/* Header */}
-                    <div className="flex items-center justify-between gap-1.5 mb-2">
+                    {/* Top Row: Stream Title on Left, Total Allocated on Top-Right */}
+                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-white/[0.06]">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 border ${
@@ -1808,126 +1831,84 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-200 truncate" title={cleanTitle}>
                           {cleanTitle}
                         </span>
-                      </div>
-
-                      {isHc ? (
-                        s.onOverflowDraw > 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                            ⚡ Overflow
-                          </span>
-                        ) : (
+                        {isHc && (
                           <span
-                            className="inline-flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 shrink-0"
-                            title="If ON Ongoing Funds are exhausted, excess automatically draws from this HC Home Care Account"
+                            className={`text-[9px] font-medium px-1 py-0.2 rounded border shrink-0 ${
+                              s.onOverflowDraw > 0
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                            }`}
+                            title="Linked to ON Ongoing Funds for automatic overflow"
                           >
-                            🔗 Linked ON
+                            {s.onOverflowDraw > 0 ? '⚡ Overflow' : '🔗 Linked ON'}
                           </span>
-                        )
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
-                          {activeQuarter.shortLabel} Stream
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 2x2 Compact Metrics Grid */}
-                    <div className="grid grid-cols-2 gap-1.5 bg-black/30 border border-white/[0.05] rounded-md p-2">
-                      <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                          Allocated
-                        </div>
-                        <div className="text-xs font-bold text-white mt-0.5">
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[9px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
+                        <span className="text-xs font-bold font-mono text-white">
                           {formatCurrency(s.allocated)}
-                        </div>
-                        <div className="text-[9px] font-mono text-zinc-500 truncate">
-                          {isHc ? 'Rollover' : `${activeQuarter.shortLabel} Budget`}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                          Direct Spent
-                        </div>
-                        <div className="text-xs font-bold text-white mt-0.5">
-                          {formatCurrency(s.actualSpent)}
-                        </div>
-                        <div className="text-[9px] font-mono text-zinc-500 truncate">
-                          {s.plannedFullQuarter > 0 ? `Plan: ${formatCurrency(s.plannedFullQuarter)}` : 'Invoices'}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                          {isHc ? 'ON Overflow' : 'Planned'}
-                        </div>
-                        <div
-                          className={`text-xs font-bold mt-0.5 ${
-                            isHc && s.onOverflowDraw > 0 ? 'text-amber-300' : 'text-zinc-200'
-                          }`}
-                        >
-                          {isHc
-                            ? s.onOverflowDraw > 0
-                              ? `-${formatCurrency(s.onOverflowDraw)}`
-                              : formatCurrency(0)
-                            : formatCurrency(s.plannedFullQuarter)}
-                        </div>
-                        <div className="text-[9px] font-mono text-zinc-500 truncate">
-                          {isHc
-                            ? s.onOverflowDraw > 0
-                              ? 'ON Overrun'
-                              : 'No Overrun'
-                            : `Rem: ${formatCurrency(s.plannedRemaining)}`}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#121214]/70 rounded px-2 py-1.5 border border-white/[0.04]">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                          Remaining
-                        </div>
-                        <div
-                          className={`text-xs font-bold mt-0.5 ${
-                            s.projectedRemaining < 0
-                              ? 'text-red-400'
-                              : s.onOverflowDraw > 0
-                              ? 'text-amber-300'
-                              : isHc
-                              ? 'text-sky-400'
-                              : 'text-indigo-300'
-                          }`}
-                        >
-                          {formatCurrency(s.projectedRemaining)}
-                        </div>
-                        <div className="text-[9px] font-mono text-zinc-400 truncate">
-                          {s.allocated > 0
-                            ? `${Math.max(0, Math.round((s.projectedRemaining / s.allocated) * 100))}% left`
-                            : 'Available'}
-                        </div>
+                        </span>
                       </div>
                     </div>
 
-                    {/* Compact Footer Status Bar */}
-                    <div className="text-[9px] font-mono mt-1.5 pt-1 border-t border-white/[0.05] flex items-center justify-between gap-1">
-                      {isHc ? (
-                        <>
-                          <span className="text-sky-300 font-sans font-medium truncate">
-                            ON+HC Pool: <strong className="text-white font-mono">{formatCurrency(homeCareQuarterlySummary.combinedSpendablePool)}</strong>
-                          </span>
-                          <span className="text-zinc-400 shrink-0">
-                            AT / HM / Srv
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-indigo-300 font-sans font-medium truncate">
-                            {cleanTitle}
-                          </span>
-                          <span className={s.projectedRemaining < 0 ? 'text-red-400 shrink-0' : 'text-zinc-400 shrink-0'}>
-                            {s.projectedRemaining < 0
-                              ? `Over ${formatCurrency(Math.abs(s.projectedRemaining))}`
-                              : 'Active'}
-                          </span>
-                        </>
-                      )}
+                    {/* 3 Horizontal Bar Graph Lines: Planned, Spent, Remaining */}
+                    <div className="space-y-1.5 my-auto">
+                      {/* Line 1: Planned (includes any ON overflow draw for HC) */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">
+                          {isHc && s.onOverflowDraw > 0 ? 'Overflow' : 'Planned'}
+                        </span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              s.onOverflowDraw > 0 ? 'bg-amber-400' : 'bg-indigo-400'
+                            }`}
+                            style={{ width: `${plannedPct}%` }}
+                          />
+                        </div>
+                        <span
+                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                            s.onOverflowDraw > 0 ? 'text-amber-300' : 'text-zinc-200'
+                          }`}
+                        >
+                          {formatCurrency(plannedVal)}
+                        </span>
+                      </div>
+
+                      {/* Line 2: Spent */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Spent</span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className="h-full bg-sky-400 rounded-full transition-all"
+                            style={{ width: `${spentPct}%` }}
+                          />
+                        </div>
+                        <span className="w-24 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                          {formatCurrency(spentVal)}
+                        </span>
+                      </div>
+
+                      {/* Line 3: Remaining */}
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
+                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              remVal < 0 ? 'bg-red-400' : isHc ? 'bg-sky-300' : 'bg-brand-teal'
+                            }`}
+                            style={{ width: `${remPct}%` }}
+                          />
+                        </div>
+                        <span
+                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                            remVal < 0 ? 'text-red-400' : isHc ? 'text-sky-300' : 'text-brand-teal'
+                          }`}
+                        >
+                          {formatCurrency(remVal)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
