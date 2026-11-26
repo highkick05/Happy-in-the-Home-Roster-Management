@@ -2186,21 +2186,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                               {startLabel} – {endLabel} • {shiftCount} shift{shiftCount === 1 ? '' : 's'}
                             </div>
                           </button>
-
-                          {user?.role === 'ADMIN' && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              {!isLiveActive && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleActivateVisualTemplate(tmpl.template_name)}
-                                  className="px-2 py-1 text-[10px] font-medium bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded transition-colors"
-                                  title="Make this the active template"
-                                >
-                                  Set Active
-                                </button>
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -2222,7 +2207,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               </button>
             )}
 
-            {currentTemplateList.length > 0 && (
+            {!isViewingHistorical && currentTemplateList.length > 0 && (
               <button
                 onClick={handleClearTemplate}
                 className="bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/20 transition-colors"
@@ -2233,50 +2218,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           </div>
         </div>
 
-        {/* Historical Template Banner (shown when scrolling back to a past template via < or dropdown) */}
-        {isViewingHistorical && (
-          <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-2 text-xs text-amber-200">
-              <History className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>
-                Viewing Historical Template:{' '}
-                <strong className="text-white">{viewedTemplateObj?.template_name}</strong> (
-                {formatDisplayDate(
-                  viewedTemplateObj?.effective_start_date ||
-                    homeCareQuarterlySummary?.actualStartDateStr ||
-                    activeQuarter.startDateStr
-                )}{' '}
-                – {formatDisplayDate(viewedTemplateObj?.effective_end_date || activeQuarter.endDateStr)})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {user?.role === 'ADMIN' && (
-                <button
-                  type="button"
-                  onClick={() => viewedTemplateObj && handleActivateVisualTemplate(viewedTemplateObj.template_name)}
-                  className="px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded text-xs font-medium transition-colors flex items-center gap-1"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Make This Template Active
-                </button>
-              )}
-              {liveActiveTemplateObj && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTemplateName(liveActiveTemplateObj.template_name)}
-                  className="px-2.5 py-1 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal border border-brand-teal/40 rounded text-xs font-semibold transition-colors flex items-center gap-1"
-                >
-                  Go to Active Template ({liveActiveTemplateObj.template_name}) →
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 7-Day Columns Grid with Left (<) and Right (>) Horizontal Template Navigation Arrows */}
+        {/* 7-Day Columns Grid (Full Width) with Hover-Overlay Left (<) and Right (>) Template Navigation Toggles */}
         <div className="flex-1 flex items-stretch overflow-hidden bg-[#121214]/10 h-full relative">
-          {/* Far-Left (<) Previous Template Navigation Button (Screenshot 2) */}
-          <div className="flex items-center pl-2 pr-0.5 shrink-0">
+          {/* Far-Left (<) Hover-Only Overlay Navigation Button */}
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 pl-2 pr-3 py-6 flex items-center group/left-nav">
             <button
               type="button"
               disabled={viewedTemplateIndex <= 0}
@@ -2286,18 +2231,18 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   ? `Previous Template: ${visualTemplatesList[viewedTemplateIndex - 1]?.template_name}`
                   : 'No older template in history'
               }
-              className={`h-24 w-7 rounded-lg border flex flex-col items-center justify-center transition-all ${
+              className={`h-24 w-7 rounded-lg border flex flex-col items-center justify-center opacity-0 group-hover/left-nav:opacity-100 focus:opacity-100 transition-all duration-200 backdrop-blur-md ${
                 viewedTemplateIndex > 0
-                  ? 'bg-[#121214] hover:bg-brand-teal/20 text-brand-teal border-brand-teal/40 shadow-md cursor-pointer active:scale-95'
-                  : 'bg-[#09090b]/60 text-zinc-600 border-white/[0.06] cursor-not-allowed'
+                  ? 'bg-[#121214]/95 hover:bg-brand-teal/25 text-brand-teal border-brand-teal/50 shadow-xl cursor-pointer active:scale-95'
+                  : 'bg-[#09090b]/85 text-zinc-600 border-white/[0.08] cursor-not-allowed'
               }`}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Animated Horizontal Template Slider Viewport */}
-          <div className="flex-1 overflow-hidden h-full relative">
+          {/* Animated Horizontal Template Slider Viewport (Full Width) */}
+          <div className="w-full flex-1 overflow-hidden h-full relative">
             <div
               className="flex h-full w-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
               style={{
@@ -2411,7 +2356,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                           </span>
                                         </div>
                                       </div>
-                                      {user?.role === 'ADMIN' && (
+                                      {!slideIsHistorical && user?.role === 'ADMIN' && (
                                         <div className="flex items-center gap-1 shrink-0">
                                           <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
                                             <Edit2 className="w-4 h-4" />
@@ -2531,8 +2476,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             </div>
           </div>
 
-          {/* Far-Right (>) Next / Current Template Navigation Button (Screenshot 2) */}
-          <div className="flex items-center pr-2 pl-0.5 shrink-0">
+          {/* Far-Right (>) Hover-Only Overlay Navigation Button */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 pr-2 pl-3 py-6 flex items-center group/right-nav">
             <button
               type="button"
               disabled={viewedTemplateIndex >= visualTemplatesList.length - 1}
@@ -2542,10 +2487,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   ? `Next Template: ${visualTemplatesList[viewedTemplateIndex + 1]?.template_name}`
                   : 'Currently viewing latest template'
               }
-              className={`h-24 w-7 rounded-lg border flex flex-col items-center justify-center transition-all ${
+              className={`h-24 w-7 rounded-lg border flex flex-col items-center justify-center opacity-0 group-hover/right-nav:opacity-100 focus:opacity-100 transition-all duration-200 backdrop-blur-md ${
                 viewedTemplateIndex < visualTemplatesList.length - 1
-                  ? 'bg-[#121214] hover:bg-brand-teal/20 text-brand-teal border-brand-teal/40 shadow-md cursor-pointer active:scale-95'
-                  : 'bg-[#09090b]/60 text-zinc-600 border-white/[0.06] cursor-not-allowed'
+                  ? 'bg-[#121214]/95 hover:bg-brand-teal/25 text-brand-teal border-brand-teal/50 shadow-xl cursor-pointer active:scale-95'
+                  : 'bg-[#09090b]/85 text-zinc-600 border-white/[0.08] cursor-not-allowed'
               }`}
             >
               <ChevronRight className="w-5 h-5" />
@@ -2839,54 +2784,58 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           <div className="flex items-center gap-2.5">
             {user?.role === 'ADMIN' && (
               <>
-                {/* 1. Add Shift to Template */}
-                <button
-                  onClick={() => {
-                    setEditingTemplateId(null);
-                    setDaysOfWeek(displayDaysOrder.length > 0 ? [displayDaysOrder[0]] : []);
-                    setStartTime('09:00');
-                    setEndTime('17:00');
-                    setStaffId('');
-                    setScheduleType('ONGOING');
-                    setShiftFrequency('Weekly');
-                    setShiftStartDate(resolvedEffectiveStartDateStr);
-                    setShiftEndDate(activeQuarter.endDateStr);
-                    setShiftOneOffDate(todayStr);
-                    setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
-                    setShowAddTemplateModal(true);
-                  }}
-                  className="px-3.5 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add Shift
-                </button>
+                {!isViewingHistorical && (
+                  <>
+                    {/* 1. Add Shift to Template */}
+                    <button
+                      onClick={() => {
+                        setEditingTemplateId(null);
+                        setDaysOfWeek(displayDaysOrder.length > 0 ? [displayDaysOrder[0]] : []);
+                        setStartTime('09:00');
+                        setEndTime('17:00');
+                        setStaffId('');
+                        setScheduleType('ONGOING');
+                        setShiftFrequency('Weekly');
+                        setShiftStartDate(resolvedEffectiveStartDateStr);
+                        setShiftEndDate(activeQuarter.endDateStr);
+                        setShiftOneOffDate(todayStr);
+                        setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
+                        setShowAddTemplateModal(true);
+                      }}
+                      className="px-3.5 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      Add Shift
+                    </button>
 
-                {/* 2. Run Builder (Generate Roster Shifts) */}
-                <button
-                  onClick={() => {
-                    const targetGenTemplate = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
-                    setRunBuilderTemplate(targetGenTemplate);
-                    setGenerateResult(null);
-                    const startForBuild = resolvedEffectiveStartDateStr;
-                    const endForBuild =
-                      homeCareQuarterlySummary?.templateEffectiveEndStr ||
-                      viewedTemplateObj?.effective_end_date ||
-                      activeQuarter.endDateStr;
-                    if (isClientHomeCare) {
-                      setGenerateDuration('Current Quarter');
-                      setGenerateStartDate(startForBuild);
-                      setGenerateEndDate(endForBuild);
-                    } else {
-                      handleDurationChange(generateDuration || 'Month', startForBuild);
-                      setGenerateStartDate(startForBuild);
-                    }
-                    setShowRunBuilderModal(true);
-                  }}
-                  className="px-3.5 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
-                >
-                  <Calendar className="w-4 h-4 mr-1.5" />
-                  Run Builder
-                </button>
+                    {/* 2. Run Builder (Generate Roster Shifts) */}
+                    <button
+                      onClick={() => {
+                        const targetGenTemplate = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
+                        setRunBuilderTemplate(targetGenTemplate);
+                        setGenerateResult(null);
+                        const startForBuild = resolvedEffectiveStartDateStr;
+                        const endForBuild =
+                          homeCareQuarterlySummary?.templateEffectiveEndStr ||
+                          viewedTemplateObj?.effective_end_date ||
+                          activeQuarter.endDateStr;
+                        if (isClientHomeCare) {
+                          setGenerateDuration('Current Quarter');
+                          setGenerateStartDate(startForBuild);
+                          setGenerateEndDate(endForBuild);
+                        } else {
+                          handleDurationChange(generateDuration || 'Month', startForBuild);
+                          setGenerateStartDate(startForBuild);
+                        }
+                        setShowRunBuilderModal(true);
+                      }}
+                      className="px-3.5 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                    >
+                      <Calendar className="w-4 h-4 mr-1.5" />
+                      Run Builder
+                    </button>
+                  </>
+                )}
 
                 {/* 3. Revert Build (Safety Measure: Clears all client calendar shifts except COMPLETED, IN_PROGRESS, and CANCELLED) */}
                 <button
