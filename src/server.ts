@@ -19372,17 +19372,275 @@ app.get("/api/health", (req, res) => {
         }
 
         // If effectiveStartDate was updated on this template, also sync ONGOING shifts in this template
+        // (preserving any ONGOING shift that has a specifically scheduled future start_date after effectiveStartDate)
         if (effectiveStartDate !== undefined) {
-          db.prepare(
-            `UPDATE client_roster_templates
-             SET start_date = ?
-             WHERE client_id = ? AND template_name = ? AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'`,
-          ).run(effectiveStartDate || null, req.params.id, templateName);
+          const prevStart = existing?.effective_start_date || "";
+          if (effectiveStartDate) {
+            db.prepare(
+              `UPDATE client_roster_templates
+               SET start_date = ?
+               WHERE client_id = ?
+                 AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
+                 AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'
+                 AND (start_date IS NULL OR start_date = '' OR start_date <= ? OR start_date = ?)`,
+            ).run(effectiveStartDate, req.params.id, templateName, effectiveStartDate, prevStart);
+          } else {
+            db.prepare(
+              `UPDATE client_roster_templates
+               SET start_date = NULL
+               WHERE client_id = ?
+                 AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
+                 AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'`,
+            ).run(req.params.id, templateName);
+          }
         }
 
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  // Get shift status summary (uncompleted count + latest COMPLETED / IN_PROGRESS / CANCELLED shift date)
+  app.get(
+    "/api/clients/:id/roster-templates/shift-status-summary",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const clientId = req.params.id;
+        const quarterStart = String(req.query.quarterStart || "").split("T")[0];
+        const quarterEnd = String(req.query.quarterEnd || "").split("T")[0];
+
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings WHERE key = 'timezone'")
+          .all() as any[];
+        let timezone = "Australia/Perth";
+        if (settingsRows.length > 0 && settingsRows[0].value) {
+          try {
+            timezone = JSON.parse(settingsRows[0].value);
+          } catch {
+            timezone = String(settingsRows[0].value).replace(/['"]+/g, "");
+          }
+        }
+
+        const uncompletedRow = db
+          .prepare(
+            `SELECT COUNT(*) AS cnt FROM shifts
+             WHERE client_id = ?
+               AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
+          )
+          .get(clientId) as any;
+
+        const lockedShifts = db
+          .prepare(
+            `SELECT start_time, status FROM shifts
+             WHERE client_id = ?
+               AND UPPER(status) IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')
+             ORDER BY start_time DESC`,
+          )
+          .all(clientId) as any[];
+
+        let lastLockedShiftDateOverall: string | null = null;
+        let lastLockedShiftDateInQuarter: string | null = null;
+        let lockedShiftsInQuarterCount = 0;
+
+        for (const s of lockedShifts) {
+          if (!s.start_time) continue;
+          let localDateStr = "";
+          try {
+            localDateStr = formatInTimeZone(new Date(s.start_time), timezone, "yyyy-MM-dd");
+          } catch {
+            localDateStr = String(s.start_time).split("T")[0];
+          }
+          if (!localDateStr) continue;
+          if (!lastLockedShiftDateOverall || localDateStr > lastLockedShiftDateOverall) {
+            lastLockedShiftDateOverall = localDateStr;
+          }
+          if (quarterStart && quarterEnd) {
+            if (localDateStr >= quarterStart && localDateStr <= quarterEnd) {
+              lockedShiftsInQuarterCount += 1;
+              if (!lastLockedShiftDateInQuarter || localDateStr > lastLockedShiftDateInQuarter) {
+                lastLockedShiftDateInQuarter = localDateStr;
+              }
+            }
+          } else {
+            lockedShiftsInQuarterCount += 1;
+            if (!lastLockedShiftDateInQuarter || localDateStr > lastLockedShiftDateInQuarter) {
+              lastLockedShiftDateInQuarter = localDateStr;
+            }
+          }
+        }
+
+        res.json({
+          uncompletedShiftsCount: Number(uncompletedRow?.cnt) || 0,
+          lockedShiftsCount: lockedShifts.length,
+          lockedShiftsInQuarterCount,
+          lastLockedShiftDateInQuarter,
+          lastLockedShiftDateOverall,
+        });
+      } catch (e: any) {
+        logger.error(`API Error fetching shift status summary: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  // Revert Build (Safety measure: Clear all shifts for the client that are NOT COMPLETED, IN_PROGRESS, or CANCELLED)
+  app.post(
+    "/api/clients/:id/roster-templates/revert-build",
+    authenticateToken,
+    requireAdmin,
+    async (req: any, res: any) => {
+      try {
+        const clientId = req.params.id;
+        const { quarterStartDate, quarterEndDate } = req.body || {};
+
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings WHERE key = 'timezone'")
+          .all() as any[];
+        let timezone = "Australia/Perth";
+        if (settingsRows.length > 0 && settingsRows[0].value) {
+          try {
+            timezone = JSON.parse(settingsRows[0].value);
+          } catch {
+            timezone = String(settingsRows[0].value).replace(/['"]+/g, "");
+          }
+        }
+
+        const todayLocalStr = formatInTimeZone(new Date(), timezone, "yyyy-MM-dd");
+
+        const shiftsToDelete = db
+          .prepare(
+            `SELECT id, staff_id, start_time FROM shifts
+             WHERE client_id = ?
+               AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
+          )
+          .all(clientId) as any[];
+
+        const uniqueStaffDates = new Set<string>();
+        for (const s of shiftsToDelete) {
+          if (s.staff_id && s.start_time) {
+            uniqueStaffDates.add(`${s.staff_id}|${s.start_time}`);
+          }
+        }
+
+        let revertedShiftsCount = 0;
+        db.transaction(() => {
+          const delResult = db
+            .prepare(
+              `DELETE FROM shifts
+               WHERE client_id = ?
+                 AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
+            )
+            .run(clientId);
+          revertedShiftsCount = delResult.changes;
+          db.prepare("DELETE FROM roster_builds WHERE client_id = ?").run(clientId);
+        })();
+
+        if (uniqueStaffDates.size > 0) {
+          for (const sd of Array.from(uniqueStaffDates)) {
+            const [staffId, startTime] = sd.split("|");
+            try {
+              await recalculateDayTravelForStaff(Number(staffId), startTime);
+            } catch (travelErr) {
+              console.error("Error recalculating travel on revert-build:", travelErr);
+            }
+          }
+        }
+
+        const remainingLockedShifts = db
+          .prepare(
+            `SELECT start_time FROM shifts
+             WHERE client_id = ?
+               AND UPPER(status) IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')
+             ORDER BY start_time DESC`,
+          )
+          .all(clientId) as any[];
+
+        const qStartClean = quarterStartDate ? String(quarterStartDate).split("T")[0] : "";
+        const qEndClean = quarterEndDate ? String(quarterEndDate).split("T")[0] : "";
+
+        let lastPerformedDateStr: string | null = null;
+        for (const s of remainingLockedShifts) {
+          if (!s.start_time) continue;
+          let localDateStr = "";
+          try {
+            localDateStr = formatInTimeZone(new Date(s.start_time), timezone, "yyyy-MM-dd");
+          } catch {
+            localDateStr = String(s.start_time).split("T")[0];
+          }
+          if (!localDateStr) continue;
+          if (qStartClean && qEndClean) {
+            if (localDateStr >= qStartClean && localDateStr <= qEndClean) {
+              if (!lastPerformedDateStr || localDateStr > lastPerformedDateStr) {
+                lastPerformedDateStr = localDateStr;
+              }
+            }
+          } else {
+            if (!lastPerformedDateStr || localDateStr > lastPerformedDateStr) {
+              lastPerformedDateStr = localDateStr;
+            }
+          }
+        }
+
+        let resolvedStartStr = "";
+        if (lastPerformedDateStr) {
+          const [ly, lm, ld] = lastPerformedDateStr.split("-").map(Number);
+          const nextDay = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
+          resolvedStartStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}`;
+        } else if (qStartClean) {
+          resolvedStartStr = qStartClean;
+        } else {
+          resolvedStartStr = todayLocalStr;
+        }
+
+        const allSettings = db
+          .prepare(
+            "SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC",
+          )
+          .all(clientId) as any[];
+        const activeSetting =
+          allSettings.find((s: any) => Number(s.is_active) === 1) ||
+          allSettings[allSettings.length - 1];
+        const activeTemplateName = activeSetting?.template_name || "Default Template";
+        const prevEffectiveStart = activeSetting?.effective_start_date || "";
+
+        db.transaction(() => {
+          if (activeSetting) {
+            db.prepare(
+              `UPDATE client_template_settings
+               SET effective_start_date = ?
+               WHERE client_id = ? AND template_name = ?`,
+            ).run(resolvedStartStr, clientId, activeTemplateName);
+          } else {
+            db.prepare(
+              `INSERT OR IGNORE INTO client_template_settings (client_id, template_name, frequency, is_active, effective_start_date, effective_end_date, sort_order, created_at)
+               VALUES (?, ?, 'Weekly', 1, ?, NULL, 1, ?)`,
+            ).run(clientId, activeTemplateName, resolvedStartStr, new Date().toISOString());
+          }
+
+          const maxCutoffForSync = resolvedStartStr > todayLocalStr ? resolvedStartStr : todayLocalStr;
+          db.prepare(
+            `UPDATE client_roster_templates
+             SET start_date = ?
+             WHERE client_id = ?
+               AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
+               AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'
+               AND (start_date IS NULL OR start_date = '' OR start_date <= ? OR start_date = ?)`,
+          ).run(resolvedStartStr, clientId, activeTemplateName, maxCutoffForSync, prevEffectiveStart);
+        })();
+
+        res.json({
+          success: true,
+          revertedShiftsCount,
+          lastPerformedDate: lastPerformedDateStr,
+          effectiveStartDate: resolvedStartStr,
+          activeTemplateName,
+        });
+      } catch (e: any) {
+        logger.error(`API Error reverting build: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
       }
     }
@@ -19401,6 +19659,8 @@ app.get("/api/health", (req, res) => {
           sourceTemplateName,
           effectiveStartDate,
           previousStartDate,
+          quarterStartDate,
+          quarterEndDate,
           copyCurrentShifts = true,
           revertUncompletedShifts = true,
         } = req.body;
@@ -19466,20 +19726,33 @@ app.get("/api/health", (req, res) => {
             `SELECT start_time FROM shifts
              WHERE client_id = ?
                AND UPPER(status) IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')
-             ORDER BY start_time DESC LIMIT 1`,
+             ORDER BY start_time DESC`,
           )
           .all(clientId) as any[];
 
+        const qStartClean = quarterStartDate ? String(quarterStartDate).split("T")[0] : "";
+        const qEndClean = quarterEndDate ? String(quarterEndDate).split("T")[0] : "";
+
         let lastPerformedDateStr: string | null = null;
-        if (remainingShifts.length > 0 && remainingShifts[0].start_time) {
+        for (const s of remainingShifts) {
+          if (!s.start_time) continue;
+          let localDateStr = "";
           try {
-            lastPerformedDateStr = formatInTimeZone(
-              new Date(remainingShifts[0].start_time),
-              timezone,
-              "yyyy-MM-dd",
-            );
+            localDateStr = formatInTimeZone(new Date(s.start_time), timezone, "yyyy-MM-dd");
           } catch {
-            lastPerformedDateStr = String(remainingShifts[0].start_time).split("T")[0];
+            localDateStr = String(s.start_time).split("T")[0];
+          }
+          if (!localDateStr) continue;
+          if (qStartClean && qEndClean) {
+            if (localDateStr >= qStartClean && localDateStr <= qEndClean) {
+              if (!lastPerformedDateStr || localDateStr > lastPerformedDateStr) {
+                lastPerformedDateStr = localDateStr;
+              }
+            }
+          } else {
+            if (!lastPerformedDateStr || localDateStr > lastPerformedDateStr) {
+              lastPerformedDateStr = localDateStr;
+            }
           }
         }
 
@@ -19489,6 +19762,8 @@ app.get("/api/health", (req, res) => {
             const [ly, lm, ld] = lastPerformedDateStr.split("-").map(Number);
             const nextDay = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
             resolvedStartStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}`;
+          } else if (qStartClean) {
+            resolvedStartStr = qStartClean;
           } else {
             resolvedStartStr = formatInTimeZone(new Date(), timezone, "yyyy-MM-dd");
           }
@@ -19602,6 +19877,11 @@ app.get("/api/health", (req, res) => {
               if (sType === "FIXED" && sh.end_date && sh.end_date < resolvedStartStr) {
                 continue;
               }
+              const rawExistingStart = sh.start_date ? String(sh.start_date).split("T")[0] : "";
+              const copiedStartDate =
+                sType === "ONGOING"
+                  ? (rawExistingStart && rawExistingStart > resolvedStartStr ? rawExistingStart : resolvedStartStr)
+                  : (rawExistingStart || resolvedStartStr);
               insertStmt.run(
                 clientId,
                 sh.day_of_week,
@@ -19612,7 +19892,7 @@ app.get("/api/health", (req, res) => {
                 sh.services_json || "[]",
                 finalNewName,
                 sType,
-                sType === "ONGOING" ? resolvedStartStr : sh.start_date || resolvedStartStr,
+                copiedStartDate,
                 sh.end_date || null,
                 sh.one_off_date || null,
                 sh.frequency || "Weekly",
@@ -19814,6 +20094,13 @@ app.get("/api/health", (req, res) => {
             ? templateName
             : activeSetting?.template_name || null;
 
+        const targetTemplateSetting =
+          settingsRowsDB.find((s: any) => s.template_name === targetTemplateName) ||
+          activeSetting;
+        const templateEffectiveStartSetting = targetTemplateSetting?.effective_start_date
+          ? String(targetTemplateSetting.effective_start_date).split("T")[0]
+          : "";
+
         const templates = targetTemplateName
           ? allTemplates.filter(
               (t: any) => (t.template_name || "Default Template") === targetTemplateName,
@@ -19862,7 +20149,7 @@ app.get("/api/health", (req, res) => {
         if (dryRun && clearExisting) {
           const existingRows = db
             .prepare(
-              `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED') ORDER BY start_time ASC`,
+              `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED') ORDER BY start_time ASC`,
             )
             .all(
               clientId,
@@ -19892,7 +20179,7 @@ app.get("/api/health", (req, res) => {
         db.transaction(() => {
           if (!dryRun && clearExisting) {
             const delResult = db.prepare(
-              `DELETE FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
+              `DELETE FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
             ).run(
               clientId,
               deleteStartIso,
@@ -19922,10 +20209,14 @@ app.get("/api/health", (req, res) => {
                 return shiftDateStr === String(t.one_off_date).split("T")[0];
               }
               if (t.day_of_week !== dayOfWeek) return false;
-              if (t.start_date) {
-                const sDate = String(t.start_date).split("T")[0];
-                if (sDate && shiftDateStr < sDate) return false;
-              }
+              const rawTStart = t.start_date ? String(t.start_date).split("T")[0] : "";
+              const effectiveTStart =
+                sType === "ONGOING"
+                  ? (rawTStart && rawTStart > (templateEffectiveStartSetting || startDate)
+                      ? rawTStart
+                      : (templateEffectiveStartSetting || startDate))
+                  : rawTStart;
+              if (effectiveTStart && shiftDateStr < effectiveTStart) return false;
               if (sType === "FIXED" && t.end_date) {
                 const eDate = String(t.end_date).split("T")[0];
                 if (eDate && shiftDateStr > eDate) return false;
@@ -19940,7 +20231,11 @@ app.get("/api/health", (req, res) => {
               const shiftFreq = t.frequency || freqMap.get(t.template_name || "Default Template") || "Weekly";
               if (shiftFreq === "Weekly") return true;
 
-              const anchorStr = (t.start_date ? String(t.start_date).split("T")[0] : null) || startDate;
+              const rawTStart = t.start_date ? String(t.start_date).split("T")[0] : "";
+              const anchorStr =
+                (sType === "ONGOING" && rawTStart && rawTStart > (templateEffectiveStartSetting || startDate)
+                  ? rawTStart
+                  : rawTStart || templateEffectiveStartSetting || startDate);
               const anchorDt = new Date(`${anchorStr}T12:00:00Z`);
               const diffDays = Math.max(0, Math.round((localNoon.getTime() - anchorDt.getTime()) / 86400000));
               const weekIndex = Math.floor(diffDays / 7);
@@ -19968,12 +20263,11 @@ app.get("/api/health", (req, res) => {
                 timezone,
               );
 
-              // 1. Detect legitimate time-overlapping shifts for this client on this exact date/time
+              // 1. Detect time-overlapping shifts for this client on this exact date/time (including COMPLETED, IN_PROGRESS, and CANCELLED)
               const overlapQuery = `
                 SELECT id, start_time, end_time, status, staff_id
                 FROM shifts
                 WHERE client_id = ?
-                AND status NOT IN ('CANCELLED')
                 AND start_time < ? AND end_time > ?
               `;
               const clientOverlaps = db
@@ -19984,14 +20278,18 @@ app.get("/api/health", (req, res) => {
                   startDateTime.toISOString(),
                 ) as any[];
 
-              // If a COMPLETED or IN_PROGRESS shift already occupies this slot, keep it intact and skip
-              const hasLockedShift = clientOverlaps.some((s: any) => s.status === 'COMPLETED' || s.status === 'IN_PROGRESS');
+              // If a COMPLETED, IN_PROGRESS, or CANCELLED shift already occupies this slot, keep it intact and skip
+              const hasLockedShift = clientOverlaps.some((s: any) =>
+                ["COMPLETED", "IN_PROGRESS", "CANCELLED"].includes(String(s.status || "").toUpperCase())
+              );
               if (hasLockedShift) {
                 continue;
               }
 
-              // Overlapping DRAFT or PUBLISHED shifts are genuine clashes
-              const replaceableOverlaps = clientOverlaps.filter((s: any) => s.status !== 'COMPLETED' && s.status !== 'IN_PROGRESS');
+              // Overlapping uncompleted (DRAFT / PUBLISHED / SCHEDULED) shifts are genuine clashes
+              const replaceableOverlaps = clientOverlaps.filter(
+                (s: any) => !["COMPLETED", "IN_PROGRESS", "CANCELLED"].includes(String(s.status || "").toUpperCase())
+              );
               const clashingShiftIds: number[] = [];
 
               for (const clashing of replaceableOverlaps) {

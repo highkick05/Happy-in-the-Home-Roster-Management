@@ -164,7 +164,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [activeTemplateName, setActiveTemplateName] = useState('Default Template');
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
 
-  // Visual Template History & New Template Modal State
+  // Visual Template History, New Template & Revert Build Modal State
   const [showTemplateHistoryMenu, setShowTemplateHistoryMenu] = useState(false);
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
   const [newTemplateNameInput, setNewTemplateNameInput] = useState('');
@@ -172,6 +172,21 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [newTemplateCopyCards, setNewTemplateCopyCards] = useState(true);
   const [creatingNewTemplate, setCreatingNewTemplate] = useState(false);
   const [updatingEffectiveDate, setUpdatingEffectiveDate] = useState(false);
+  const [showRevertBuildModal, setShowRevertBuildModal] = useState(false);
+  const [revertingBuild, setRevertingBuild] = useState(false);
+  const [shiftStatusSummary, setShiftStatusSummary] = useState<{
+    uncompletedShiftsCount: number;
+    lockedShiftsCount: number;
+    lockedShiftsInQuarterCount: number;
+    lastLockedShiftDateInQuarter: string | null;
+    lastLockedShiftDateOverall: string | null;
+  }>({
+    uncompletedShiftsCount: 0,
+    lockedShiftsCount: 0,
+    lockedShiftsInQuarterCount: 0,
+    lastLockedShiftDateInQuarter: null,
+    lastLockedShiftDateOverall: null
+  });
 
   // Ordered list of visual Monday-Sunday templates (oldest on left -> current active on right)
   const visualTemplatesList = useMemo<TemplateSettingItem[]>(() => {
@@ -267,7 +282,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [servicesData, setServicesData] = useState<ServiceFormEntry[]>([{ serviceId: '', fundingStream: 'ON' }]);
 
   // Generate roster state
-  const [generateDuration, setGenerateDuration] = useState('Month');
+  const [generateDuration, setGenerateDuration] = useState('Current Quarter');
 
   const getTodayInTimezone = (tz?: string) => {
     try {
@@ -315,16 +330,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
   }, [settings?.timezone]);
 
-  const handleDurationChange = (val: string) => {
+  const handleDurationChange = (val: string, baseStartOverride?: string) => {
     setGenerateDuration(val);
+    const effectiveBaseStart =
+      baseStartOverride ||
+      viewedTemplateObj?.effective_start_date ||
+      activeQuarter.startDateStr;
     if (val === 'Current Quarter') {
-      const qStart = todayStr > activeQuarter.startDateStr ? todayStr : activeQuarter.startDateStr;
-      setGenerateStartDate(qStart);
-      setGenerateEndDate(activeQuarter.endDateStr);
+      setGenerateStartDate(effectiveBaseStart);
+      setGenerateEndDate(viewedTemplateObj?.effective_end_date || activeQuarter.endDateStr);
       return;
     }
-    if (!generateStartDate) return;
-    const [y, m, d] = generateStartDate.split('-');
+    const startCandidate = baseStartOverride || generateStartDate || effectiveBaseStart;
+    if (!startCandidate) return;
+    const [y, m, d] = startCandidate.split('-');
     const start = new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0);
     let end = new Date(start);
     if (val === 'Week') {
@@ -376,7 +395,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     if (!token || !clientId) return;
     setLoading(true);
     try {
-      const [templatesRes, allServicesRes, staffRes, settingsRes, clientRes, ratesRes, ledgerRes] = await Promise.all([
+      const [templatesRes, allServicesRes, staffRes, settingsRes, clientRes, ratesRes, ledgerRes, shiftSummaryRes] = await Promise.all([
         fetch(`/api/clients/${clientId}/roster-templates`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } }),
@@ -384,6 +403,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         fetch(`/api/clients/${clientId}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/funding-rates', { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/clients/${clientId}/budget-ledger?startDate=${activeQuarter.startDateStr}&endDate=${activeQuarter.endDateStr}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`/api/clients/${clientId}/roster-templates/shift-status-summary?quarterStart=${activeQuarter.startDateStr}&quarterEnd=${activeQuarter.endDateStr}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -423,10 +445,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         const ledgerData = await ledgerRes.json();
         setQuarterLedgerItems(Array.isArray(ledgerData?.items) ? ledgerData.items : []);
       }
-
-      const tzToday = getTodayInTimezone(settings?.timezone);
-      setGenerateStartDate(tzToday);
-      setGenerateEndDate(getEndOfMonthFromDateStr(tzToday));
+      if (shiftSummaryRes.ok) {
+        const summaryData = await shiftSummaryRes.json();
+        setShiftStatusSummary({
+          uncompletedShiftsCount: Number(summaryData?.uncompletedShiftsCount) || 0,
+          lockedShiftsCount: Number(summaryData?.lockedShiftsCount) || 0,
+          lockedShiftsInQuarterCount: Number(summaryData?.lockedShiftsInQuarterCount) || 0,
+          lastLockedShiftDateInQuarter: summaryData?.lastLockedShiftDateInQuarter || null,
+          lastLockedShiftDateOverall: summaryData?.lastLockedShiftDateOverall || null
+        });
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -860,35 +888,42 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
 
-    // Latest performed shift date in the active quarter (for fresh-slate cutoff discovery)
-    const latestPerformedShiftDateStr = processedLedger
+    // Latest performed (COMPLETED / IN_PROGRESS / CANCELLED) shift date in the active quarter
+    const ledgerLatestShiftDateStr = processedLedger
       .filter((item: any) => item.source_type === 'shift' && item.dateYmd)
       .reduce((maxD: string, item: any) => (item.dateYmd > maxD ? item.dateYmd : maxD), '');
+    const summaryLatestLockedDateStr = shiftStatusSummary.lastLockedShiftDateInQuarter || '';
+    const latestPerformedShiftDateStr =
+      summaryLatestLockedDateStr > ledgerLatestShiftDateStr
+        ? summaryLatestLockedDateStr
+        : ledgerLatestShiftDateStr;
+
+    // Calculated Effective Start Date based on remaining COMPLETED / IN_PROGRESS / CANCELLED shifts in the quarter:
+    // - If any exist in the quarter: day after the latest remaining shift (even if prior to Today)
+    // - If none exist in the quarter: actualStartDateStr (Quarter Start Date, e.g. 01/10/2026)
+    let calculatedEffectiveStartStr = actualStartDateStr;
+    if (latestPerformedShiftDateStr) {
+      const [ly, lm, ld] = latestPerformedShiftDateStr.split('-').map(Number);
+      const nextD = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
+      const nextDayStr = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}-${String(nextD.getDate()).padStart(2, '0')}`;
+      if (nextDayStr > actualStartDateStr && nextDayStr <= activeQuarter.endDateStr) {
+        calculatedEffectiveStartStr = nextDayStr;
+      }
+    }
 
     // 5. Determine the Active/Viewed Template's Effective Date Window inside the Active Quarter
     // Always evaluate the budget summary against the currently viewed template (or liveActiveTemplateObj)
     const targetBudgetTemplateObj = viewedTemplateObj || liveActiveTemplateObj;
     const targetBudgetShifts = currentTemplateList;
 
-    // Infer template effective start date if set on template settings OR if ONGOING shifts have a start_date inside the quarter
-    let rawTemplateStartStr = targetBudgetTemplateObj?.effective_start_date
+    const rawTemplateStartStr = targetBudgetTemplateObj?.effective_start_date
       ? String(targetBudgetTemplateObj.effective_start_date).split('T')[0]
       : '';
-    if (!rawTemplateStartStr && targetBudgetShifts.length > 0) {
-      const ongoingStarts = targetBudgetShifts
-        .filter(t => ((t.schedule_type as ScheduleType) || 'ONGOING') === 'ONGOING' && t.start_date)
-        .map(t => String(t.start_date).split('T')[0])
-        .filter(Boolean)
-        .sort();
-      if (ongoingStarts.length > 0) {
-        rawTemplateStartStr = ongoingStarts[0];
-      }
-    }
 
     const templateEffectiveStartStr =
-      rawTemplateStartStr && rawTemplateStartStr > actualStartDateStr && rawTemplateStartStr <= activeQuarter.endDateStr
+      rawTemplateStartStr && rawTemplateStartStr >= actualStartDateStr && rawTemplateStartStr <= activeQuarter.endDateStr
         ? rawTemplateStartStr
-        : actualStartDateStr;
+        : calculatedEffectiveStartStr;
 
     const rawTemplateEndStr = targetBudgetTemplateObj?.effective_end_date
       ? String(targetBudgetTemplateObj.effective_end_date).split('T')[0]
@@ -928,11 +963,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       });
     }
 
-    // 5b. Calculate Planned Roster Spend across Template Shifts (from templateEffectiveStartStr to templateEffectiveEndStr, and Remaining Days from Tomorrow)
-    const [ty, tm, td] = todayStr.split('-').map(Number);
-    const tomorrowD = new Date(ty, tm - 1, td + 1, 12, 0, 0);
-    const tomorrowStr = `${tomorrowD.getFullYear()}-${String(tomorrowD.getMonth() + 1).padStart(2, '0')}-${String(tomorrowD.getDate()).padStart(2, '0')}`;
-    const remainingStartStr = tomorrowStr > templateEffectiveStartStr ? tomorrowStr : templateEffectiveStartStr;
+    // 5b. Calculate Planned Roster Spend across Template Shifts (from templateEffectiveStartStr to templateEffectiveEndStr, and Remaining Unperformed Days from calculatedEffectiveStartStr)
+    const remainingStartStr =
+      calculatedEffectiveStartStr > templateEffectiveStartStr
+        ? calculatedEffectiveStartStr
+        : templateEffectiveStartStr;
 
     let templatePlannedOnDrawdown = 0;
     let templatePlannedBase = 0;
@@ -961,7 +996,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       );
       const { baseTotal, byStream } = getTemplateShiftOccurrenceBreakdown(t);
 
-      // Remaining quarter projection (from tomorrow forward) always counts upcoming occurrences
+      // Remaining quarter projection (from day after last performed shift forward)
       Object.entries(byStream).forEach(([streamCode, amounts]) => {
         const remStreamDrawdown = amounts.drawdown * remOccurrences;
         if (!plannedDrawdownByStream[streamCode]) {
@@ -1084,8 +1119,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     const daysElapsed = Math.min(totalDays, Math.max(1, Math.floor((todayObj.getTime() - startObj.getTime()) / msPerDay) + 1));
     const daysRemaining = Math.max(0, totalDays - daysElapsed);
 
-    // Schedule Forecast: Actual Spent to Date + Remaining Planned Roster Shifts from Tomorrow to Quarter End
-    // If no shifts have been logged yet and we are planning a full quarter template, use max(fullQuarterPlannedOnDrawdown, actual + remaining)
+    // Schedule Forecast: Actual Spent to Date + Remaining Planned Roster Shifts from calculatedEffectiveStartStr to Quarter End
     const scheduleProjectedOnSpend = round2(
       actualOnSpentToDate > 0
         ? actualOnSpentToDate + remainingQuarterPlannedOnDrawdown
@@ -1168,6 +1202,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
     return {
       actualStartDateStr,
+      calculatedEffectiveStartStr,
       templateEffectiveStartStr,
       templateEffectiveEndStr,
       hasMidQuarterCutover,
@@ -1208,6 +1243,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     currentFyStartYear,
     currentQuarterId,
     quarterLedgerItems,
+    shiftStatusSummary,
     careCoordPercent,
     serviceLoadingPercent,
     templateSettings,
@@ -1219,6 +1255,35 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     weeklyTotalAmount,
     servicesList
   ]);
+
+  // Authoritative effective start date for the currently viewed/active template (works for both Home Care and NDIS)
+  const resolvedEffectiveStartDateStr = useMemo(() => {
+    if (homeCareQuarterlySummary?.templateEffectiveStartStr) {
+      return homeCareQuarterlySummary.templateEffectiveStartStr;
+    }
+    if (viewedTemplateObj?.effective_start_date) {
+      return String(viewedTemplateObj.effective_start_date).split('T')[0];
+    }
+    if (shiftStatusSummary.lastLockedShiftDateInQuarter) {
+      const [ly, lm, ld] = shiftStatusSummary.lastLockedShiftDateInQuarter.split('-').map(Number);
+      const nextD = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
+      return `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}-${String(nextD.getDate()).padStart(2, '0')}`;
+    }
+    return activeQuarter.startDateStr;
+  }, [homeCareQuarterlySummary, viewedTemplateObj, shiftStatusSummary, activeQuarter]);
+
+  // Calculated fresh-slate start date (day after last COMPLETED / IN_PROGRESS / CANCELLED shift in quarter, or Quarter Start Date)
+  const calculatedFreshSlateStartDateStr = useMemo(() => {
+    if (homeCareQuarterlySummary?.calculatedEffectiveStartStr) {
+      return homeCareQuarterlySummary.calculatedEffectiveStartStr;
+    }
+    if (shiftStatusSummary.lastLockedShiftDateInQuarter) {
+      const [ly, lm, ld] = shiftStatusSummary.lastLockedShiftDateInQuarter.split('-').map(Number);
+      const nextD = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
+      return `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}-${String(nextD.getDate()).padStart(2, '0')}`;
+    }
+    return activeQuarter.startDateStr;
+  }, [homeCareQuarterlySummary, shiftStatusSummary, activeQuarter]);
 
   // Available funding stream choices for the Add/Edit Shift Modal dropdown
   const availableFundingStreamOptions = useMemo(() => {
@@ -1244,15 +1309,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       ? (shiftOneOffDate ? [new Date(`${shiftOneOffDate}T12:00:00`).getDay()] : [daysOfWeek[0] ?? 1])
       : (daysOfWeek.length > 0 ? daysOfWeek : [1]);
 
-    // Determine projection date window
+    // Determine projection date window using the active template's effective start date (including prior cleared dates)
     const projStartStr = scheduleType === 'ONE_OFF'
-      ? (shiftOneOffDate || todayStr)
-      : (shiftStartDate || homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr);
+      ? (shiftOneOffDate || resolvedEffectiveStartDateStr || todayStr)
+      : (shiftStartDate || resolvedEffectiveStartDateStr);
     const projEndStr = scheduleType === 'ONE_OFF'
-      ? (shiftOneOffDate || todayStr)
+      ? (shiftOneOffDate || resolvedEffectiveStartDateStr || todayStr)
       : scheduleType === 'FIXED' && shiftEndDate
       ? shiftEndDate
-      : activeQuarter.endDateStr;
+      : (homeCareQuarterlySummary?.templateEffectiveEndStr || activeQuarter.endDateStr);
 
     let perShiftBase = 0;
     let perShiftDrawdown = 0;
@@ -1296,7 +1361,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           {
             day_of_week: dayIdx,
             schedule_type: scheduleType,
-            start_date: shiftStartDate || null,
+            start_date: shiftStartDate || projStartStr,
             end_date: shiftEndDate || null,
             one_off_date: shiftOneOffDate || null
           },
@@ -1316,7 +1381,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         {
           day_of_week: dayIdx,
           schedule_type: scheduleType,
-          start_date: shiftStartDate || null,
+          start_date: shiftStartDate || projStartStr,
           end_date: shiftEndDate || null,
           one_off_date: shiftOneOffDate || null
         },
@@ -1347,6 +1412,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     shiftOneOffDate,
     daysOfWeek,
     todayStr,
+    resolvedEffectiveStartDateStr,
     homeCareQuarterlySummary,
     activeQuarter,
     servicesData,
@@ -1546,7 +1612,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             servicesData: finalServicesData,
             scheduleType,
             frequency: scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency,
-            startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || null) : null,
+            startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || resolvedEffectiveStartDateStr || null) : null,
             endDate: scheduleType === 'FIXED' ? (shiftEndDate || null) : null,
             oneOffDate: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null
           })
@@ -1603,7 +1669,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               templateName: activeTemplateName,
               scheduleType,
               frequency: scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency,
-              startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || null) : null,
+              startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || resolvedEffectiveStartDateStr || null) : null,
               endDate: scheduleType === 'FIXED' ? (shiftEndDate || null) : null,
               oneOffDate: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null
             })
@@ -1655,17 +1721,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   };
 
   // Open the "+ New Template" modal with auto-detected fresh-slate start date
+  // (Day after latest COMPLETED / IN_PROGRESS / CANCELLED shift in the quarter, or Quarter Start Date if none exist)
   const handleOpenNewTemplateModal = () => {
     const nextIdx = visualTemplatesList.length + 1;
     setNewTemplateNameInput(`Template ${nextIdx}`);
-    // Auto-detect fresh-slate start date: day after latest performed shift in the quarter, or todayStr
-    let suggestedStart = todayStr;
-    if (homeCareQuarterlySummary?.latestPerformedShiftDateStr) {
-      const [ly, lm, ld] = homeCareQuarterlySummary.latestPerformedShiftDateStr.split('-').map(Number);
-      const nextD = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
-      suggestedStart = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}-${String(nextD.getDate()).padStart(2, '0')}`;
-    }
-    setNewTemplateEffectiveDate(suggestedStart);
+    setNewTemplateEffectiveDate(calculatedFreshSlateStartDateStr);
     setNewTemplateCopyCards(true);
     setShowNewTemplateModal(true);
   };
@@ -1682,11 +1742,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         body: JSON.stringify({
           newTemplateName: newTemplateNameInput.trim() || `Template ${visualTemplatesList.length + 1}`,
           sourceTemplateName: viewedTemplateObj?.template_name || activeTemplateName,
-          effectiveStartDate: newTemplateEffectiveDate || todayStr,
+          effectiveStartDate: newTemplateEffectiveDate || calculatedFreshSlateStartDateStr,
           previousStartDate:
             viewedTemplateObj?.effective_start_date ||
             homeCareQuarterlySummary?.actualStartDateStr ||
             activeQuarter.startDateStr,
+          quarterStartDate: homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr,
+          quarterEndDate: activeQuarter.endDateStr,
           copyCurrentShifts: newTemplateCopyCards,
           revertUncompletedShifts: true
         })
@@ -1705,6 +1767,35 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       alert('Error creating new template.');
     } finally {
       setCreatingNewTemplate(false);
+    }
+  };
+
+  // Execute "Revert Build" (Safety measure: Clear all shifts for the client that are NOT COMPLETED, IN_PROGRESS, or CANCELLED)
+  const handleConfirmRevertBuild = async () => {
+    if (!token || !clientId) return;
+    setRevertingBuild(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/revert-build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          quarterStartDate: homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr,
+          quarterEndDate: activeQuarter.endDateStr
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowRevertBuildModal(false);
+        await fetchData();
+        window.dispatchEvent(new CustomEvent('offline-sync-completed'));
+      } else {
+        alert(data.error || 'Failed to revert uncompleted roster shifts.');
+      }
+    } catch (err) {
+      console.error('Error reverting build:', err);
+      alert('Error reverting uncompleted roster shifts.');
+    } finally {
+      setRevertingBuild(false);
     }
   };
 
@@ -1803,7 +1894,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     setScheduleType(sType);
     const resolvedFreq = getShiftFrequency(t);
     setShiftFrequency(resolvedFreq === 'One-Off' ? 'Weekly' : resolvedFreq);
-    setShiftStartDate(t.start_date || activeQuarter.startDateStr);
+    const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+    const effectiveEditStart =
+      sType === 'ONGOING'
+        ? (rawShiftStart && rawShiftStart > resolvedEffectiveStartDateStr ? rawShiftStart : resolvedEffectiveStartDateStr)
+        : (rawShiftStart || resolvedEffectiveStartDateStr);
+    setShiftStartDate(effectiveEditStart);
     setShiftEndDate(t.end_date || activeQuarter.endDateStr);
     setShiftOneOffDate(t.one_off_date || todayStr);
 
@@ -2103,16 +2199,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   Set Active
                                 </button>
                               )}
-                              {visualTemplatesList.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteVisualTemplate(tmpl.template_name)}
-                                  className="p-1 text-zinc-500 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors"
-                                  title="Delete this template"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
                             </div>
                           )}
                         </div>
@@ -2235,14 +2321,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
                         const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
                         const shiftFreq = getShiftFrequency(t);
-                        const qStart =
-                          homeCareQuarterlySummary?.templateEffectiveStartStr ||
-                          homeCareQuarterlySummary?.actualStartDateStr ||
-                          activeQuarter.startDateStr;
+                        const qStart = resolvedEffectiveStartDateStr;
                         const qEnd =
                           homeCareQuarterlySummary?.templateEffectiveEndStr ||
+                          viewedTemplateObj?.effective_end_date ||
                           activeQuarter.endDateStr;
-                        const qOccurrences = countShiftOccurrencesInRange(t, qStart, qEnd, shiftFreq);
+                        const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+                        const effectiveCardStart =
+                          sType === 'ONGOING'
+                            ? (rawShiftStart && rawShiftStart > qStart ? rawShiftStart : qStart)
+                            : (rawShiftStart || qStart);
+                        const shiftForCount =
+                          sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
+                        const qOccurrences = countShiftOccurrencesInRange(shiftForCount, qStart, qEnd, shiftFreq);
                         const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
 
                         return (
@@ -2266,7 +2357,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     </span>
                                   ) : (
                                     <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                      ONGOING{t.start_date ? ` • From ${formatDisplayDate(t.start_date)}` : ''}
+                                      ONGOING
+                                      {effectiveCardStart
+                                        ? isViewingHistorical && viewedTemplateObj?.effective_end_date
+                                          ? ` • ${formatDisplayDate(effectiveCardStart)}–${formatDisplayDate(viewedTemplateObj.effective_end_date)}`
+                                          : ` • From ${formatDisplayDate(effectiveCardStart)}`
+                                        : ''}
                                     </span>
                                   )}
                                 </div>
@@ -2710,7 +2806,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     setStaffId('');
                     setScheduleType('ONGOING');
                     setShiftFrequency('Weekly');
-                    setShiftStartDate(homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr);
+                    setShiftStartDate(resolvedEffectiveStartDateStr);
                     setShiftEndDate(activeQuarter.endDateStr);
                     setShiftOneOffDate(todayStr);
                     setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
@@ -2725,13 +2821,39 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 {/* 2. Run Builder (Generate Roster Shifts) */}
                 <button
                   onClick={() => {
-                    setRunBuilderTemplate('All Templates');
+                    const targetGenTemplate = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
+                    setRunBuilderTemplate(targetGenTemplate);
+                    setGenerateResult(null);
+                    const startForBuild = resolvedEffectiveStartDateStr;
+                    const endForBuild =
+                      homeCareQuarterlySummary?.templateEffectiveEndStr ||
+                      viewedTemplateObj?.effective_end_date ||
+                      activeQuarter.endDateStr;
+                    if (isClientHomeCare) {
+                      setGenerateDuration('Current Quarter');
+                      setGenerateStartDate(startForBuild);
+                      setGenerateEndDate(endForBuild);
+                    } else {
+                      handleDurationChange(generateDuration || 'Month', startForBuild);
+                      setGenerateStartDate(startForBuild);
+                    }
                     setShowRunBuilderModal(true);
                   }}
                   className="px-3.5 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
                 >
                   <Calendar className="w-4 h-4 mr-1.5" />
                   Run Builder
+                </button>
+
+                {/* 3. Revert Build (Safety Measure: Clears all client calendar shifts except COMPLETED, IN_PROGRESS, and CANCELLED) */}
+                <button
+                  type="button"
+                  onClick={() => setShowRevertBuildModal(true)}
+                  className="px-3.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                  title="Backup safety measure: Clear all calendar shifts for this client except Completed, In-Progress, and Cancelled shifts"
+                >
+                  <RotateCcw className="w-4 h-4 mr-1.5 text-amber-400" />
+                  Revert Build
                 </button>
 
                 <div className="h-5 w-[1px] bg-white/[0.1] mx-0.5 hidden sm:block" />
@@ -2774,7 +2896,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     setStaffId('');
                     setScheduleType('ONGOING');
                     setShiftFrequency('Weekly');
-                    setShiftStartDate(homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr);
+                    setShiftStartDate(resolvedEffectiveStartDateStr);
                     setShiftEndDate(activeQuarter.endDateStr);
                     setShiftOneOffDate(todayStr);
                     setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
@@ -3227,7 +3349,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 <label className="block text-xs font-medium text-zinc-400 mb-2">Duration Preset</label>
                 <select
                   value={generateDuration}
-                  onChange={(e) => handleDurationChange(e.target.value)}
+                  onChange={(e) => handleDurationChange(e.target.value, resolvedEffectiveStartDateStr)}
                   className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
                 >
                   {isClientHomeCare && (
@@ -3503,11 +3625,22 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   onChange={e => setNewTemplateEffectiveDate(e.target.value)}
                   className="w-full bg-[#121214] border border-white/[0.1] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none"
                 />
-                {homeCareQuarterlySummary?.latestPerformedShiftDateStr && (
+                {homeCareQuarterlySummary?.latestPerformedShiftDateStr ? (
                   <p className="text-[11px] text-zinc-400 mt-1 font-mono">
                     Last Completed / Active Shift in {activeQuarter.shortLabel}:{' '}
                     <span className="text-brand-teal font-semibold">
                       {formatDisplayDate(homeCareQuarterlySummary.latestPerformedShiftDateStr)}
+                    </span>{' '}
+                    → Next effective day:{' '}
+                    <span className="text-emerald-300 font-semibold">
+                      {formatDisplayDate(calculatedFreshSlateStartDateStr)}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-zinc-400 mt-1 font-mono">
+                    No Completed / In-Progress / Cancelled shifts in {activeQuarter.shortLabel} — defaults to Quarter Start:{' '}
+                    <span className="text-brand-teal font-semibold">
+                      {formatDisplayDate(calculatedFreshSlateStartDateStr)}
                     </span>
                   </p>
                 )}
@@ -3573,6 +3706,108 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Revert Build Confirmation Modal (Safety Measure) */}
+      {showRevertBuildModal && createPortal(
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={() => !revertingBuild && setShowRevertBuildModal(false)}
+        >
+          <div
+            className="bg-[#09090b] border border-amber-500/30 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-white/[0.08] bg-[#121214] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Revert Build (Clear Uncompleted Shifts)</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Safety measure for {activeClient?.first_name} {activeClient?.last_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={revertingBuild}
+                onClick={() => setShowRevertBuildModal(false)}
+                className="text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3.5 text-xs text-zinc-200 space-y-2 leading-relaxed">
+                <div className="font-semibold text-amber-300 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Confirm Roster Build Revert
+                </div>
+                <p className="text-zinc-300">
+                  This backup action will immediately clear <strong className="text-white">all uncompleted calendar shifts</strong> (<span className="text-amber-200 font-medium">Draft, Published, Scheduled</span>) for this client across the calendar, including any uncompleted shifts on prior dates.
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-zinc-300 pt-1">
+                  <li>
+                    All <span className="text-emerald-300 font-semibold">Completed, In-Progress, and Cancelled</span> shifts remain <strong className="text-white">100% untouched</strong>.
+                  </li>
+                  <li>
+                    Your Monday–Sunday visual template shift cards remain intact so you can adjust them or re-run <strong className="text-brand-green">Run Builder</strong> anytime.
+                  </li>
+                  <li>
+                    The template's effective start date will automatically recalculate to{' '}
+                    <span className="text-brand-teal font-mono font-semibold">
+                      {formatDisplayDate(calculatedFreshSlateStartDateStr)}
+                    </span>{' '}
+                    so future builds lay out shifts across all cleared prior dates as well.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-3">
+                  <span className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
+                    Uncompleted Shifts to Clear
+                  </span>
+                  <span className="text-base font-bold font-mono text-amber-300">
+                    {shiftStatusSummary.uncompletedShiftsCount} shift{shiftStatusSummary.uncompletedShiftsCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="bg-[#121214] border border-white/[0.08] rounded-lg p-3">
+                  <span className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
+                    Protected Shifts Kept Intact
+                  </span>
+                  <span className="text-base font-bold font-mono text-emerald-400">
+                    {shiftStatusSummary.lockedShiftsCount} shift{shiftStatusSummary.lockedShiftsCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/[0.08] flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={revertingBuild}
+                  onClick={() => setShowRevertBuildModal(false)}
+                  className="px-4 py-2 border border-white/[0.1] hover:bg-white/[0.04] text-zinc-300 rounded-md text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={revertingBuild}
+                  onClick={handleConfirmRevertBuild}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-md text-xs transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  {revertingBuild ? 'Reverting Build...' : 'Confirm & Revert Uncompleted Shifts'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>,
         document.body
