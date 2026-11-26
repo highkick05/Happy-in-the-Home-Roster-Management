@@ -20286,7 +20286,7 @@ app.get("/api/health", (req, res) => {
 
               // 1. Detect time-overlapping shifts for this client on this exact date/time (including COMPLETED, IN_PROGRESS, and CANCELLED)
               const overlapQuery = `
-                SELECT id, start_time, end_time, status, staff_id, roster_generation_batch_id
+                SELECT id, start_time, end_time, status, staff_id, batch_id
                 FROM shifts
                 WHERE client_id = ?
                 AND start_time < ? AND end_time > ?
@@ -20311,7 +20311,7 @@ app.get("/api/health", (req, res) => {
               const replaceableOverlaps = clientOverlaps.filter(
                 (s: any) =>
                   !["COMPLETED", "IN_PROGRESS", "CANCELLED"].includes(String(s.status || "").toUpperCase()) &&
-                  (!generatedBatchId || s.roster_generation_batch_id !== generatedBatchId)
+                  (!generatedBatchId || s.batch_id !== generatedBatchId)
               );
               const clashingShiftIds: number[] = [];
 
