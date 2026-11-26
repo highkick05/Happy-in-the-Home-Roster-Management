@@ -1317,6 +1317,32 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     }
   }
 
+  for (const colDef of [
+    "is_active INTEGER DEFAULT 1",
+    "effective_start_date TEXT",
+    "effective_end_date TEXT",
+    "sort_order INTEGER DEFAULT 0",
+    "created_at TEXT",
+  ]) {
+    try {
+      db.exec(`ALTER TABLE client_template_settings ADD COLUMN ${colDef}`);
+    } catch (e: any) {
+      if (e.message && !e.message.includes("duplicate column")) {
+        console.warn("Migration warning:", e.message);
+      }
+    }
+  }
+
+  try {
+    db.exec(`
+      INSERT OR IGNORE INTO client_template_settings (client_id, template_name, frequency, is_active, sort_order)
+      SELECT DISTINCT client_id, COALESCE(NULLIF(template_name, ''), 'Default Template'), 'Weekly', 1, 1
+      FROM client_roster_templates;
+    `);
+  } catch (e: any) {
+    console.warn("Template settings backfill warning:", e.message);
+  }
+
   try {
     db.exec(`
       UPDATE client_roster_templates
@@ -15548,8 +15574,8 @@ app.get("/api/health", (req, res) => {
       FROM shifts s
       WHERE s.client_id = ? 
         AND (
-          s.status = 'COMPLETED' 
-          OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id))
+          UPPER(s.status) IN ('COMPLETED', 'IN_PROGRESS')
+          OR (UPPER(s.status) = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id))
         )
     `,
       )
@@ -18105,7 +18131,7 @@ app.get("/api/health", (req, res) => {
           return res.status(404).json({ error: "Client not found" });
         }
 
-        const templates = db
+        const allClientTemplates = db
           .prepare(
             `
         SELECT t.*, 
@@ -18119,6 +18145,13 @@ app.get("/api/health", (req, res) => {
       `,
           )
           .all(clientId) as any[];
+
+        const templates =
+          templateName && templateName !== "All Templates"
+            ? allClientTemplates.filter(
+                (t: any) => (t.template_name || "Default Template") === templateName,
+              )
+            : allClientTemplates;
 
         const allServices = db.prepare("SELECT * FROM services").all() as any[];
         const templateSettingsRows = db
@@ -19215,10 +19248,72 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        const settings = db
-          .prepare("SELECT * FROM client_template_settings WHERE client_id = ?")
-          .all(req.params.id);
-        res.json(settings);
+        const clientId = req.params.id;
+        // Ensure every distinct template_name in client_roster_templates has a settings row
+        const distinctNames = db
+          .prepare(
+            "SELECT DISTINCT COALESCE(NULLIF(template_name, ''), 'Default Template') AS t_name FROM client_roster_templates WHERE client_id = ?",
+          )
+          .all(clientId) as any[];
+
+        let existingSettings = db
+          .prepare(
+            "SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC",
+          )
+          .all(clientId) as any[];
+
+        const existingMap = new Set(existingSettings.map((s: any) => s.template_name));
+        let maxOrder = existingSettings.reduce(
+          (m: number, s: any) => Math.max(m, Number(s.sort_order) || 0),
+          0,
+        );
+
+        for (const row of distinctNames) {
+          if (row.t_name && !existingMap.has(row.t_name)) {
+            maxOrder += 1;
+            db.prepare(
+              `INSERT OR IGNORE INTO client_template_settings (client_id, template_name, frequency, is_active, sort_order, created_at)
+               VALUES (?, ?, 'Weekly', ?, ?, ?)`,
+            ).run(
+              clientId,
+              row.t_name,
+              existingSettings.length === 0 ? 1 : 0,
+              maxOrder,
+              new Date().toISOString(),
+            );
+            existingMap.add(row.t_name);
+          }
+        }
+
+        existingSettings = db
+          .prepare(
+            "SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC",
+          )
+          .all(clientId) as any[];
+
+        if (existingSettings.length === 0) {
+          db.prepare(
+            `INSERT OR IGNORE INTO client_template_settings (client_id, template_name, frequency, is_active, sort_order, created_at)
+             VALUES (?, 'Default Template', 'Weekly', 1, 1, ?)`,
+          ).run(clientId, new Date().toISOString());
+          existingSettings = db
+            .prepare(
+              "SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC",
+            )
+            .all(clientId) as any[];
+        }
+
+        // Ensure at least one template is marked is_active = 1 (default to the last one in sort_order)
+        const hasActive = existingSettings.some((s: any) => Number(s.is_active) === 1);
+        if (!hasActive && existingSettings.length > 0) {
+          const latest = existingSettings[existingSettings.length - 1];
+          db.prepare(
+            "UPDATE client_template_settings SET is_active = 1 WHERE client_id = ? AND template_name = ?",
+          ).run(clientId, latest.template_name);
+          latest.is_active = 1;
+        }
+
+        res.json(existingSettings);
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
@@ -19232,18 +19327,377 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     (req: any, res: any) => {
       try {
-        const { templateName, frequency } = req.body;
-        if (!templateName || !frequency) {
-          return res.status(400).json({ error: "templateName and frequency required" });
+        const { templateName, frequency, effectiveStartDate, effectiveEndDate } = req.body;
+        if (!templateName) {
+          return res.status(400).json({ error: "templateName required" });
         }
-        db.prepare(
-          `INSERT INTO client_template_settings (client_id, template_name, frequency) 
-           VALUES (?, ?, ?) 
-           ON CONFLICT(client_id, template_name) DO UPDATE SET frequency = excluded.frequency`
-        ).run(req.params.id, templateName, frequency);
+        const existing = db
+          .prepare(
+            "SELECT * FROM client_template_settings WHERE client_id = ? AND template_name = ?",
+          )
+          .get(req.params.id, templateName) as any;
+
+        if (existing) {
+          db.prepare(
+            `UPDATE client_template_settings
+             SET frequency = COALESCE(?, frequency),
+                 effective_start_date = ?,
+                 effective_end_date = ?
+             WHERE client_id = ? AND template_name = ?`,
+          ).run(
+            frequency || existing.frequency || "Weekly",
+            effectiveStartDate !== undefined ? effectiveStartDate : existing.effective_start_date,
+            effectiveEndDate !== undefined ? effectiveEndDate : existing.effective_end_date,
+            req.params.id,
+            templateName,
+          );
+        } else {
+          const maxRow = db
+            .prepare(
+              "SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM client_template_settings WHERE client_id = ?",
+            )
+            .get(req.params.id) as any;
+          db.prepare(
+            `INSERT INTO client_template_settings (client_id, template_name, frequency, is_active, effective_start_date, effective_end_date, sort_order, created_at)
+             VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+          ).run(
+            req.params.id,
+            templateName,
+            frequency || "Weekly",
+            effectiveStartDate || null,
+            effectiveEndDate || null,
+            (Number(maxRow?.max_order) || 0) + 1,
+            new Date().toISOString(),
+          );
+        }
+
+        // If effectiveStartDate was updated on this template, also sync ONGOING shifts in this template
+        if (effectiveStartDate !== undefined) {
+          db.prepare(
+            `UPDATE client_roster_templates
+             SET start_date = ?
+             WHERE client_id = ? AND template_name = ? AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'`,
+          ).run(effectiveStartDate || null, req.params.id, templateName);
+        }
+
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  // Create a New Visual Template, automatically reverting uncompleted calendar shifts & archiving the previous template
+  app.post(
+    "/api/clients/:id/roster-templates/new-template",
+    authenticateToken,
+    requireAdmin,
+    async (req: any, res: any) => {
+      try {
+        const clientId = req.params.id;
+        const {
+          newTemplateName,
+          sourceTemplateName,
+          effectiveStartDate,
+          previousStartDate,
+          copyCurrentShifts = true,
+          revertUncompletedShifts = true,
+        } = req.body;
+
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings WHERE key = 'timezone'")
+          .all() as any[];
+        let timezone = "Australia/Perth";
+        if (settingsRows.length > 0 && settingsRows[0].value) {
+          try {
+            timezone = JSON.parse(settingsRows[0].value);
+          } catch {
+            timezone = String(settingsRows[0].value).replace(/['"]+/g, "");
+          }
+        }
+
+        // 1. Delete all uncompleted shifts for this client (anything NOT IN COMPLETED, IN_PROGRESS, CANCELLED)
+        let revertedShiftsCount = 0;
+        const uniqueStaffDates = new Set<string>();
+
+        if (revertUncompletedShifts) {
+          const shiftsToDelete = db
+            .prepare(
+              `SELECT id, staff_id, start_time FROM shifts
+               WHERE client_id = ?
+                 AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
+            )
+            .all(clientId) as any[];
+
+          for (const s of shiftsToDelete) {
+            if (s.staff_id && s.start_time) {
+              uniqueStaffDates.add(`${s.staff_id}|${s.start_time}`);
+            }
+          }
+
+          db.transaction(() => {
+            const delResult = db
+              .prepare(
+                `DELETE FROM shifts
+                 WHERE client_id = ?
+                   AND UPPER(status) NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
+              )
+              .run(clientId);
+            revertedShiftsCount = delResult.changes;
+            db.prepare("DELETE FROM roster_builds WHERE client_id = ?").run(clientId);
+          })();
+
+          if (uniqueStaffDates.size > 0) {
+            for (const sd of Array.from(uniqueStaffDates)) {
+              const [staffId, startTime] = sd.split("|");
+              try {
+                await recalculateDayTravelForStaff(Number(staffId), startTime);
+              } catch (travelErr) {
+                console.error("Error recalculating travel on new template revert:", travelErr);
+              }
+            }
+          }
+        }
+
+        // 2. Determine latest performed (COMPLETED / IN_PROGRESS / CANCELLED) shift date
+        const remainingShifts = db
+          .prepare(
+            `SELECT start_time FROM shifts
+             WHERE client_id = ?
+               AND UPPER(status) IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')
+             ORDER BY start_time DESC LIMIT 1`,
+          )
+          .all(clientId) as any[];
+
+        let lastPerformedDateStr: string | null = null;
+        if (remainingShifts.length > 0 && remainingShifts[0].start_time) {
+          try {
+            lastPerformedDateStr = formatInTimeZone(
+              new Date(remainingShifts[0].start_time),
+              timezone,
+              "yyyy-MM-dd",
+            );
+          } catch {
+            lastPerformedDateStr = String(remainingShifts[0].start_time).split("T")[0];
+          }
+        }
+
+        let resolvedStartStr = effectiveStartDate ? String(effectiveStartDate).split("T")[0] : "";
+        if (!resolvedStartStr) {
+          if (lastPerformedDateStr) {
+            const [ly, lm, ld] = lastPerformedDateStr.split("-").map(Number);
+            const nextDay = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
+            resolvedStartStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}`;
+          } else {
+            resolvedStartStr = formatInTimeZone(new Date(), timezone, "yyyy-MM-dd");
+          }
+        }
+
+        // Compute previous template's effective_end_date = 1 day before resolvedStartStr
+        const [sy, sm, sd] = resolvedStartStr.split("-").map(Number);
+        const prevEndObj = new Date(sy, sm - 1, sd - 1, 12, 0, 0);
+        const previousEndDateStr = `${prevEndObj.getFullYear()}-${String(prevEndObj.getMonth() + 1).padStart(2, "0")}-${String(prevEndObj.getDate()).padStart(2, "0")}`;
+
+        // 3. Archive previous active template & create new active template
+        const allSettings = db
+          .prepare(
+            "SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC",
+          )
+          .all(clientId) as any[];
+
+        const currentActive =
+          allSettings.find((s: any) => s.template_name === sourceTemplateName) ||
+          allSettings.find((s: any) => Number(s.is_active) === 1) ||
+          allSettings[allSettings.length - 1];
+
+        const prevTemplateName = currentActive?.template_name || sourceTemplateName || "Default Template";
+        const maxOrder = allSettings.reduce(
+          (m: number, s: any) => Math.max(m, Number(s.sort_order) || 0),
+          0,
+        );
+
+        let finalNewName = (newTemplateName || "").trim();
+        if (!finalNewName) {
+          let idx = allSettings.length + 1;
+          finalNewName = `Template ${idx}`;
+          const existingNames = new Set(allSettings.map((s: any) => s.template_name));
+          while (existingNames.has(finalNewName)) {
+            idx += 1;
+            finalNewName = `Template ${idx}`;
+          }
+        }
+
+        db.transaction(() => {
+          // Ensure previous template exists in client_template_settings before archiving it
+          if (!currentActive) {
+            db.prepare(
+              `INSERT OR IGNORE INTO client_template_settings (client_id, template_name, frequency, is_active, effective_start_date, effective_end_date, sort_order, created_at)
+               VALUES (?, ?, 'Weekly', 0, ?, ?, 1, ?)`,
+            ).run(
+              clientId,
+              prevTemplateName,
+              previousStartDate || null,
+              previousEndDateStr,
+              new Date().toISOString(),
+            );
+          } else {
+            db.prepare(
+              `UPDATE client_template_settings
+               SET is_active = 0,
+                   effective_start_date = COALESCE(effective_start_date, ?),
+                   effective_end_date = ?
+               WHERE client_id = ? AND template_name = ?`,
+            ).run(
+              previousStartDate || null,
+              previousEndDateStr,
+              clientId,
+              prevTemplateName,
+            );
+          }
+
+          // Also deactivate any other rows just in case
+          db.prepare(
+            "UPDATE client_template_settings SET is_active = 0 WHERE client_id = ?",
+          ).run(clientId);
+
+          // Insert or activate the new template row
+          db.prepare(
+            `INSERT INTO client_template_settings (client_id, template_name, frequency, is_active, effective_start_date, effective_end_date, sort_order, created_at)
+             VALUES (?, ?, 'Weekly', 1, ?, NULL, ?, ?)
+             ON CONFLICT(client_id, template_name) DO UPDATE SET
+               is_active = 1,
+               effective_start_date = excluded.effective_start_date,
+               effective_end_date = NULL,
+               sort_order = excluded.sort_order`,
+          ).run(
+            clientId,
+            finalNewName,
+            resolvedStartStr,
+            maxOrder + 1,
+            new Date().toISOString(),
+          );
+
+          // Copy shift cards from prevTemplateName if requested
+          if (copyCurrentShifts) {
+            const sourceShifts = db
+              .prepare(
+                "SELECT * FROM client_roster_templates WHERE client_id = ? AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?",
+              )
+              .all(clientId, prevTemplateName) as any[];
+
+            const insertStmt = db.prepare(`
+              INSERT INTO client_roster_templates (
+                client_id, day_of_week, start_time, end_time, staff_id, service_id,
+                services_json, template_name, schedule_type, start_date, end_date, one_off_date, frequency
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+
+            for (const sh of sourceShifts) {
+              const sType = String(sh.schedule_type || "ONGOING").toUpperCase();
+              // Skip copying expired ONE_OFF or FIXED shifts whose end date is already before resolvedStartStr
+              if (sType === "ONE_OFF" && sh.one_off_date && sh.one_off_date < resolvedStartStr) {
+                continue;
+              }
+              if (sType === "FIXED" && sh.end_date && sh.end_date < resolvedStartStr) {
+                continue;
+              }
+              insertStmt.run(
+                clientId,
+                sh.day_of_week,
+                sh.start_time,
+                sh.end_time,
+                sh.staff_id || null,
+                sh.service_id || null,
+                sh.services_json || "[]",
+                finalNewName,
+                sType,
+                sType === "ONGOING" ? resolvedStartStr : sh.start_date || resolvedStartStr,
+                sh.end_date || null,
+                sh.one_off_date || null,
+                sh.frequency || "Weekly",
+              );
+            }
+          }
+        })();
+
+        res.json({
+          success: true,
+          newTemplateName: finalNewName,
+          previousTemplateName: prevTemplateName,
+          effectiveStartDate: resolvedStartStr,
+          previousEndDate: previousEndDateStr,
+          lastPerformedDate: lastPerformedDateStr,
+          revertedShiftsCount,
+        });
+      } catch (e: any) {
+        logger.error(`API Error creating new template: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  // Set a specific visual template as the Active Template
+  app.put(
+    "/api/clients/:id/roster-templates/activate",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const clientId = req.params.id;
+        const { templateName } = req.body;
+        if (!templateName) {
+          return res.status(400).json({ error: "templateName required" });
+        }
+        db.transaction(() => {
+          db.prepare("UPDATE client_template_settings SET is_active = 0 WHERE client_id = ?").run(clientId);
+          db.prepare(
+            "UPDATE client_template_settings SET is_active = 1, effective_end_date = NULL WHERE client_id = ? AND template_name = ?",
+          ).run(clientId, templateName);
+        })();
+        res.json({ success: true, activeTemplateName: templateName });
+      } catch (e: any) {
+        logger.error(`API Error activating template: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  // Delete a specific visual template and its shifts
+  app.delete(
+    "/api/clients/:id/roster-templates/template",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const clientId = req.params.id;
+        const templateName = String(req.query.templateName || "");
+        if (!templateName) {
+          return res.status(400).json({ error: "templateName required" });
+        }
+        db.transaction(() => {
+          db.prepare(
+            "DELETE FROM client_roster_templates WHERE client_id = ? AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?",
+          ).run(clientId, templateName);
+          db.prepare(
+            "DELETE FROM client_template_settings WHERE client_id = ? AND template_name = ?",
+          ).run(clientId, templateName);
+
+          const remaining = db
+            .prepare(
+              "SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC",
+            )
+            .all(clientId) as any[];
+          if (remaining.length > 0 && !remaining.some((r: any) => Number(r.is_active) === 1)) {
+            const latest = remaining[remaining.length - 1];
+            db.prepare(
+              "UPDATE client_template_settings SET is_active = 1, effective_end_date = NULL WHERE client_id = ? AND template_name = ?",
+            ).run(clientId, latest.template_name);
+          }
+        })();
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error deleting template: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
       }
     }
@@ -19338,17 +19792,37 @@ app.get("/api/health", (req, res) => {
             .json({ error: "Date range cannot exceed 12 months." });
         }
 
-        const templates = db
+        const allTemplates = db
           .prepare("SELECT * FROM client_roster_templates WHERE client_id = ?")
           .all(clientId) as any[];
-        if (!templates.length)
+        if (!allTemplates.length)
           return res
             .status(400)
             .json({ error: "No templates found for this client." });
 
-        const settingsRowsDB = db.prepare("SELECT * FROM client_template_settings WHERE client_id = ?").all(clientId) as any[];
+        const settingsRowsDB = db
+          .prepare("SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC")
+          .all(clientId) as any[];
         const freqMap = new Map<string, string>();
         settingsRowsDB.forEach(s => freqMap.set(s.template_name, s.frequency));
+
+        const activeSetting =
+          settingsRowsDB.find((s: any) => Number(s.is_active) === 1) ||
+          settingsRowsDB[settingsRowsDB.length - 1];
+        const targetTemplateName =
+          templateName && templateName !== "All Templates"
+            ? templateName
+            : activeSetting?.template_name || null;
+
+        const templates = targetTemplateName
+          ? allTemplates.filter(
+              (t: any) => (t.template_name || "Default Template") === targetTemplateName,
+            )
+          : allTemplates;
+        if (!templates.length)
+          return res
+            .status(400)
+            .json({ error: `No shifts found in template "${targetTemplateName || templateName}".` });
 
         const clientRow = db
           .prepare("SELECT funding_type FROM clients WHERE id = ?")

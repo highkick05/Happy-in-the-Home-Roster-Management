@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Calendar, AlertCircle, X, History, Download, Edit2, Layers, CheckCircle2, Flame } from 'lucide-react';
+import { Plus, Trash2, Calendar, AlertCircle, X, History, Download, Edit2, Layers, CheckCircle2, Flame, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Copy, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
-import ClientRosterBuildHistory from './ClientRosterBuildHistory';
 import { getCurrentFinancialYearAndQuarter, getFinancialYearQuarters } from './HomeCareBudgetView';
 
 interface ClientRosterTemplatesProps {
@@ -16,6 +15,16 @@ interface ServiceFormEntry {
   qtyOverride?: number | string;
   rateOverride?: number | string;
   fundingStream?: string;
+}
+
+interface TemplateSettingItem {
+  template_name: string;
+  frequency: string;
+  is_active: number;
+  effective_start_date?: string | null;
+  effective_end_date?: string | null;
+  sort_order?: number;
+  created_at?: string | null;
 }
 
 type ScheduleType = 'ONGOING' | 'FIXED' | 'ONE_OFF';
@@ -113,6 +122,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const { token, user, settings } = useAuth();
   const [templates, setTemplates] = useState<any[]>([]);
   const [templateSettings, setTemplateSettings] = useState<Record<string, string>>({});
+  const [templateSettingsList, setTemplateSettingsList] = useState<TemplateSettingItem[]>([]);
   const [servicesList, setServicesList] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,8 +161,83 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   // New template form state
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
-  const [activeTemplateName] = useState('Default Template');
+  const [activeTemplateName, setActiveTemplateName] = useState('Default Template');
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+
+  // Visual Template History & New Template Modal State
+  const [showTemplateHistoryMenu, setShowTemplateHistoryMenu] = useState(false);
+  const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
+  const [newTemplateNameInput, setNewTemplateNameInput] = useState('');
+  const [newTemplateEffectiveDate, setNewTemplateEffectiveDate] = useState('');
+  const [newTemplateCopyCards, setNewTemplateCopyCards] = useState(true);
+  const [creatingNewTemplate, setCreatingNewTemplate] = useState(false);
+  const [updatingEffectiveDate, setUpdatingEffectiveDate] = useState(false);
+
+  // Ordered list of visual Monday-Sunday templates (oldest on left -> current active on right)
+  const visualTemplatesList = useMemo<TemplateSettingItem[]>(() => {
+    const map = new Map<string, TemplateSettingItem>();
+    templateSettingsList.forEach(item => {
+      map.set(item.template_name, {
+        template_name: item.template_name,
+        frequency: item.frequency || 'Weekly',
+        is_active: Number(item.is_active) === 1 ? 1 : 0,
+        effective_start_date: item.effective_start_date || null,
+        effective_end_date: item.effective_end_date || null,
+        sort_order: Number(item.sort_order) || 0,
+        created_at: item.created_at || null
+      });
+    });
+    templates.forEach(t => {
+      const tName = t.template_name || 'Default Template';
+      if (!map.has(tName)) {
+        map.set(tName, {
+          template_name: tName,
+          frequency: 'Weekly',
+          is_active: map.size === 0 ? 1 : 0,
+          effective_start_date: null,
+          effective_end_date: null,
+          sort_order: map.size + 1,
+          created_at: null
+        });
+      }
+    });
+    if (map.size === 0) {
+      map.set('Default Template', {
+        template_name: 'Default Template',
+        frequency: 'Weekly',
+        is_active: 1,
+        effective_start_date: null,
+        effective_end_date: null,
+        sort_order: 1,
+        created_at: null
+      });
+    }
+    const list = Array.from(map.values()).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    if (!list.some(x => x.is_active === 1) && list.length > 0) {
+      list[list.length - 1].is_active = 1;
+    }
+    return list;
+  }, [templateSettingsList, templates]);
+
+  const liveActiveTemplateObj = useMemo(() => {
+    return visualTemplatesList.find(t => t.is_active === 1) || visualTemplatesList[visualTemplatesList.length - 1];
+  }, [visualTemplatesList]);
+
+  const viewedTemplateIndex = useMemo(() => {
+    const idx = visualTemplatesList.findIndex(t => t.template_name === activeTemplateName);
+    return idx !== -1 ? idx : Math.max(0, visualTemplatesList.length - 1);
+  }, [visualTemplatesList, activeTemplateName]);
+
+  const viewedTemplateObj = useMemo(() => {
+    return visualTemplatesList[viewedTemplateIndex] || liveActiveTemplateObj;
+  }, [visualTemplatesList, viewedTemplateIndex, liveActiveTemplateObj]);
+
+  const isViewingHistorical = Boolean(
+    viewedTemplateObj &&
+      liveActiveTemplateObj &&
+      viewedTemplateObj.template_name !== liveActiveTemplateObj.template_name &&
+      visualTemplatesList.length > 1
+  );
 
   // Schedule Type, Frequency & Date Range State for Add/Edit Shift Modal
   const [scheduleType, setScheduleType] = useState<ScheduleType>('ONGOING');
@@ -166,8 +251,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   };
 
   const currentTemplateList = useMemo(() => {
-    return templates;
-  }, [templates]);
+    const targetName = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
+    return templates.filter(t => (t.template_name || 'Default Template') === targetName);
+  }, [templates, viewedTemplateObj, activeTemplateName]);
 
   useEffect(() => {
     if (daysOfWeek.length === 0 && displayDaysOrder.length > 0) {
@@ -305,7 +391,21 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       if (settingsRes.ok) {
         const settingsData = await settingsRes.json();
         const settingsMap: Record<string, string> = {};
-        settingsData.forEach((s: any) => { settingsMap[s.template_name] = s.frequency; });
+        if (Array.isArray(settingsData)) {
+          settingsData.forEach((s: any) => {
+            settingsMap[s.template_name] = s.frequency;
+          });
+          setTemplateSettingsList(settingsData);
+          const activeRow =
+            settingsData.find((s: any) => Number(s.is_active) === 1) ||
+            settingsData[settingsData.length - 1];
+          if (activeRow?.template_name) {
+            setActiveTemplateName(prev => {
+              const stillExists = settingsData.some((s: any) => s.template_name === prev);
+              return stillExists && prev !== 'Default Template' ? prev : activeRow.template_name;
+            });
+          }
+        }
         setTemplateSettings(settingsMap);
       }
       if (allServicesRes.ok) setServicesList(await allServicesRes.json());
@@ -717,19 +817,41 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     const separateStreams = activeQuarterStreams.filter((s: any) => !s.addToOngoing && s.code && String(s.code).toUpperCase() !== 'ON');
     const separateStreamCodes = new Set(separateStreams.map((s: any) => String(s.code).toUpperCase()));
 
+    // Helper to normalize any ledger date (DD-MM-YYYY, DD/MM/YYYY, or YYYY-MM-DD) to YYYY-MM-DD
+    const normalizeLedgerDateYmd = (rawDate?: string | null): string => {
+      if (!rawDate) return '';
+      const clean = String(rawDate).trim().split('T')[0];
+      if (clean.includes('/')) {
+        const p = clean.split('/');
+        if (p.length === 3) {
+          return p[0].length === 4
+            ? `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`
+            : `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+        }
+      }
+      const p = clean.split('-');
+      if (p.length === 3) {
+        return p[0].length === 4
+          ? `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`
+          : `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+      }
+      return clean;
+    };
+
     // 4. Process live ledger items for the current quarter
     const processedLedger = quarterLedgerItems.map((item: any) => {
       const itemStream = getPrimaryFundingStreamCode(item.funding_stream || 'ON');
+      const dateYmd = normalizeLedgerDateYmd(item.date);
       if (item.source_type === 'external' || item.grand_total !== undefined) {
         const baseAmt = Number(item.base_amount ?? item.amount) || 0;
         const ccFee = item.care_coord_fee !== undefined ? Number(item.care_coord_fee) : baseAmt * (careCoordPercent / 100);
         const sub = baseAmt + ccFee;
         const mgmt = item.management_fee !== undefined ? Number(item.management_fee) : sub * (serviceLoadingPercent / 100);
         const gTotal = item.grand_total !== undefined ? Number(item.grand_total) : sub + mgmt;
-        return { ...item, funding_stream: itemStream, amount: gTotal };
+        return { ...item, dateYmd, baseAmt, funding_stream: itemStream, amount: gTotal };
       }
       const baseAmt = Number(item.base_amount ?? item.amount) || 0;
-      return { ...item, funding_stream: itemStream, amount: applyShiftDrawdownFees(baseAmt) };
+      return { ...item, dateYmd, baseAmt, funding_stream: itemStream, amount: applyShiftDrawdownFees(baseAmt) };
     });
 
     const actualOnSpentToDate = round2(
@@ -738,43 +860,219 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
 
-    // 5. Calculate Planned Roster Spend across All Template Shifts (Full Quarter & Remaining Days in Quarter)
+    // Latest performed shift date in the active quarter (for fresh-slate cutoff discovery)
+    const latestPerformedShiftDateStr = processedLedger
+      .filter((item: any) => item.source_type === 'shift' && item.dateYmd)
+      .reduce((maxD: string, item: any) => (item.dateYmd > maxD ? item.dateYmd : maxD), '');
+
+    // 5. Determine the Active/Viewed Template's Effective Date Window inside the Active Quarter
+    // Always evaluate the budget summary against the currently viewed template (or liveActiveTemplateObj)
+    const targetBudgetTemplateObj = viewedTemplateObj || liveActiveTemplateObj;
+    const targetBudgetShifts = currentTemplateList;
+
+    // Infer template effective start date if set on template settings OR if ONGOING shifts have a start_date inside the quarter
+    let rawTemplateStartStr = targetBudgetTemplateObj?.effective_start_date
+      ? String(targetBudgetTemplateObj.effective_start_date).split('T')[0]
+      : '';
+    if (!rawTemplateStartStr && targetBudgetShifts.length > 0) {
+      const ongoingStarts = targetBudgetShifts
+        .filter(t => ((t.schedule_type as ScheduleType) || 'ONGOING') === 'ONGOING' && t.start_date)
+        .map(t => String(t.start_date).split('T')[0])
+        .filter(Boolean)
+        .sort();
+      if (ongoingStarts.length > 0) {
+        rawTemplateStartStr = ongoingStarts[0];
+      }
+    }
+
+    const templateEffectiveStartStr =
+      rawTemplateStartStr && rawTemplateStartStr > actualStartDateStr && rawTemplateStartStr <= activeQuarter.endDateStr
+        ? rawTemplateStartStr
+        : actualStartDateStr;
+
+    const rawTemplateEndStr = targetBudgetTemplateObj?.effective_end_date
+      ? String(targetBudgetTemplateObj.effective_end_date).split('T')[0]
+      : '';
+    const templateEffectiveEndStr =
+      rawTemplateEndStr && rawTemplateEndStr >= templateEffectiveStartStr && rawTemplateEndStr < activeQuarter.endDateStr
+        ? rawTemplateEndStr
+        : activeQuarter.endDateStr;
+
+    const hasMidQuarterCutover = templateEffectiveStartStr > actualStartDateStr;
+
+    // 5a. Locked-in historical spend before templateEffectiveStartStr (plus any one-off external consumable purchases in the quarter when cutover is active)
+    let lockedPriorOnDrawdown = 0;
+    let lockedPriorOnBase = 0;
+    const plannedDrawdownByStream: Record<string, { fullQuarter: number; remainingQuarter: number }> = {};
+
+    if (hasMidQuarterCutover) {
+      processedLedger.forEach((item: any) => {
+        const isBeforeTemplateStart = Boolean(item.dateYmd && item.dateYmd < templateEffectiveStartStr);
+        const isExternalOneOffOnOrAfter =
+          Boolean(item.source_type === 'external' && item.dateYmd && item.dateYmd >= templateEffectiveStartStr);
+        if (!isBeforeTemplateStart && !isExternalOneOffOnOrAfter) return;
+
+        const streamCode = getPrimaryFundingStreamCode(item.funding_stream);
+        const itemDrawdown = Number(item.amount) || 0;
+        const itemBase = Number(item.baseAmt) || 0;
+
+        if (!plannedDrawdownByStream[streamCode]) {
+          plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
+        }
+        plannedDrawdownByStream[streamCode].fullQuarter += itemDrawdown;
+
+        if (!separateStreamCodes.has(streamCode)) {
+          lockedPriorOnDrawdown += itemDrawdown;
+          lockedPriorOnBase += itemBase;
+        }
+      });
+    }
+
+    // 5b. Calculate Planned Roster Spend across Template Shifts (from templateEffectiveStartStr to templateEffectiveEndStr, and Remaining Days from Tomorrow)
     const [ty, tm, td] = todayStr.split('-').map(Number);
     const tomorrowD = new Date(ty, tm - 1, td + 1, 12, 0, 0);
     const tomorrowStr = `${tomorrowD.getFullYear()}-${String(tomorrowD.getMonth() + 1).padStart(2, '0')}-${String(tomorrowD.getDate()).padStart(2, '0')}`;
-    const remainingStartStr = tomorrowStr > actualStartDateStr ? tomorrowStr : actualStartDateStr;
+    const remainingStartStr = tomorrowStr > templateEffectiveStartStr ? tomorrowStr : templateEffectiveStartStr;
 
-    let fullQuarterPlannedOnDrawdown = 0;
-    let fullQuarterPlannedBase = 0;
+    let templatePlannedOnDrawdown = 0;
+    let templatePlannedBase = 0;
     let remainingQuarterPlannedOnDrawdown = 0;
-    const plannedDrawdownByStream: Record<string, { fullQuarter: number; remainingQuarter: number }> = {};
 
-    currentTemplateList.forEach(t => {
+    // Group ONGOING weekly/recurring services by service+stream when mid-quarter cutover is active so daily pro-rata (Weekly / 7 * Days) matches Trilogy Care to the cent
+    const ongoingWeeklyBaseByGroup: Record<string, { weeklyBase: number; streamCode: string; startStr: string; endStr: string }> = {};
+
+    targetBudgetShifts.forEach(t => {
+      const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
       const shiftFreq = getShiftFrequency(t);
-      const fullOccurrences = countShiftOccurrencesInRange(t, actualStartDateStr, activeQuarter.endDateStr, shiftFreq);
-      const remOccurrences = countShiftOccurrencesInRange(t, remainingStartStr, activeQuarter.endDateStr, shiftFreq);
+      const effectiveShiftStart =
+        t.start_date && String(t.start_date).split('T')[0] > templateEffectiveStartStr
+          ? String(t.start_date).split('T')[0]
+          : templateEffectiveStartStr;
+      const effectiveShiftEnd =
+        sType === 'FIXED' && t.end_date && String(t.end_date).split('T')[0] < templateEffectiveEndStr
+          ? String(t.end_date).split('T')[0]
+          : templateEffectiveEndStr;
+
+      const remOccurrences = countShiftOccurrencesInRange(
+        { ...t, start_date: effectiveShiftStart },
+        remainingStartStr,
+        effectiveShiftEnd,
+        shiftFreq
+      );
       const { baseTotal, byStream } = getTemplateShiftOccurrenceBreakdown(t);
 
-      fullQuarterPlannedBase += baseTotal * fullOccurrences;
-
+      // Remaining quarter projection (from tomorrow forward) always counts upcoming occurrences
       Object.entries(byStream).forEach(([streamCode, amounts]) => {
-        const fullStreamDrawdown = amounts.drawdown * fullOccurrences;
         const remStreamDrawdown = amounts.drawdown * remOccurrences;
         if (!plannedDrawdownByStream[streamCode]) {
           plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
         }
-        plannedDrawdownByStream[streamCode].fullQuarter += fullStreamDrawdown;
         plannedDrawdownByStream[streamCode].remainingQuarter += remStreamDrawdown;
-
         if (!separateStreamCodes.has(streamCode)) {
-          fullQuarterPlannedOnDrawdown += fullStreamDrawdown;
           remainingQuarterPlannedOnDrawdown += remStreamDrawdown;
         }
       });
+
+      // Full-quarter / active-window planned calculation
+      if (hasMidQuarterCutover && sType === 'ONGOING') {
+        const freqMult = getWeeklyFrequencyMultiplier(shiftFreq);
+        const tStart = new Date(`1970-01-01T${t.start_time}:00`);
+        let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
+        if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
+        const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
+
+        if (t.servicesData && t.servicesData.length > 0) {
+          t.servicesData.forEach((sd: any) => {
+            const sDetails = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+            const effectiveQty =
+              sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
+                ? Number(sd.qtyOverride)
+                : sDetails.unit === 'Hour'
+                ? tShiftHours
+                : 1;
+            const effectiveRate =
+              sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
+                ? Number(sd.rateOverride)
+                : sDetails.rate;
+            const effectiveStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, sDetails.fundingStream);
+            const streamCode = getPrimaryFundingStreamCode(effectiveStreamStr);
+            const srvWeeklyBase = effectiveRate * effectiveQty * freqMult;
+            const groupKey = `${sd.serviceId}|${streamCode}|${effectiveShiftStart}|${effectiveShiftEnd}`;
+            if (!ongoingWeeklyBaseByGroup[groupKey]) {
+              ongoingWeeklyBaseByGroup[groupKey] = {
+                weeklyBase: 0,
+                streamCode,
+                startStr: effectiveShiftStart,
+                endStr: effectiveShiftEnd
+              };
+            }
+            ongoingWeeklyBaseByGroup[groupKey].weeklyBase += srvWeeklyBase;
+          });
+        } else if (t.service_id) {
+          const sDetails = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
+          const streamCode = getPrimaryFundingStreamCode(sDetails.fundingStream);
+          const srvWeeklyBase = sDetails.rate * tShiftHours * freqMult;
+          const groupKey = `${t.service_id}|${streamCode}|${effectiveShiftStart}|${effectiveShiftEnd}`;
+          if (!ongoingWeeklyBaseByGroup[groupKey]) {
+            ongoingWeeklyBaseByGroup[groupKey] = {
+              weeklyBase: 0,
+              streamCode,
+              startStr: effectiveShiftStart,
+              endStr: effectiveShiftEnd
+            };
+          }
+          ongoingWeeklyBaseByGroup[groupKey].weeklyBase += srvWeeklyBase;
+        }
+      } else {
+        const fullOccurrences = countShiftOccurrencesInRange(
+          { ...t, start_date: effectiveShiftStart },
+          effectiveShiftStart,
+          effectiveShiftEnd,
+          shiftFreq
+        );
+        templatePlannedBase += baseTotal * fullOccurrences;
+        Object.entries(byStream).forEach(([streamCode, amounts]) => {
+          const fullStreamDrawdown = amounts.drawdown * fullOccurrences;
+          if (!plannedDrawdownByStream[streamCode]) {
+            plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
+          }
+          plannedDrawdownByStream[streamCode].fullQuarter += fullStreamDrawdown;
+          if (!separateStreamCodes.has(streamCode)) {
+            templatePlannedOnDrawdown += fullStreamDrawdown;
+          }
+        });
+      }
     });
 
-    fullQuarterPlannedOnDrawdown = round2(fullQuarterPlannedOnDrawdown);
-    fullQuarterPlannedBase = round2(fullQuarterPlannedBase);
+    // Finalize pro-rated ONGOING groups when mid-quarter cutover is active (Weekly / 7 -> rounded daily rate * days + fees)
+    Object.values(ongoingWeeklyBaseByGroup).forEach(grp => {
+      if (grp.startStr > grp.endStr) return;
+      const sD = new Date(`${grp.startStr}T00:00:00`);
+      const eD = new Date(`${grp.endStr}T00:00:00`);
+      const periodDays = Math.max(1, Math.round((eD.getTime() - sD.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      const dailyRate = round2(grp.weeklyBase / 7);
+      const periodBase = round2(dailyRate * periodDays);
+      const ccFee = round2(periodBase * (careCoordPercent / 100));
+      const loadingFee = round2((periodBase + ccFee) * (serviceLoadingPercent / 100));
+      const periodDrawdown = round2(periodBase + ccFee + loadingFee);
+
+      templatePlannedBase += periodBase;
+      if (!plannedDrawdownByStream[grp.streamCode]) {
+        plannedDrawdownByStream[grp.streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
+      }
+      plannedDrawdownByStream[grp.streamCode].fullQuarter += periodDrawdown;
+      if (!separateStreamCodes.has(grp.streamCode)) {
+        templatePlannedOnDrawdown += periodDrawdown;
+      }
+    });
+
+    lockedPriorOnDrawdown = round2(lockedPriorOnDrawdown);
+    lockedPriorOnBase = round2(lockedPriorOnBase);
+    templatePlannedOnDrawdown = round2(templatePlannedOnDrawdown);
+    templatePlannedBase = round2(templatePlannedBase);
+
+    const fullQuarterPlannedOnDrawdown = round2(lockedPriorOnDrawdown + templatePlannedOnDrawdown);
+    const fullQuarterPlannedBase = round2(lockedPriorOnBase + templatePlannedBase);
     remainingQuarterPlannedOnDrawdown = round2(remainingQuarterPlannedOnDrawdown);
 
     const weeklyPlannedOnDrawdown = round2(applyShiftDrawdownFees(weeklyTotalAmount));
@@ -870,6 +1168,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
     return {
       actualStartDateStr,
+      templateEffectiveStartStr,
+      templateEffectiveEndStr,
+      hasMidQuarterCutover,
+      lockedPriorOnDrawdown,
+      templatePlannedOnDrawdown,
+      latestPerformedShiftDateStr,
       totalDays,
       daysElapsed,
       daysRemaining,
@@ -908,6 +1212,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     serviceLoadingPercent,
     templateSettings,
     activeTemplateName,
+    viewedTemplateObj,
+    liveActiveTemplateObj,
     todayStr,
     currentTemplateList,
     weeklyTotalAmount,
@@ -1325,12 +1631,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   };
 
   const handleClearTemplate = async () => {
-    if (!confirm('Are you sure you want to clear all template shifts for this client?')) return;
+    const targetName = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
+    if (!confirm(`Are you sure you want to clear all template shifts in "${targetName}"?`)) return;
     try {
-      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear?templateName=ALL`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(
+        `/api/clients/${clientId}/roster-templates/clear?templateName=${encodeURIComponent(targetName)}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
       if (res.ok) {
         fetchData();
         setDaysOfWeek([]);
@@ -1341,6 +1651,145 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Open the "+ New Template" modal with auto-detected fresh-slate start date
+  const handleOpenNewTemplateModal = () => {
+    const nextIdx = visualTemplatesList.length + 1;
+    setNewTemplateNameInput(`Template ${nextIdx}`);
+    // Auto-detect fresh-slate start date: day after latest performed shift in the quarter, or todayStr
+    let suggestedStart = todayStr;
+    if (homeCareQuarterlySummary?.latestPerformedShiftDateStr) {
+      const [ly, lm, ld] = homeCareQuarterlySummary.latestPerformedShiftDateStr.split('-').map(Number);
+      const nextD = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
+      suggestedStart = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}-${String(nextD.getDate()).padStart(2, '0')}`;
+    }
+    setNewTemplateEffectiveDate(suggestedStart);
+    setNewTemplateCopyCards(true);
+    setShowNewTemplateModal(true);
+  };
+
+  // Execute "+ New Template": revert uncompleted calendar shifts, archive previous template, create & switch to new active template
+  const handleCreateNewTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !clientId) return;
+    setCreatingNewTemplate(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/new-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          newTemplateName: newTemplateNameInput.trim() || `Template ${visualTemplatesList.length + 1}`,
+          sourceTemplateName: viewedTemplateObj?.template_name || activeTemplateName,
+          effectiveStartDate: newTemplateEffectiveDate || todayStr,
+          previousStartDate:
+            viewedTemplateObj?.effective_start_date ||
+            homeCareQuarterlySummary?.actualStartDateStr ||
+            activeQuarter.startDateStr,
+          copyCurrentShifts: newTemplateCopyCards,
+          revertUncompletedShifts: true
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowNewTemplateModal(false);
+        setActiveTemplateName(data.newTemplateName);
+        await fetchData();
+        window.dispatchEvent(new CustomEvent('offline-sync-completed'));
+      } else {
+        alert(data.error || 'Failed to create new template.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error creating new template.');
+    } finally {
+      setCreatingNewTemplate(false);
+    }
+  };
+
+  // Update the viewed template's effective start date directly from the header date picker
+  const handleUpdateTemplateEffectiveDate = async (newDateStr: string) => {
+    if (!token || !clientId || !viewedTemplateObj) return;
+    setUpdatingEffectiveDate(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/template-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          templateName: viewedTemplateObj.template_name,
+          frequency: viewedTemplateObj.frequency || 'Weekly',
+          effectiveStartDate: newDateStr || null,
+          effectiveEndDate: viewedTemplateObj.effective_end_date || null
+        })
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to update template effective date:', err);
+    } finally {
+      setUpdatingEffectiveDate(false);
+    }
+  };
+
+  // Activate a historical template as the live active template
+  const handleActivateVisualTemplate = async (templateName: string) => {
+    if (!token || !clientId) return;
+    try {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/activate`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ templateName })
+      });
+      if (res.ok) {
+        setActiveTemplateName(templateName);
+        setShowTemplateHistoryMenu(false);
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to activate template:', err);
+    }
+  };
+
+  // Delete a specific visual template from template history
+  const handleDeleteVisualTemplate = async (templateName: string) => {
+    if (!token || !clientId) return;
+    if (visualTemplatesList.length <= 1) {
+      handleClearTemplate();
+      return;
+    }
+    if (!confirm(`Delete template "${templateName}" and its shift cards from template history?`)) return;
+    try {
+      const res = await fetch(
+        `/api/clients/${clientId}/roster-templates/template?templateName=${encodeURIComponent(templateName)}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      if (res.ok) {
+        const remaining = visualTemplatesList.filter(t => t.template_name !== templateName);
+        if (remaining.length > 0) {
+          setActiveTemplateName(remaining[remaining.length - 1].template_name);
+        }
+        setShowTemplateHistoryMenu(false);
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to delete visual template:', err);
+    }
+  };
+
+  const handleStepTemplate = (direction: 'prev' | 'next') => {
+    if (visualTemplatesList.length <= 1) return;
+    const nextIndex =
+      direction === 'prev'
+        ? Math.max(0, viewedTemplateIndex - 1)
+        : Math.min(visualTemplatesList.length - 1, viewedTemplateIndex + 1);
+    const target = visualTemplatesList[nextIndex];
+    if (target) {
+      setActiveTemplateName(target.template_name);
     }
   };
 
@@ -1393,10 +1842,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
 
     try {
+      const targetGenTemplate = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: 'All Templates', clearExisting: false })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: targetGenTemplate, clearExisting: false })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -1424,10 +1874,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     setResolvingConflicts(true);
     setGenerating(true);
     try {
+      const targetGenTemplate = viewedTemplateObj?.template_name || activeTemplateName || 'Default Template';
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: 'All Templates', clearExisting })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: targetGenTemplate, clearExisting })
       });
       const data = await res.json();
 
@@ -1491,29 +1942,204 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-1 flex flex-col bg-[#09090b] overflow-hidden">
         {/* Header Bar */}
-        <div className="px-4 py-3 border-b border-white/[0.08] bg-[#121214] flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-medium text-white">Current Roster Templates</h3>
+        <div className="px-4 py-2.5 border-b border-white/[0.08] bg-[#121214] flex flex-wrap justify-between items-center gap-3 shrink-0">
+          <div className="flex items-center flex-wrap gap-2.5">
+            <h3 className="text-lg font-medium text-white">
+              {isViewingHistorical ? 'Historical Roster Template' : 'Current Roster Templates'}
+            </h3>
             {isClientHomeCare && (
               <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
                 {activeQuarter.shortLabel} ({activeQuarter.displayRange})
               </span>
             )}
+            {/* Template Effective Start Date Pill / Quick Selector */}
+            {user?.role === 'ADMIN' && (
+              <div className="flex items-center gap-1.5 bg-[#09090b] border border-white/[0.1] rounded-md px-2 py-1">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+                  {isViewingHistorical ? 'Template Period:' : 'Effective From:'}
+                </span>
+                {isViewingHistorical ? (
+                  <span className="text-xs font-mono text-amber-300">
+                    {formatDisplayDate(
+                      viewedTemplateObj?.effective_start_date ||
+                        homeCareQuarterlySummary?.actualStartDateStr ||
+                        activeQuarter.startDateStr
+                    )}{' '}
+                    –{' '}
+                    {formatDisplayDate(viewedTemplateObj?.effective_end_date || activeQuarter.endDateStr)}
+                  </span>
+                ) : (
+                  <div className="w-[125px]">
+                    <CustomDatePicker
+                      position="bottom"
+                      value={
+                        homeCareQuarterlySummary?.templateEffectiveStartStr ||
+                        viewedTemplateObj?.effective_start_date ||
+                        activeQuarter.startDateStr
+                      }
+                      onChange={e => handleUpdateTemplateEffectiveDate(e.target.value)}
+                      className="w-full bg-transparent text-xs font-mono text-brand-teal font-semibold outline-none cursor-pointer"
+                    />
+                  </div>
+                )}
+                {homeCareQuarterlySummary?.hasMidQuarterCutover && !isViewingHistorical && (
+                  <span
+                    className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
+                    title={`Prior spend locked in (${formatCurrency(homeCareQuarterlySummary.lockedPriorOnDrawdown)}) + Active template forward (${formatCurrency(homeCareQuarterlySummary.templatePlannedOnDrawdown)})`}
+                  >
+                    Prior Spent Locked: {formatCurrency(homeCareQuarterlySummary.lockedPriorOnDrawdown)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-2 relative">
+            {/* Visual Template History Dropdown Switcher (Replaces old Build History button) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowTemplateHistoryMenu(prev => !prev)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center gap-2 ${
+                  isViewingHistorical
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                    : 'bg-[#09090b] hover:bg-zinc-800 text-white border-white/[0.12]'
+                }`}
+                title="View and switch between past and current Monday–Sunday roster templates"
+              >
+                <Layers className="w-3.5 h-3.5 text-brand-teal" />
+                <span className="font-semibold">
+                  {viewedTemplateObj?.template_name || 'Default Template'}
+                </span>
+                <span
+                  className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border ${
+                    isViewingHistorical
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  }`}
+                >
+                  {isViewingHistorical ? 'Past' : 'Active'}
+                </span>
+                <span className="text-[10px] font-mono text-zinc-400">
+                  ({viewedTemplateIndex + 1}/{visualTemplatesList.length})
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+              </button>
+
+              {showTemplateHistoryMenu && (
+                <div className="absolute right-0 mt-1.5 w-80 bg-[#09090b] border border-white/[0.12] rounded-xl shadow-2xl z-50 overflow-hidden">
+                  <div className="px-3.5 py-2.5 bg-[#121214] border-b border-white/[0.08] flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <History className="w-3.5 h-3.5 text-brand-teal" />
+                      Visual Template History ({visualTemplatesList.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateHistoryMenu(false)}
+                      className="text-zinc-500 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-white/[0.06]">
+                    {visualTemplatesList.map((tmpl, idx) => {
+                      const isCurrentViewed = tmpl.template_name === viewedTemplateObj?.template_name;
+                      const isLiveActive = tmpl.is_active === 1;
+                      const shiftCount = templates.filter(
+                        t => (t.template_name || 'Default Template') === tmpl.template_name
+                      ).length;
+                      const startLabel = formatDisplayDate(
+                        tmpl.effective_start_date ||
+                          homeCareQuarterlySummary?.actualStartDateStr ||
+                          activeQuarter.startDateStr
+                      );
+                      const endLabel = tmpl.effective_end_date
+                        ? formatDisplayDate(tmpl.effective_end_date)
+                        : 'Ongoing';
+
+                      return (
+                        <div
+                          key={tmpl.template_name}
+                          className={`p-2.5 flex items-center justify-between gap-2 transition-colors ${
+                            isCurrentViewed ? 'bg-brand-teal/10' : 'hover:bg-white/[0.03]'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTemplateName(tmpl.template_name);
+                              setShowTemplateHistoryMenu(false);
+                            }}
+                            className="flex-1 text-left min-w-0"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-semibold text-white truncate">
+                                #{idx + 1} • {tmpl.template_name}
+                              </span>
+                              <span
+                                className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border shrink-0 ${
+                                  isLiveActive
+                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                    : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                }`}
+                              >
+                                {isLiveActive ? 'Active' : 'Past'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                              {startLabel} – {endLabel} • {shiftCount} shift{shiftCount === 1 ? '' : 's'}
+                            </div>
+                          </button>
+
+                          {user?.role === 'ADMIN' && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!isLiveActive && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleActivateVisualTemplate(tmpl.template_name)}
+                                  className="px-2 py-1 text-[10px] font-medium bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded transition-colors"
+                                  title="Make this the active template"
+                                >
+                                  Set Active
+                                </button>
+                              )}
+                              {visualTemplatesList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteVisualTemplate(tmpl.template_name)}
+                                  className="p-1 text-zinc-500 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors"
+                                  title="Delete this template"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* + New Template Button (Automatically reverts uncompleted calendar shifts & starts fresh template) */}
             {user?.role === 'ADMIN' && (
               <button
-                onClick={() => setShowHistoryModal(true)}
-                className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
+                type="button"
+                onClick={handleOpenNewTemplateModal}
+                className="px-3 py-1.5 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Create a new template, automatically reverting uncompleted calendar shifts while locking in Completed/In-Progress/Cancelled shifts as Spent"
               >
-                <History className="w-4 h-4 mr-2" />
-                Build History
+                <Sparkles className="w-3.5 h-3.5" />
+                + New Template
               </button>
             )}
+
             {currentTemplateList.length > 0 && (
               <button
                 onClick={handleClearTemplate}
-                className="bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-sm font-medium border border-red-500/20 transition-colors"
+                className="bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/20 transition-colors"
               >
                 Clear All
               </button>
@@ -1521,180 +2147,271 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           </div>
         </div>
 
-        {/* 7-Day Columns Grid */}
-        <div className="flex-1 overflow-x-auto p-4 flex gap-4 custom-scrollbar items-stretch bg-[#121214]/10 h-full">
-          {currentTemplateList.length === 0 ? (
-            <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
-              No shifts defined for this client yet.
+        {/* Historical Template Banner (shown when scrolling back to a past template via < or dropdown) */}
+        {isViewingHistorical && (
+          <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2 text-xs text-amber-200">
+              <History className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                Viewing Historical Template:{' '}
+                <strong className="text-white">{viewedTemplateObj?.template_name}</strong> (
+                {formatDisplayDate(
+                  viewedTemplateObj?.effective_start_date ||
+                    homeCareQuarterlySummary?.actualStartDateStr ||
+                    activeQuarter.startDateStr
+                )}{' '}
+                – {formatDisplayDate(viewedTemplateObj?.effective_end_date || activeQuarter.endDateStr)})
+              </span>
             </div>
-          ) : (
-            displayDaysOrder.map(dayIdx => {
-              const dayTemplates = currentTemplateList
-                .filter(t => t.day_of_week === dayIdx)
-                .sort((a, b) => a.start_time.localeCompare(b.start_time));
+            <div className="flex items-center gap-2">
+              {user?.role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => viewedTemplateObj && handleActivateVisualTemplate(viewedTemplateObj.template_name)}
+                  className="px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded text-xs font-medium transition-colors flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Make This Template Active
+                </button>
+              )}
+              {liveActiveTemplateObj && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTemplateName(liveActiveTemplateObj.template_name)}
+                  className="px-2.5 py-1 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal border border-brand-teal/40 rounded text-xs font-semibold transition-colors flex items-center gap-1"
+                >
+                  Go to Active Template ({liveActiveTemplateObj.template_name}) →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
-              return (
-                <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
-                  <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white flex items-center justify-between">
-                    <span className="text-sm font-medium text-zinc-300">{DAYS_OF_WEEK[dayIdx]}</span>
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
-                      {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
-                    </span>
-                  </div>
+        {/* 7-Day Columns Grid with Left (<) and Right (>) Horizontal Template Navigation Arrows */}
+        <div className="flex-1 flex items-stretch overflow-hidden bg-[#121214]/10 h-full relative">
+          {/* Far-Left (<) Previous Template Navigation Button (Screenshot 2) */}
+          <div className="flex items-center pl-2 pr-0.5 shrink-0">
+            <button
+              type="button"
+              disabled={viewedTemplateIndex <= 0}
+              onClick={() => handleStepTemplate('prev')}
+              title={
+                viewedTemplateIndex > 0
+                  ? `Previous Template: ${visualTemplatesList[viewedTemplateIndex - 1]?.template_name}`
+                  : 'No older template in history'
+              }
+              className={`h-24 w-7 rounded-lg border flex flex-col items-center justify-center transition-all ${
+                viewedTemplateIndex > 0
+                  ? 'bg-[#121214] hover:bg-brand-teal/20 text-brand-teal border-brand-teal/40 shadow-md cursor-pointer active:scale-95'
+                  : 'bg-[#09090b]/60 text-zinc-600 border-white/[0.06] cursor-not-allowed'
+              }`}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          </div>
 
-                  <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
-                    {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
-                      const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
-                      const shiftFreq = getShiftFrequency(t);
-                      const qStart = homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr;
-                      const qOccurrences = countShiftOccurrencesInRange(t, qStart, activeQuarter.endDateStr, shiftFreq);
-                      const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
+          {/* 7-Day Columns Container */}
+          <div className="flex-1 overflow-x-auto p-3 flex gap-3.5 custom-scrollbar items-stretch h-full">
+            {currentTemplateList.length === 0 ? (
+              <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
+                No shifts defined in "{viewedTemplateObj?.template_name || activeTemplateName}" yet.
+              </div>
+            ) : (
+              displayDaysOrder.map(dayIdx => {
+                const dayTemplates = currentTemplateList
+                  .filter(t => t.day_of_week === dayIdx)
+                  .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-                      return (
-                        <div key={t.id} className="flex flex-col justify-between p-3 bg-[#09090b] border border-white/[0.08] rounded-lg hover:border-white/[0.12] transition-colors group">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex-1 pr-2">
-                              <div className="flex items-center flex-wrap gap-1.5 mb-1">
-                                <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
-                                {sType !== 'ONE_OFF' && (
-                                  <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
-                                    {shiftFreq}
+                return (
+                  <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
+                    <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white flex items-center justify-between">
+                      <span className="text-sm font-medium text-zinc-300">{DAYS_OF_WEEK[dayIdx]}</span>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
+                        {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
+                      {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
+                        const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
+                        const shiftFreq = getShiftFrequency(t);
+                        const qStart =
+                          homeCareQuarterlySummary?.templateEffectiveStartStr ||
+                          homeCareQuarterlySummary?.actualStartDateStr ||
+                          activeQuarter.startDateStr;
+                        const qEnd =
+                          homeCareQuarterlySummary?.templateEffectiveEndStr ||
+                          activeQuarter.endDateStr;
+                        const qOccurrences = countShiftOccurrencesInRange(t, qStart, qEnd, shiftFreq);
+                        const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
+
+                        return (
+                          <div key={t.id} className="flex flex-col justify-between p-3 bg-[#09090b] border border-white/[0.08] rounded-lg hover:border-white/[0.12] transition-colors group">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex-1 pr-2">
+                                <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                                  <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
+                                  {sType !== 'ONE_OFF' && (
+                                    <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
+                                      {shiftFreq}
+                                    </span>
+                                  )}
+                                  {sType === 'ONE_OFF' ? (
+                                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                      ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
+                                    </span>
+                                  ) : sType === 'FIXED' ? (
+                                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                      FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                      ONGOING{t.start_date ? ` • From ${formatDisplayDate(t.start_date)}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mb-1.5">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
+                                    Staff: {t.staff_first_name} {t.staff_last_name}
                                   </span>
-                                )}
-                                {sType === 'ONE_OFF' ? (
-                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                    ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
-                                  </span>
-                                ) : sType === 'FIXED' ? (
-                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                                    FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                    ONGOING{t.start_date ? ` • From ${formatDisplayDate(t.start_date)}` : ''}
-                                  </span>
-                                )}
+                                </div>
                               </div>
-                              <div className="mb-1.5">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
-                                  Staff: {t.staff_first_name} {t.staff_last_name}
-                                </span>
-                              </div>
+                              {user?.role === 'ADMIN' && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                            {user?.role === 'ADMIN' && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
 
-                          <div className="space-y-1.5 mt-auto">
-                            {t.servicesData && t.servicesData.length > 0 ? (
-                              t.servicesData.map((sd: any, idx: number) => {
-                                const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
-                                const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
-                                const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
+                            <div className="space-y-1.5 mt-auto">
+                              {t.servicesData && t.servicesData.length > 0 ? (
+                                t.servicesData.map((sd: any, idx: number) => {
+                                  const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+                                  const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
+                                  const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
 
-                                const tStart = new Date(`1970-01-01T${t.start_time}:00`);
-                                let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
-                                if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
-                                const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
+                                  const tStart = new Date(`1970-01-01T${t.start_time}:00`);
+                                  let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
+                                  if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
+                                  const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
 
-                                const effectiveQty =
-                                  sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
-                                    ? Number(sd.qtyOverride)
-                                    : unit === 'Hour'
-                                    ? tShiftHours
-                                    : 1;
-                                const effectiveRate =
-                                  sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
-                                    ? Number(sd.rateOverride)
-                                    : rate;
-                                const qtyText =
-                                  sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
-                                    ? Number(sd.qtyOverride)
-                                    : unit === 'Hour'
-                                    ? `Auto Hrs (${tShiftHours.toFixed(2)})`
-                                    : 1;
-                                const totalAmount = effectiveRate * effectiveQty;
+                                  const effectiveQty =
+                                    sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
+                                      ? Number(sd.qtyOverride)
+                                      : unit === 'Hour'
+                                      ? tShiftHours
+                                      : 1;
+                                  const effectiveRate =
+                                    sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
+                                      ? Number(sd.rateOverride)
+                                      : rate;
+                                  const qtyText =
+                                    sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
+                                      ? Number(sd.qtyOverride)
+                                      : unit === 'Hour'
+                                      ? `Auto Hrs (${tShiftHours.toFixed(2)})`
+                                      : 1;
+                                  const totalAmount = effectiveRate * effectiveQty;
 
-                                return (
-                                  <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded-md p-2">
-                                    <div className="flex items-start justify-between gap-1.5 mb-2">
-                                      <div className="flex items-start">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0 mr-2"></div>
-                                        <div className="text-zinc-200 text-xs font-medium leading-tight">{name || 'Service'}</div>
-                                      </div>
-                                      {isClientHomeCare && (
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
-                                            <span
-                                              key={code}
-                                              className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
-                                                code === 'ON'
-                                                  ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
-                                                  : code === 'HC'
-                                                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                                  : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
-                                              }`}
-                                              title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
-                                            >
-                                              {code}
-                                            </span>
-                                          ))}
+                                  return (
+                                    <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded-md p-2">
+                                      <div className="flex items-start justify-between gap-1.5 mb-2">
+                                        <div className="flex items-start">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0 mr-2"></div>
+                                          <div className="text-zinc-200 text-xs font-medium leading-tight">{name || 'Service'}</div>
                                         </div>
-                                      )}
+                                        {isClientHomeCare && (
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
+                                              <span
+                                                key={code}
+                                                className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
+                                                  code === 'ON'
+                                                    ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                    : code === 'HC'
+                                                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                    : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                                }`}
+                                                title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
+                                              >
+                                                {code}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-2 text-center bg-black/30 rounded-md p-2">
+                                        <div>
+                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Unit</span>
+                                          <span className="text-xs font-medium text-zinc-300">{unit}</span>
+                                        </div>
+                                        <div>
+                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Qty</span>
+                                          <span className="text-xs font-medium text-zinc-300">{qtyText}</span>
+                                        </div>
+                                        <div>
+                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Rate</span>
+                                          <span className="text-xs font-medium text-zinc-300">${effectiveRate.toFixed(2)}</span>
+                                        </div>
+                                        <div>
+                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
+                                          <span className="text-xs font-medium text-brand-teal">${totalAmount.toFixed(2)}</span>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2 text-center bg-black/30 rounded-md p-2">
-                                      <div>
-                                        <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Unit</span>
-                                        <span className="text-xs font-medium text-zinc-300">{unit}</span>
-                                      </div>
-                                      <div>
-                                        <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Qty</span>
-                                        <span className="text-xs font-medium text-zinc-300">{qtyText}</span>
-                                      </div>
-                                      <div>
-                                        <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Rate</span>
-                                        <span className="text-xs font-medium text-zinc-300">${effectiveRate.toFixed(2)}</span>
-                                      </div>
-                                      <div>
-                                        <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
-                                        <span className="text-xs font-medium text-brand-teal">${totalAmount.toFixed(2)}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <div className="bg-[#121214] border border-white/[0.08] rounded-md p-2 flex items-center">
-                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-2"></div>
-                                <span className="text-zinc-300 text-sm font-medium">{t.service_name || 'Legacy Service'}</span>
-                              </div>
-                            )}
+                                  );
+                                })
+                              ) : (
+                                <div className="bg-[#121214] border border-white/[0.08] rounded-md p-2 flex items-center">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-2"></div>
+                                  <span className="text-zinc-300 text-sm font-medium">{t.service_name || 'Legacy Service'}</span>
+                                </div>
+                              )}
 
-                            {isClientHomeCare && (
-                              <div className="pt-1.5 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-400">
-                                <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
-                                <span className="text-zinc-200 font-semibold">
-                                  Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
-                                </span>
-                              </div>
-                            )}
+                              {isClientHomeCare && (
+                                <div className="pt-1.5 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                                  <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
+                                  <span className="text-zinc-200 font-semibold">
+                                    Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
+
+          {/* Far-Right (>) Next / Current Template Navigation Button (Screenshot 2) */}
+          <div className="flex items-center pr-2 pl-0.5 shrink-0">
+            <button
+              type="button"
+              disabled={viewedTemplateIndex >= visualTemplatesList.length - 1}
+              onClick={() => handleStepTemplate('next')}
+              title={
+                viewedTemplateIndex < visualTemplatesList.length - 1
+                  ? `Next Template: ${visualTemplatesList[viewedTemplateIndex + 1]?.template_name}`
+                  : 'Currently viewing latest template'
+              }
+              className={`h-24 w-7 rounded-lg border flex flex-col items-center justify-center transition-all ${
+                viewedTemplateIndex < visualTemplatesList.length - 1
+                  ? 'bg-[#121214] hover:bg-brand-teal/20 text-brand-teal border-brand-teal/40 shadow-md cursor-pointer active:scale-95'
+                  : 'bg-[#09090b]/60 text-zinc-600 border-white/[0.06] cursor-not-allowed'
+              }`}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Home Care Low-Profile Horizontal Bar-Graph Funding Stream Cards (ON Card -> HC Card -> Other Additional Stream Cards) */}
@@ -2724,15 +3441,142 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         document.body
       )}
 
-      {/* Build History Modal */}
-      <ClientRosterBuildHistory
-        clientId={clientId}
-        isOpen={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        onRevertSuccess={() => {
-          fetchData();
-        }}
-      />
+      {/* Create New Visual Template Modal */}
+      {showNewTemplateModal && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={() => setShowNewTemplateModal(false)}>
+          <div className="bg-[#09090b] border border-white/[0.1] rounded-xl shadow-2xl max-w-lg w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/[0.08] bg-[#121214] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-5 h-5 text-brand-teal" />
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Start New Roster Template</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Archive the previous template & revert uncompleted future roster shifts
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewTemplateModal(false)}
+                className="text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewTemplate} className="p-5 space-y-4">
+              <div className="bg-brand-teal/10 border border-brand-teal/25 rounded-lg p-3.5 text-xs text-zinc-200 space-y-1.5 leading-relaxed">
+                <div className="font-semibold text-brand-teal flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Automatic Clean Slate & Budget Lock-In
+                </div>
+                <p className="text-zinc-300">
+                  1. All uncompleted calendar shifts (<span className="text-white font-medium">Draft / Published / Scheduled</span>) will be automatically removed from the roster.
+                </p>
+                <p className="text-zinc-300">
+                  2. All <span className="text-emerald-300 font-medium">Completed, In-Progress, and Cancelled</span> shifts remain untouched and are locked into your <span className="text-sky-300 font-medium">Spent</span> &amp; <span className="text-indigo-300 font-medium">Planned</span> budget prior to the new template start date.
+                </p>
+                <p className="text-zinc-300">
+                  3. Your previous visual template (<span className="text-white font-medium">{viewedTemplateObj?.template_name}</span>) is saved in Template History so you can scroll back to view it anytime using the <strong className="text-brand-teal">&lt; / &gt;</strong> arrows.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">New Template Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newTemplateNameInput}
+                  onChange={e => setNewTemplateNameInput(e.target.value)}
+                  placeholder="e.g. Template 2 (From 26 Oct)"
+                  className="w-full bg-[#121214] border border-white/[0.1] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  New Template Effective Start Date
+                </label>
+                <CustomDatePicker
+                  position="bottom"
+                  value={newTemplateEffectiveDate}
+                  onChange={e => setNewTemplateEffectiveDate(e.target.value)}
+                  className="w-full bg-[#121214] border border-white/[0.1] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none"
+                />
+                {homeCareQuarterlySummary?.latestPerformedShiftDateStr && (
+                  <p className="text-[11px] text-zinc-400 mt-1 font-mono">
+                    Last Completed / Active Shift in {activeQuarter.shortLabel}:{' '}
+                    <span className="text-brand-teal font-semibold">
+                      {formatDisplayDate(homeCareQuarterlySummary.latestPerformedShiftDateStr)}
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-2">Starting Monday–Sunday Board</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setNewTemplateCopyCards(true)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      newTemplateCopyCards
+                        ? 'bg-brand-teal/15 border-brand-teal/50 text-white'
+                        : 'bg-[#121214] border-white/[0.08] text-zinc-400 hover:bg-zinc-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-semibold mb-1">
+                      <Copy className="w-3.5 h-3.5 text-brand-teal" />
+                      Copy Current Shifts to Edit
+                    </div>
+                    <div className="text-[11px] text-zinc-400 leading-snug">
+                      Keep current Monday–Sunday cards so you can quickly tweak times or days.
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewTemplateCopyCards(false)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      !newTemplateCopyCards
+                        ? 'bg-brand-teal/15 border-brand-teal/50 text-white'
+                        : 'bg-[#121214] border-white/[0.08] text-zinc-400 hover:bg-zinc-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-semibold mb-1">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                      Start Blank Board
+                    </div>
+                    <div className="text-[11px] text-zinc-400 leading-snug">
+                      Start with 0 shifts on the Monday–Sunday columns and add fresh shifts.
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/[0.08] flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowNewTemplateModal(false)}
+                  disabled={creatingNewTemplate}
+                  className="px-4 py-2 border border-white/[0.1] hover:bg-white/[0.04] text-zinc-300 rounded-md text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingNewTemplate}
+                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-black font-semibold rounded-md text-xs transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {creatingNewTemplate ? 'Reverting & Creating...' : 'Revert Uncompleted & Create Template'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
