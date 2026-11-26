@@ -2040,22 +2040,22 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         {/* Header Bar */}
         <div className="px-4 py-2.5 border-b border-white/[0.08] bg-[#121214] flex flex-wrap justify-between items-center gap-3 shrink-0">
           <div className="flex items-center flex-wrap gap-2.5">
-            <h3 className="text-lg font-medium text-white">
+            <h3 className="text-lg font-medium text-white leading-none">
               {isViewingHistorical ? 'Historical Roster Template' : 'Current Roster Templates'}
             </h3>
             {isClientHomeCare && (
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
+              <span className="h-8 px-2.5 rounded-lg bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-xs font-mono font-medium inline-flex items-center">
                 {activeQuarter.shortLabel} ({activeQuarter.displayRange})
               </span>
             )}
             {/* Template Effective Start Date Pill / Quick Selector */}
             {user?.role === 'ADMIN' && (
-              <div className="flex items-center gap-1.5 bg-[#09090b] border border-white/[0.1] rounded-md px-2 py-1">
-                <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold">
+              <div className="h-8 px-2.5 bg-[#09090b] border border-white/[0.12] rounded-lg inline-flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold leading-none">
                   {isViewingHistorical ? 'Template Period:' : 'Effective From:'}
                 </span>
                 {isViewingHistorical ? (
-                  <span className="text-xs font-mono text-amber-300">
+                  <span className="text-xs font-mono font-semibold text-amber-300 leading-none">
                     {formatDisplayDate(
                       viewedTemplateObj?.effective_start_date ||
                         homeCareQuarterlySummary?.actualStartDateStr ||
@@ -2065,7 +2065,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     {formatDisplayDate(viewedTemplateObj?.effective_end_date || activeQuarter.endDateStr)}
                   </span>
                 ) : (
-                  <div className="w-[125px]">
+                  <div className="w-[118px] h-6 flex items-center">
                     <CustomDatePicker
                       position="bottom"
                       value={
@@ -2074,13 +2074,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         activeQuarter.startDateStr
                       }
                       onChange={e => handleUpdateTemplateEffectiveDate(e.target.value)}
-                      className="w-full bg-transparent text-xs font-mono text-brand-teal font-semibold outline-none cursor-pointer"
+                      className="w-full bg-transparent text-xs font-mono text-brand-teal font-semibold outline-none cursor-pointer leading-none"
                     />
                   </div>
                 )}
                 {homeCareQuarterlySummary?.hasMidQuarterCutover && !isViewingHistorical && (
                   <span
-                    className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 leading-none"
                     title={`Prior spend locked in (${formatCurrency(homeCareQuarterlySummary.lockedPriorOnDrawdown)}) + Active template forward (${formatCurrency(homeCareQuarterlySummary.templatePlannedOnDrawdown)})`}
                   >
                     Prior Spent Locked: {formatCurrency(homeCareQuarterlySummary.lockedPriorOnDrawdown)}
@@ -2091,24 +2091,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           </div>
 
           <div className="flex items-center gap-2 relative">
-            {/* Visual Template History Dropdown Switcher (Replaces old Build History button) */}
+            {/* Visual Template History Dropdown Switcher */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowTemplateHistoryMenu(prev => !prev)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center gap-2 ${
-                  isViewingHistorical
-                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
-                    : 'bg-[#09090b] hover:bg-zinc-800 text-white border-white/[0.12]'
-                }`}
+                className="h-8 px-3 rounded-lg text-xs font-medium bg-[#09090b] hover:bg-zinc-800 text-white border border-white/[0.12] transition-colors inline-flex items-center gap-2 cursor-pointer"
                 title="View and switch between past and current Monday–Sunday roster templates"
               >
-                <Layers className="w-3.5 h-3.5 text-brand-teal" />
-                <span className="font-semibold">
+                <Layers className="w-3.5 h-3.5 text-brand-teal shrink-0" />
+                <span className="font-semibold text-xs text-white leading-none">
                   {viewedTemplateObj?.template_name || 'Default Template'}
                 </span>
                 <span
-                  className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border ${
+                  className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border leading-none ${
                     isViewingHistorical
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                       : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
@@ -2116,10 +2112,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 >
                   {isViewingHistorical ? 'Past' : 'Active'}
                 </span>
-                <span className="text-[10px] font-mono text-zinc-400">
+                <span className="text-xs font-mono text-zinc-400 leading-none">
                   ({viewedTemplateIndex + 1}/{visualTemplatesList.length})
                 </span>
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               </button>
 
               {showTemplateHistoryMenu && (
@@ -2199,10 +2195,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               <button
                 type="button"
                 onClick={handleOpenNewTemplateModal}
-                className="px-3 py-1.5 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="h-8 px-3 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                 title="Create a new template, automatically reverting uncompleted calendar shifts while locking in Completed/In-Progress/Cancelled shifts as Spent"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
                 + New Template
               </button>
             )}
@@ -2210,7 +2206,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             {!isViewingHistorical && currentTemplateList.length > 0 && (
               <button
                 onClick={handleClearTemplate}
-                className="bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/20 transition-colors"
+                className="h-8 px-3 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg text-xs font-medium border border-red-500/20 transition-colors inline-flex items-center cursor-pointer"
               >
                 Clear All
               </button>
