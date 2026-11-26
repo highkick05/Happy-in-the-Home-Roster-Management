@@ -27,44 +27,44 @@ export const getFinancialYearQuarters = (fyStartYear: number): HomeCareQuarter[]
       id: 1,
       label: "Quarter 1",
       shortLabel: "Q1",
-      startDateStr: `${fyStartYear}-06-30`,
+      startDateStr: `${fyStartYear}-07-01`,
       endDateStr: `${fyStartYear}-09-30`,
-      displayRange: `30 Jun - 30 Sep ${fyStartYear}`,
+      displayRange: `1 Jul - 30 Sep ${fyStartYear}`,
       totalDays: 92,
-      start: new Date(`${fyStartYear}-06-30T00:00:00`),
+      start: new Date(`${fyStartYear}-07-01T00:00:00`),
       end: new Date(`${fyStartYear}-09-30T23:59:59`)
     },
     {
       id: 2,
       label: "Quarter 2",
       shortLabel: "Q2",
-      startDateStr: `${fyStartYear}-09-30`,
+      startDateStr: `${fyStartYear}-10-01`,
       endDateStr: `${fyStartYear}-12-31`,
-      displayRange: `30 Sep - 31 Dec ${fyStartYear}`,
+      displayRange: `1 Oct - 31 Dec ${fyStartYear}`,
       totalDays: 92,
-      start: new Date(`${fyStartYear}-09-30T00:00:00`),
+      start: new Date(`${fyStartYear}-10-01T00:00:00`),
       end: new Date(`${fyStartYear}-12-31T23:59:59`)
     },
     {
       id: 3,
       label: "Quarter 3",
       shortLabel: "Q3",
-      startDateStr: `${fyStartYear}-12-31`,
+      startDateStr: `${fyStartYear + 1}-01-01`,
       endDateStr: `${fyStartYear + 1}-03-31`,
-      displayRange: `31 Dec ${fyStartYear} - 31 Mar ${fyStartYear + 1}`,
+      displayRange: `1 Jan - 31 Mar ${fyStartYear + 1}`,
       totalDays: q3Days,
-      start: new Date(`${fyStartYear}-12-31T00:00:00`),
+      start: new Date(`${fyStartYear + 1}-01-01T00:00:00`),
       end: new Date(`${fyStartYear + 1}-03-31T23:59:59`)
     },
     {
       id: 4,
       label: "Quarter 4",
       shortLabel: "Q4",
-      startDateStr: `${fyStartYear + 1}-03-31`,
+      startDateStr: `${fyStartYear + 1}-04-01`,
       endDateStr: `${fyStartYear + 1}-06-30`,
-      displayRange: `31 Mar - 30 Jun ${fyStartYear + 1}`,
+      displayRange: `1 Apr - 30 Jun ${fyStartYear + 1}`,
       totalDays: 91,
-      start: new Date(`${fyStartYear + 1}-03-31T00:00:00`),
+      start: new Date(`${fyStartYear + 1}-04-01T00:00:00`),
       end: new Date(`${fyStartYear + 1}-06-30T23:59:59`)
     }
   ];
@@ -83,13 +83,11 @@ export const getCurrentFinancialYearAndQuarter = (timezone: string = 'Australia/
   } catch {
     todayStr = now.toISOString().split('T')[0];
   }
-  const [currentYearStr, currentMonthStr, currentDayStr] = todayStr.split('-');
+  const [currentYearStr, currentMonthStr] = todayStr.split('-');
   const curYear = parseInt(currentYearStr, 10);
   const curMonth = parseInt(currentMonthStr, 10);
-  const curDay = parseInt(currentDayStr, 10);
 
-  const isPastJun30 = curMonth > 6 || (curMonth === 6 && curDay >= 30);
-  const currentFyStartYear = isPastJun30 ? curYear : curYear - 1;
+  const currentFyStartYear = curMonth >= 7 ? curYear : curYear - 1;
 
   const quarters = getFinancialYearQuarters(currentFyStartYear);
   const activeQuarter = quarters.slice().reverse().find(q => todayStr >= q.startDateStr && todayStr <= q.endDateStr) || quarters[0];

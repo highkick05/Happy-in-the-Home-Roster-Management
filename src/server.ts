@@ -15882,16 +15882,15 @@ app.get("/api/health", (req, res) => {
       } catch {
         todayStr = now.toISOString().split("T")[0];
       }
-      const [cY, cM, cD] = todayStr.split("-").map((n) => parseInt(n, 10));
-      const isPastJun30 = cM > 6 || (cM === 6 && cD >= 30);
-      const fyStartYear = isPastJun30 ? cY : cY - 1;
+      const [cY, cM] = todayStr.split("-").map((n) => parseInt(n, 10));
+      const fyStartYear = cM >= 7 ? cY : cY - 1;
       const isLeap = (yr: number) => (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
       const q3Days = isLeap(fyStartYear + 1) ? 91 : 90;
       const quarters = [
-        { id: 1, label: "Q1", startDateStr: `${fyStartYear}-06-30`, endDateStr: `${fyStartYear}-09-30`, totalDays: 92 },
-        { id: 2, label: "Q2", startDateStr: `${fyStartYear}-09-30`, endDateStr: `${fyStartYear}-12-31`, totalDays: 92 },
-        { id: 3, label: "Q3", startDateStr: `${fyStartYear}-12-31`, endDateStr: `${fyStartYear + 1}-03-31`, totalDays: q3Days },
-        { id: 4, label: "Q4", startDateStr: `${fyStartYear + 1}-03-31`, endDateStr: `${fyStartYear + 1}-06-30`, totalDays: 91 },
+        { id: 1, label: "Q1", startDateStr: `${fyStartYear}-07-01`, endDateStr: `${fyStartYear}-09-30`, totalDays: 92 },
+        { id: 2, label: "Q2", startDateStr: `${fyStartYear}-10-01`, endDateStr: `${fyStartYear}-12-31`, totalDays: 92 },
+        { id: 3, label: "Q3", startDateStr: `${fyStartYear + 1}-01-01`, endDateStr: `${fyStartYear + 1}-03-31`, totalDays: q3Days },
+        { id: 4, label: "Q4", startDateStr: `${fyStartYear + 1}-04-01`, endDateStr: `${fyStartYear + 1}-06-30`, totalDays: 91 },
       ];
       const activeQ =
         quarters.slice().reverse().find((q) => todayStr >= q.startDateStr && todayStr <= q.endDateStr) ||
@@ -18191,42 +18190,41 @@ app.get("/api/health", (req, res) => {
         } catch {
           todayStr = now.toISOString().split("T")[0];
         }
-        const [cY, cM, cD] = todayStr.split("-").map((n) => parseInt(n, 10));
-        const isPastJun30 = cM > 6 || (cM === 6 && cD >= 30);
-        const fyStartYear = isPastJun30 ? cY : cY - 1;
+        const [cY, cM] = todayStr.split("-").map((n) => parseInt(n, 10));
+        const fyStartYear = cM >= 7 ? cY : cY - 1;
         const isLeap = (yr: number) => (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
         const q3Days = isLeap(fyStartYear + 1) ? 91 : 90;
         const quarters = [
           {
             id: 1,
             shortLabel: "Q1",
-            startDateStr: `${fyStartYear}-06-30`,
+            startDateStr: `${fyStartYear}-07-01`,
             endDateStr: `${fyStartYear}-09-30`,
-            displayRange: `30/06/${fyStartYear} - 30/09/${fyStartYear}`,
+            displayRange: `01/07/${fyStartYear} - 30/09/${fyStartYear}`,
             totalDays: 92,
           },
           {
             id: 2,
             shortLabel: "Q2",
-            startDateStr: `${fyStartYear}-09-30`,
+            startDateStr: `${fyStartYear}-10-01`,
             endDateStr: `${fyStartYear}-12-31`,
-            displayRange: `30/09/${fyStartYear} - 31/12/${fyStartYear}`,
+            displayRange: `01/10/${fyStartYear} - 31/12/${fyStartYear}`,
             totalDays: 92,
           },
           {
             id: 3,
             shortLabel: "Q3",
-            startDateStr: `${fyStartYear}-12-31`,
+            startDateStr: `${fyStartYear + 1}-01-01`,
             endDateStr: `${fyStartYear + 1}-03-31`,
-            displayRange: `31/12/${fyStartYear} - 31/03/${fyStartYear + 1}`,
+            displayRange: `01/01/${fyStartYear + 1} - 31/03/${fyStartYear + 1}`,
             totalDays: q3Days,
           },
           {
             id: 4,
             shortLabel: "Q4",
-            startDateStr: `${fyStartYear + 1}-03-31`,
+            startDateStr: `${fyStartYear + 1}-04-01`,
             endDateStr: `${fyStartYear + 1}-06-30`,
-            displayRange: `31/03/${fyStartYear + 1} - 30/06/${fyStartYear + 1}`,
+            displayRange: `01/04/${fyStartYear + 1} - 30/06/${fyStartYear + 1}`,
             totalDays: 91,
           },
         ];

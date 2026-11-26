@@ -101,11 +101,11 @@ export function getCurrentBusinessDateTime(db?: Database.Database, customTimezon
 
 /**
  * Helper: Computes the 4 official Home Care Financial Year Quarters
- * exactly matching Trilogy Planning & Home Care budgets.
- * Q1: 30 Jun - 30 Sep (92 days)
- * Q2: 30 Sep - 31 Dec (92 days)
- * Q3: 31 Dec - 31 Mar (90 days, 91 in leap year)
- * Q4: 31 Mar - 30 Jun (91 days)
+ * matching My Aged Care / Support at Home & Trilogy Care ON funding periods.
+ * Q1: 1 Jul - 30 Sep (92 days)
+ * Q2: 1 Oct - 31 Dec (92 days)
+ * Q3: 1 Jan - 31 Mar (90 days, 91 in leap year)
+ * Q4: 1 Apr - 30 Jun (91 days)
  */
 export function getHomeCareFinancialYearQuarters(timezone = 'Australia/Perth', referenceDate = new Date()) {
   let todayStr = '';
@@ -114,49 +114,49 @@ export function getHomeCareFinancialYearQuarters(timezone = 'Australia/Perth', r
   } catch {
     todayStr = referenceDate.toISOString().split('T')[0];
   }
-  const [currentYearStr, currentMonthStr, currentDayStr] = todayStr.split('-');
+  const [currentYearStr, currentMonthStr] = todayStr.split('-');
   const curYear = parseInt(currentYearStr, 10);
   const curMonth = parseInt(currentMonthStr, 10);
-  const curDay = parseInt(currentDayStr, 10);
 
-  const isPastJun30 = curMonth > 6 || (curMonth === 6 && curDay >= 30);
-  const fyStartYear = isPastJun30 ? curYear : curYear - 1;
+  const fyStartYear = curMonth >= 7 ? curYear : curYear - 1;
+  const isLeap = (yr: number) => (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
+  const q3Days = isLeap(fyStartYear + 1) ? 91 : 90;
 
   const quarters = [
     {
       quarterNumber: 1,
       id: 1,
       label: "Quarter 1",
-      startDateStr: `${fyStartYear}-06-30`,
+      startDateStr: `${fyStartYear}-07-01`,
       endDateStr: `${fyStartYear}-09-30`,
-      displayRange: `30 Jun - 30 Sep ${fyStartYear}`,
+      displayRange: `1 Jul - 30 Sep ${fyStartYear}`,
       totalDays: 92
     },
     {
       quarterNumber: 2,
       id: 2,
       label: "Quarter 2",
-      startDateStr: `${fyStartYear}-09-30`,
+      startDateStr: `${fyStartYear}-10-01`,
       endDateStr: `${fyStartYear}-12-31`,
-      displayRange: `30 Sep - 31 Dec ${fyStartYear}`,
+      displayRange: `1 Oct - 31 Dec ${fyStartYear}`,
       totalDays: 92
     },
     {
       quarterNumber: 3,
       id: 3,
       label: "Quarter 3",
-      startDateStr: `${fyStartYear}-12-31`,
+      startDateStr: `${fyStartYear + 1}-01-01`,
       endDateStr: `${fyStartYear + 1}-03-31`,
-      displayRange: `31 Dec ${fyStartYear} - 31 Mar ${fyStartYear + 1}`,
-      totalDays: 90
+      displayRange: `1 Jan - 31 Mar ${fyStartYear + 1}`,
+      totalDays: q3Days
     },
     {
       quarterNumber: 4,
       id: 4,
       label: "Quarter 4",
-      startDateStr: `${fyStartYear + 1}-03-31`,
+      startDateStr: `${fyStartYear + 1}-04-01`,
       endDateStr: `${fyStartYear + 1}-06-30`,
-      displayRange: `31 Mar - 30 Jun ${fyStartYear + 1}`,
+      displayRange: `1 Apr - 30 Jun ${fyStartYear + 1}`,
       totalDays: 91
     }
   ];
