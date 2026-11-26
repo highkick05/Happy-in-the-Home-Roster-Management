@@ -2296,196 +2296,239 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             </button>
           </div>
 
-          {/* 7-Day Columns Container */}
-          <div className="flex-1 overflow-x-auto p-3 flex gap-3.5 custom-scrollbar items-stretch h-full">
-            {currentTemplateList.length === 0 ? (
-              <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
-                No shifts defined in "{viewedTemplateObj?.template_name || activeTemplateName}" yet.
-              </div>
-            ) : (
-              displayDaysOrder.map(dayIdx => {
-                const dayTemplates = currentTemplateList
-                  .filter(t => t.day_of_week === dayIdx)
-                  .sort((a, b) => a.start_time.localeCompare(b.start_time));
+          {/* Animated Horizontal Template Slider Viewport */}
+          <div className="flex-1 overflow-hidden h-full relative">
+            <div
+              className="flex h-full w-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
+              style={{
+                transform: `translateX(-${viewedTemplateIndex * 100}%)`
+              }}
+            >
+              {visualTemplatesList.map(slideTmpl => {
+                const slideTemplateName = slideTmpl.template_name || 'Default Template';
+                const slideIsHistorical = Boolean(
+                  liveActiveTemplateObj &&
+                    slideTemplateName !== liveActiveTemplateObj.template_name &&
+                    visualTemplatesList.length > 1
+                );
+                const slideTemplateList = templates.filter(
+                  t => (t.template_name || 'Default Template') === slideTemplateName
+                );
+                const rawSlideStart = slideTmpl.effective_start_date
+                  ? String(slideTmpl.effective_start_date).split('T')[0]
+                  : '';
+                const slideBaseStart =
+                  homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr;
+                const slideQStart =
+                  rawSlideStart &&
+                  rawSlideStart >= slideBaseStart &&
+                  rawSlideStart <= activeQuarter.endDateStr
+                    ? rawSlideStart
+                    : slideIsHistorical
+                    ? slideBaseStart
+                    : resolvedEffectiveStartDateStr;
+                const rawSlideEnd = slideTmpl.effective_end_date
+                  ? String(slideTmpl.effective_end_date).split('T')[0]
+                  : '';
+                const slideQEnd =
+                  rawSlideEnd &&
+                  rawSlideEnd >= slideQStart &&
+                  rawSlideEnd < activeQuarter.endDateStr
+                    ? rawSlideEnd
+                    : activeQuarter.endDateStr;
 
                 return (
-                  <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
-                    <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white flex items-center justify-between">
-                      <span className="text-sm font-medium text-zinc-300">{DAYS_OF_WEEK[dayIdx]}</span>
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
-                        {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
-                      {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
-                        const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
-                        const shiftFreq = getShiftFrequency(t);
-                        const qStart = resolvedEffectiveStartDateStr;
-                        const qEnd =
-                          homeCareQuarterlySummary?.templateEffectiveEndStr ||
-                          viewedTemplateObj?.effective_end_date ||
-                          activeQuarter.endDateStr;
-                        const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
-                        const effectiveCardStart =
-                          sType === 'ONGOING'
-                            ? (rawShiftStart && rawShiftStart > qStart ? rawShiftStart : qStart)
-                            : (rawShiftStart || qStart);
-                        const shiftForCount =
-                          sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
-                        const qOccurrences = countShiftOccurrencesInRange(shiftForCount, qStart, qEnd, shiftFreq);
-                        const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
+                  <div
+                    key={slideTemplateName}
+                    className="w-full shrink-0 overflow-x-auto p-3 flex gap-3.5 custom-scrollbar items-stretch h-full"
+                  >
+                    {slideTemplateList.length === 0 ? (
+                      <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
+                        No shifts defined in "{slideTemplateName}" yet.
+                      </div>
+                    ) : (
+                      displayDaysOrder.map(dayIdx => {
+                        const dayTemplates = slideTemplateList
+                          .filter(t => t.day_of_week === dayIdx)
+                          .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
                         return (
-                          <div key={t.id} className="flex flex-col justify-between p-3 bg-[#09090b] border border-white/[0.08] rounded-lg hover:border-white/[0.12] transition-colors group">
-                            <div className="flex justify-between items-start mb-2">
-                              <div className="flex-1 pr-2">
-                                <div className="flex items-center flex-wrap gap-1.5 mb-1">
-                                  <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
-                                  {sType !== 'ONE_OFF' && (
-                                    <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
-                                      {shiftFreq}
-                                    </span>
-                                  )}
-                                  {sType === 'ONE_OFF' ? (
-                                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                      ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
-                                    </span>
-                                  ) : sType === 'FIXED' ? (
-                                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                                      FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                      ONGOING
-                                      {effectiveCardStart
-                                        ? isViewingHistorical && viewedTemplateObj?.effective_end_date
-                                          ? ` • ${formatDisplayDate(effectiveCardStart)}–${formatDisplayDate(viewedTemplateObj.effective_end_date)}`
-                                          : ` • From ${formatDisplayDate(effectiveCardStart)}`
-                                        : ''}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="mb-1.5">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
-                                    Staff: {t.staff_first_name} {t.staff_last_name}
-                                  </span>
-                                </div>
-                              </div>
-                              {user?.role === 'ADMIN' && (
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
+                          <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
+                            <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white flex items-center justify-between">
+                              <span className="text-sm font-medium text-zinc-300">{DAYS_OF_WEEK[dayIdx]}</span>
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
+                                {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
+                              </span>
                             </div>
 
-                            <div className="space-y-1.5 mt-auto">
-                              {t.servicesData && t.servicesData.length > 0 ? (
-                                t.servicesData.map((sd: any, idx: number) => {
-                                  const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
-                                  const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
-                                  const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
+                            <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
+                              {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
+                                const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
+                                const shiftFreq = getShiftFrequency(t);
+                                const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+                                const effectiveCardStart =
+                                  sType === 'ONGOING'
+                                    ? (rawShiftStart && rawShiftStart > slideQStart ? rawShiftStart : slideQStart)
+                                    : (rawShiftStart || slideQStart);
+                                const shiftForCount =
+                                  sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
+                                const qOccurrences = countShiftOccurrencesInRange(shiftForCount, slideQStart, slideQEnd, shiftFreq);
+                                const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
 
-                                  const tStart = new Date(`1970-01-01T${t.start_time}:00`);
-                                  let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
-                                  if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
-                                  const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
-
-                                  const effectiveQty =
-                                    sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
-                                      ? Number(sd.qtyOverride)
-                                      : unit === 'Hour'
-                                      ? tShiftHours
-                                      : 1;
-                                  const effectiveRate =
-                                    sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
-                                      ? Number(sd.rateOverride)
-                                      : rate;
-                                  const qtyText =
-                                    sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
-                                      ? Number(sd.qtyOverride)
-                                      : unit === 'Hour'
-                                      ? `Auto Hrs (${tShiftHours.toFixed(2)})`
-                                      : 1;
-                                  const totalAmount = effectiveRate * effectiveQty;
-
-                                  return (
-                                    <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded-md p-2">
-                                      <div className="flex items-start justify-between gap-1.5 mb-2">
-                                        <div className="flex items-start">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0 mr-2"></div>
-                                          <div className="text-zinc-200 text-xs font-medium leading-tight">{name || 'Service'}</div>
+                                return (
+                                  <div key={t.id} className="flex flex-col justify-between p-3 bg-[#09090b] border border-white/[0.08] rounded-lg hover:border-white/[0.12] transition-colors group">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="flex-1 pr-2">
+                                        <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                                          <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
+                                          {sType !== 'ONE_OFF' && (
+                                            <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
+                                              {shiftFreq}
+                                            </span>
+                                          )}
+                                          {sType === 'ONE_OFF' ? (
+                                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                              ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
+                                            </span>
+                                          ) : sType === 'FIXED' ? (
+                                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                              FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                              ONGOING
+                                              {effectiveCardStart
+                                                ? slideIsHistorical && slideTmpl.effective_end_date
+                                                  ? ` • ${formatDisplayDate(effectiveCardStart)}–${formatDisplayDate(slideTmpl.effective_end_date)}`
+                                                  : ` • From ${formatDisplayDate(effectiveCardStart)}`
+                                                : ''}
+                                            </span>
+                                          )}
                                         </div>
-                                        {isClientHomeCare && (
-                                          <div className="flex items-center gap-1 shrink-0">
-                                            {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
-                                              <span
-                                                key={code}
-                                                className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
-                                                  code === 'ON'
-                                                    ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
-                                                    : code === 'HC'
-                                                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                                    : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
-                                                }`}
-                                                title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
-                                              >
-                                                {code}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="grid grid-cols-4 gap-2 text-center bg-black/30 rounded-md p-2">
-                                        <div>
-                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Unit</span>
-                                          <span className="text-xs font-medium text-zinc-300">{unit}</span>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Qty</span>
-                                          <span className="text-xs font-medium text-zinc-300">{qtyText}</span>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Rate</span>
-                                          <span className="text-xs font-medium text-zinc-300">${effectiveRate.toFixed(2)}</span>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
-                                          <span className="text-xs font-medium text-brand-teal">${totalAmount.toFixed(2)}</span>
+                                        <div className="mb-1.5">
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
+                                            Staff: {t.staff_first_name} {t.staff_last_name}
+                                          </span>
                                         </div>
                                       </div>
+                                      {user?.role === 'ADMIN' && (
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
+                                            <Edit2 className="w-4 h-4" />
+                                          </button>
+                                          <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]">
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
-                                  );
-                                })
-                              ) : (
-                                <div className="bg-[#121214] border border-white/[0.08] rounded-md p-2 flex items-center">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-2"></div>
-                                  <span className="text-zinc-300 text-sm font-medium">{t.service_name || 'Legacy Service'}</span>
-                                </div>
-                              )}
 
-                              {isClientHomeCare && (
-                                <div className="pt-1.5 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-400">
-                                  <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
-                                  <span className="text-zinc-200 font-semibold">
-                                    Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
-                                  </span>
-                                </div>
-                              )}
+                                    <div className="space-y-1.5 mt-auto">
+                                      {t.servicesData && t.servicesData.length > 0 ? (
+                                        t.servicesData.map((sd: any, idx: number) => {
+                                          const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+                                          const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
+                                          const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
+
+                                          const tStart = new Date(`1970-01-01T${t.start_time}:00`);
+                                          let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
+                                          if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
+                                          const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
+
+                                          const effectiveQty =
+                                            sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
+                                              ? Number(sd.qtyOverride)
+                                              : unit === 'Hour'
+                                              ? tShiftHours
+                                              : 1;
+                                          const effectiveRate =
+                                            sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
+                                              ? Number(sd.rateOverride)
+                                              : rate;
+                                          const qtyText =
+                                            sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
+                                              ? Number(sd.qtyOverride)
+                                              : unit === 'Hour'
+                                              ? `Auto Hrs (${tShiftHours.toFixed(2)})`
+                                              : 1;
+                                          const totalAmount = effectiveRate * effectiveQty;
+
+                                          return (
+                                            <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded-md p-2">
+                                              <div className="flex items-start justify-between gap-1.5 mb-2">
+                                                <div className="flex items-start">
+                                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0 mr-2"></div>
+                                                  <div className="text-zinc-200 text-xs font-medium leading-tight">{name || 'Service'}</div>
+                                                </div>
+                                                {isClientHomeCare && (
+                                                  <div className="flex items-center gap-1 shrink-0">
+                                                    {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
+                                                      <span
+                                                        key={code}
+                                                        className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
+                                                          code === 'ON'
+                                                            ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                            : code === 'HC'
+                                                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                            : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                                        }`}
+                                                        title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
+                                                      >
+                                                        {code}
+                                                      </span>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <div className="grid grid-cols-4 gap-2 text-center bg-black/30 rounded-md p-2">
+                                                <div>
+                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Unit</span>
+                                                  <span className="text-xs font-medium text-zinc-300">{unit}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Qty</span>
+                                                  <span className="text-xs font-medium text-zinc-300">{qtyText}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Rate</span>
+                                                  <span className="text-xs font-medium text-zinc-300">${effectiveRate.toFixed(2)}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
+                                                  <span className="text-xs font-medium text-brand-teal">${totalAmount.toFixed(2)}</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      ) : (
+                                        <div className="bg-[#121214] border border-white/[0.08] rounded-md p-2 flex items-center">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-2"></div>
+                                          <span className="text-zinc-300 text-sm font-medium">{t.service_name || 'Legacy Service'}</span>
+                                        </div>
+                                      )}
+
+                                      {isClientHomeCare && (
+                                        <div className="pt-1.5 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                                          <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
+                                          <span className="text-zinc-200 font-semibold">
+                                            Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
+                      })
+                    )}
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
 
           {/* Far-Right (>) Next / Current Template Navigation Button (Screenshot 2) */}
@@ -3702,7 +3745,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-black font-semibold rounded-md text-xs transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  {creatingNewTemplate ? 'Reverting & Creating...' : 'Revert Uncompleted & Create Template'}
+                  {creatingNewTemplate ? 'Reverting & Creating...' : 'Revert Uncompleted Shifts and Create New Template'}
                 </button>
               </div>
             </form>
