@@ -20250,6 +20250,27 @@ app.get("/api/health", (req, res) => {
               return true;
             });
 
+            // Guard against intra-template time clashes on the same calendar date
+            if (todaysTemplates.length > 1) {
+              for (let i = 0; i < todaysTemplates.length; i++) {
+                for (let j = i + 1; j < todaysTemplates.length; j++) {
+                  const a = todaysTemplates[i];
+                  const b = todaysTemplates[j];
+                  const aStartDt = getUtcTimeFromLocal(shiftDateStr, a.start_time, timezone);
+                  const aEndDt = getUtcTimeFromLocal(shiftDateStr, a.end_time, timezone);
+                  const bStartDt = getUtcTimeFromLocal(shiftDateStr, b.start_time, timezone);
+                  const bEndDt = getUtcTimeFromLocal(shiftDateStr, b.end_time, timezone);
+                  if (aStartDt < bEndDt && aEndDt > bStartDt) {
+                    const [yStr, mStr, dStr] = shiftDateStr.split("-");
+                    const formattedClashDate = `${dStr}/${mStr}/${yStr}`;
+                    throw new Error(
+                      `Template "${targetTemplateName || templateName}" contains overlapping shifts on ${formattedClashDate} (${a.start_time}–${a.end_time} and ${b.start_time}–${b.end_time}). Please resolve the shift time clash in the template builder first.`
+                    );
+                  }
+                }
+              }
+            }
+
             for (const tmpl of todaysTemplates) {
               // Create timestamps
               const startDateTime = getUtcTimeFromLocal(
@@ -20265,7 +20286,7 @@ app.get("/api/health", (req, res) => {
 
               // 1. Detect time-overlapping shifts for this client on this exact date/time (including COMPLETED, IN_PROGRESS, and CANCELLED)
               const overlapQuery = `
-                SELECT id, start_time, end_time, status, staff_id
+                SELECT id, start_time, end_time, status, staff_id, roster_generation_batch_id
                 FROM shifts
                 WHERE client_id = ?
                 AND start_time < ? AND end_time > ?
@@ -20286,9 +20307,11 @@ app.get("/api/health", (req, res) => {
                 continue;
               }
 
-              // Overlapping uncompleted (DRAFT / PUBLISHED / SCHEDULED) shifts are genuine clashes
+              // Overlapping uncompleted (DRAFT / PUBLISHED / SCHEDULED) shifts from prior builds are genuine clashes
               const replaceableOverlaps = clientOverlaps.filter(
-                (s: any) => !["COMPLETED", "IN_PROGRESS", "CANCELLED"].includes(String(s.status || "").toUpperCase())
+                (s: any) =>
+                  !["COMPLETED", "IN_PROGRESS", "CANCELLED"].includes(String(s.status || "").toUpperCase()) &&
+                  (!generatedBatchId || s.roster_generation_batch_id !== generatedBatchId)
               );
               const clashingShiftIds: number[] = [];
 

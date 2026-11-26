@@ -675,6 +675,160 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     return count;
   };
 
+  // Helper to list exact YYYY-MM-DD dates on which a template shift occurs within [rangeStartStr, rangeEndStr]
+  const getShiftOccurrenceDatesInRange = (
+    t: {
+      day_of_week: number;
+      schedule_type?: string;
+      start_date?: string | null;
+      end_date?: string | null;
+      one_off_date?: string | null;
+    },
+    rangeStartStr: string,
+    rangeEndStr: string,
+    frequency: string
+  ): string[] => {
+    const sType: ScheduleType = ((t.schedule_type as ScheduleType) || 'ONGOING');
+    if (sType === 'ONE_OFF') {
+      const targetDate = (t.one_off_date || t.start_date || '').split('T')[0];
+      if (!targetDate) return [];
+      const [oy, om, od] = targetDate.split('-').map(Number);
+      const oneOffD = new Date(oy, om - 1, od, 12, 0, 0);
+      if (isNaN(oneOffD.getTime()) || oneOffD.getDay() !== Number(t.day_of_week)) return [];
+      if (rangeStartStr && targetDate < rangeStartStr) return [];
+      if (rangeEndStr && targetDate > rangeEndStr) return [];
+      return [targetDate];
+    }
+
+    if (!rangeStartStr || !rangeEndStr || rangeStartStr > rangeEndStr) return [];
+    const rawStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+    const rawEnd = t.end_date ? String(t.end_date).split('T')[0] : '';
+    const effectiveStartStr = rawStart && rawStart > rangeStartStr ? rawStart : rangeStartStr;
+    const effectiveEndStr = sType === 'FIXED' && rawEnd && rawEnd < rangeEndStr ? rawEnd : rangeEndStr;
+    if (effectiveStartStr > effectiveEndStr) return [];
+
+    const [sy, sm, sd] = effectiveStartStr.split('-').map(Number);
+    const [ey, em, ed] = effectiveEndStr.split('-').map(Number);
+    const anchorStr = rawStart || rangeStartStr;
+    const [ay, am, ad] = anchorStr.split('-').map(Number);
+
+    const startD = new Date(sy, sm - 1, sd, 12, 0, 0);
+    const endD = new Date(ey, em - 1, ed, 12, 0, 0);
+    const anchorD = new Date(ay, am - 1, ad, 12, 0, 0);
+
+    const dates: string[] = [];
+    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== Number(t.day_of_week)) continue;
+      const diffTime = d.getTime() - anchorD.getTime();
+      const diffDays = Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+      const weekIndex = Math.floor(diffDays / 7);
+
+      let isValidWeek = true;
+      if (frequency === 'Fortnightly' && weekIndex % 2 !== 0) isValidWeek = false;
+      else if (frequency === '3 Weekly' && weekIndex % 3 !== 0) isValidWeek = false;
+      else if (frequency === '1 Monthly' && weekIndex % 4 !== 0) isValidWeek = false;
+      else if (frequency === '2 Monthly' && weekIndex % 8 !== 0) isValidWeek = false;
+      else if (frequency === '3 Monthly' && weekIndex % 13 !== 0) isValidWeek = false;
+      else if (frequency === '6 Monthly' && weekIndex % 26 !== 0) isValidWeek = false;
+      else if (frequency === '12 Monthly' && weekIndex % 52 !== 0) isValidWeek = false;
+
+      if (isValidWeek) {
+        const yStr = d.getFullYear();
+        const mStr = String(d.getMonth() + 1).padStart(2, '0');
+        const dStr = String(d.getDate()).padStart(2, '0');
+        dates.push(`${yStr}-${mStr}-${dStr}`);
+      }
+    }
+    return dates;
+  };
+
+  // Helper to check if two HH:mm time intervals overlap
+  const doShiftTimesOverlap = (startA: string, endA: string, startB: string, endB: string): boolean => {
+    if (!startA || !endA || !startB || !endB) return false;
+    const toMins = (hhmm: string) => {
+      const [h, m] = String(hhmm).split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const sA = toMins(startA);
+    let eA = toMins(endA);
+    if (eA <= sA) eA += 1440;
+    const sB = toMins(startB);
+    let eB = toMins(endB);
+    if (eB <= sB) eB += 1440;
+    return sA < eB && eA > sB;
+  };
+
+  // Helper to check if two template shift cards on the same day of week overlap in both time and at least one calendar occurrence date
+  const getOverlappingDatesBetweenTemplateShifts = (
+    shiftA: {
+      day_of_week: number;
+      start_time: string;
+      end_time: string;
+      schedule_type?: string;
+      frequency?: string;
+      start_date?: string | null;
+      end_date?: string | null;
+      one_off_date?: string | null;
+      template_name?: string;
+    },
+    shiftB: {
+      day_of_week: number;
+      start_time: string;
+      end_time: string;
+      schedule_type?: string;
+      frequency?: string;
+      start_date?: string | null;
+      end_date?: string | null;
+      one_off_date?: string | null;
+      template_name?: string;
+    },
+    baseStartStr: string,
+    baseEndStr: string
+  ): string[] => {
+    if (Number(shiftA.day_of_week) !== Number(shiftB.day_of_week)) return [];
+    if (!doShiftTimesOverlap(shiftA.start_time, shiftA.end_time, shiftB.start_time, shiftB.end_time)) return [];
+
+    // Expand evaluation window to include any explicit one_off_date or fixed end_date outside the default quarter window
+    const candidateStarts = [
+      baseStartStr,
+      shiftA.start_date ? String(shiftA.start_date).split('T')[0] : '',
+      shiftB.start_date ? String(shiftB.start_date).split('T')[0] : '',
+      shiftA.one_off_date ? String(shiftA.one_off_date).split('T')[0] : '',
+      shiftB.one_off_date ? String(shiftB.one_off_date).split('T')[0] : ''
+    ].filter(Boolean);
+    const candidateEnds = [
+      baseEndStr,
+      shiftA.end_date ? String(shiftA.end_date).split('T')[0] : '',
+      shiftB.end_date ? String(shiftB.end_date).split('T')[0] : '',
+      shiftA.one_off_date ? String(shiftA.one_off_date).split('T')[0] : '',
+      shiftB.one_off_date ? String(shiftB.one_off_date).split('T')[0] : ''
+    ].filter(Boolean);
+
+    const evalStart = candidateStarts.length > 0 ? candidateStarts.reduce((a, b) => (a < b ? a : b)) : baseStartStr;
+    const evalEnd = candidateEnds.length > 0 ? candidateEnds.reduce((a, b) => (a > b ? a : b)) : baseEndStr;
+
+    const freqA = shiftA.frequency || getShiftFrequency(shiftA);
+    const freqB = shiftB.frequency || getShiftFrequency(shiftB);
+
+    const sTypeA: ScheduleType = (shiftA.schedule_type as ScheduleType) || 'ONGOING';
+    const sTypeB: ScheduleType = (shiftB.schedule_type as ScheduleType) || 'ONGOING';
+    const rawStartA = shiftA.start_date ? String(shiftA.start_date).split('T')[0] : '';
+    const rawStartB = shiftB.start_date ? String(shiftB.start_date).split('T')[0] : '';
+
+    const normalizedA = {
+      ...shiftA,
+      start_date: sTypeA === 'ONGOING' ? (rawStartA && rawStartA > baseStartStr ? rawStartA : baseStartStr) : (rawStartA || baseStartStr)
+    };
+    const normalizedB = {
+      ...shiftB,
+      start_date: sTypeB === 'ONGOING' ? (rawStartB && rawStartB > baseStartStr ? rawStartB : baseStartStr) : (rawStartB || baseStartStr)
+    };
+
+    const datesA = getShiftOccurrenceDatesInRange(normalizedA, evalStart, evalEnd, freqA);
+    const datesBSet = new Set(getShiftOccurrenceDatesInRange(normalizedB, evalStart, evalEnd, freqB));
+    return datesA.filter(d => datesBSet.has(d));
+  };
+
   // Compute base and drawdown cost of a single occurrence of template shift `t`
   const getTemplateShiftOccurrenceBreakdown = (t: any) => {
     const tStart = new Date(`1970-01-01T${t.start_time}:00`);
@@ -1424,6 +1578,139 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     servicesList
   ]);
 
+  // Helper to compute all intra-template shift clashes for a list of template shift cards
+  const computeTemplateClashesForList = (
+    shiftList: any[],
+    baseStartStr: string,
+    baseEndStr: string
+  ) => {
+    const byShiftId: Record<
+      number,
+      Array<{
+        otherShift: any;
+        overlappingDates: string[];
+      }>
+    > = {};
+    const pairs: Array<{
+      shiftA: any;
+      shiftB: any;
+      dayOfWeek: number;
+      overlappingDates: string[];
+    }> = [];
+
+    for (let i = 0; i < shiftList.length; i++) {
+      for (let j = i + 1; j < shiftList.length; j++) {
+        const sA = shiftList[i];
+        const sB = shiftList[j];
+        const overlappingDates = getOverlappingDatesBetweenTemplateShifts(sA, sB, baseStartStr, baseEndStr);
+        if (overlappingDates.length > 0) {
+          if (!byShiftId[sA.id]) byShiftId[sA.id] = [];
+          if (!byShiftId[sB.id]) byShiftId[sB.id] = [];
+          byShiftId[sA.id].push({ otherShift: sB, overlappingDates });
+          byShiftId[sB.id].push({ otherShift: sA, overlappingDates });
+          pairs.push({
+            shiftA: sA,
+            shiftB: sB,
+            dayOfWeek: Number(sA.day_of_week),
+            overlappingDates
+          });
+        }
+      }
+    }
+
+    return { byShiftId, pairs };
+  };
+
+  // Live clash check for the currently viewed / active template board
+  const currentTemplateClashes = useMemo(() => {
+    const qStart = resolvedEffectiveStartDateStr;
+    const qEnd =
+      homeCareQuarterlySummary?.templateEffectiveEndStr ||
+      viewedTemplateObj?.effective_end_date ||
+      activeQuarter.endDateStr;
+    return computeTemplateClashesForList(currentTemplateList, qStart, qEnd);
+  }, [
+    currentTemplateList,
+    resolvedEffectiveStartDateStr,
+    homeCareQuarterlySummary,
+    viewedTemplateObj,
+    activeQuarter.endDateStr
+  ]);
+
+  // Live clash check inside the + Add Shift / Edit Shift modal
+  const modalTemplateClashes = useMemo(() => {
+    if (!showAddTemplateModal || !startTime || !endTime) return [];
+    const targetDays =
+      scheduleType === 'ONE_OFF' && shiftOneOffDate
+        ? [new Date(`${shiftOneOffDate}T12:00:00`).getDay()]
+        : daysOfWeek;
+    if (!targetDays || targetDays.length === 0) return [];
+
+    const qStart = resolvedEffectiveStartDateStr;
+    const qEnd =
+      homeCareQuarterlySummary?.templateEffectiveEndStr ||
+      viewedTemplateObj?.effective_end_date ||
+      activeQuarter.endDateStr;
+
+    const clashes: Array<{
+      dayOfWeek: number;
+      existingShift: any;
+      overlappingDates: string[];
+    }> = [];
+
+    for (const dayIdx of targetDays) {
+      if (isNaN(dayIdx)) continue;
+      const candidateShift = {
+        day_of_week: dayIdx,
+        start_time: startTime,
+        end_time: endTime,
+        schedule_type: scheduleType,
+        frequency: scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency,
+        start_date: scheduleType !== 'ONE_OFF' ? (shiftStartDate || qStart) : null,
+        end_date: scheduleType === 'FIXED' ? (shiftEndDate || qEnd) : null,
+        one_off_date: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null
+      };
+
+      const existingSameDayShifts = currentTemplateList.filter(
+        t => Number(t.day_of_week) === Number(dayIdx) && (!editingTemplateId || Number(t.id) !== Number(editingTemplateId))
+      );
+
+      for (const existing of existingSameDayShifts) {
+        const overlappingDates = getOverlappingDatesBetweenTemplateShifts(
+          candidateShift,
+          existing,
+          qStart,
+          qEnd
+        );
+        if (overlappingDates.length > 0) {
+          clashes.push({
+            dayOfWeek: dayIdx,
+            existingShift: existing,
+            overlappingDates
+          });
+        }
+      }
+    }
+
+    return clashes;
+  }, [
+    showAddTemplateModal,
+    startTime,
+    endTime,
+    scheduleType,
+    shiftFrequency,
+    shiftStartDate,
+    shiftEndDate,
+    shiftOneOffDate,
+    daysOfWeek,
+    currentTemplateList,
+    editingTemplateId,
+    resolvedEffectiveStartDateStr,
+    homeCareQuarterlySummary,
+    viewedTemplateObj,
+    activeQuarter.endDateStr
+  ]);
+
   const handleAddServiceEntry = () => {
     setServicesData(prev => [...prev, { serviceId: '', fundingStream: 'ON' }]);
   };
@@ -1574,6 +1861,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         alert('Please select a service for all entries.');
         return;
       }
+    }
+
+    if (modalTemplateClashes.length > 0) {
+      const firstClash = modalTemplateClashes[0];
+      const dayLabel = DAYS_OF_WEEK[firstClash.dayOfWeek] || 'Selected day';
+      const sampleDates = firstClash.overlappingDates.slice(0, 3).map(formatDisplayDate).join(', ');
+      alert(
+        `Template Shift Conflict: This ${startTime}–${endTime} shift clashes with an existing ${dayLabel} ${firstClash.existingShift.start_time}–${firstClash.existingShift.end_time} shift on ${sampleDates}${firstClash.overlappingDates.length > 3 ? ` (+${firstClash.overlappingDates.length - 3} more dates)` : ''}. Please adjust the time or dates before saving.`
+      );
+      return;
     }
 
     if (editingTemplateId) {
@@ -2278,6 +2575,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     ? rawSlideEnd
                     : activeQuarter.endDateStr;
 
+                const slideClashes = computeTemplateClashesForList(
+                  slideTemplateList,
+                  slideQStart,
+                  slideQEnd
+                );
+
                 return (
                   <div
                     key={slideTemplateName}
@@ -2315,9 +2618,18 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
                                 const qOccurrences = countShiftOccurrencesInRange(shiftForCount, slideQStart, slideQEnd, shiftFreq);
                                 const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
+                                const cardClashes = slideClashes.byShiftId[t.id] || [];
+                                const hasCardClash = cardClashes.length > 0;
 
                                 return (
-                                  <div key={t.id} className="flex flex-col justify-between p-3 bg-[#09090b] border border-white/[0.08] rounded-lg hover:border-white/[0.12] transition-colors group">
+                                  <div
+                                    key={t.id}
+                                    className={`flex flex-col justify-between p-3 bg-[#09090b] border rounded-lg transition-colors group ${
+                                      hasCardClash
+                                        ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
+                                        : 'border-white/[0.08] hover:border-white/[0.12]'
+                                    }`}
+                                  >
                                     <div className="flex justify-between items-start mb-2">
                                       <div className="flex-1 pr-2">
                                         <div className="flex items-center flex-wrap gap-1.5 mb-1">
@@ -2346,6 +2658,31 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                             </span>
                                           )}
                                         </div>
+                                        {hasCardClash && (
+                                          <div className="mb-1.5 flex flex-col gap-1">
+                                            {cardClashes.map((clashItem, cIdx) => {
+                                              const other = clashItem.otherShift;
+                                              const sampleDates = clashItem.overlappingDates
+                                                .slice(0, 2)
+                                                .map(d => formatDisplayDate(d))
+                                                .join(', ');
+                                              const extraCount = clashItem.overlappingDates.length - 2;
+                                              return (
+                                                <div
+                                                  key={cIdx}
+                                                  className="inline-flex items-center gap-1 px-1.5 py-1 rounded bg-red-500/15 border border-red-500/40 text-[10px] font-mono font-semibold text-red-300 leading-tight"
+                                                  title={`Overlaps with ${other.start_time} - ${other.end_time} on ${clashItem.overlappingDates.map(d => formatDisplayDate(d)).join(', ')}`}
+                                                >
+                                                  <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+                                                  <span>
+                                                    TIME CLASH • {other.start_time}–{other.end_time} ({sampleDates}
+                                                    {extraCount > 0 ? ` +${extraCount} more` : ''})
+                                                  </span>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
                                         <div className="mb-1.5">
                                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
                                             Staff: {t.staff_first_name} {t.staff_last_name}
@@ -3290,6 +3627,63 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         </div>
                       </div>
                     </div>
+
+                    {/* Live Template Shift Conflict Detection Banner */}
+                    {modalTemplateClashes.length > 0 && (
+                      <div className="mt-4 bg-red-500/10 border border-red-500/40 rounded-lg p-3.5 space-y-2">
+                        <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wider">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>Template Shift Time Clash Detected ({modalTemplateClashes.length})</span>
+                        </div>
+                        <p className="text-xs text-red-200/90 leading-relaxed">
+                          This shift overlaps in time and occurrence date(s) with another shift already scheduled in{' '}
+                          <strong className="text-white">"{viewedTemplateObj?.template_name || activeTemplateName}"</strong>:
+                        </p>
+                        <ul className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                          {modalTemplateClashes.map((c, idx) => {
+                            const ex = c.existingShift;
+                            const exType: ScheduleType = (ex.schedule_type as ScheduleType) || 'ONGOING';
+                            const exFreq = getShiftFrequency(ex);
+                            const exTypeLabel =
+                              exType === 'ONE_OFF'
+                                ? `ONE OFF • ${formatDisplayDate(ex.one_off_date)}`
+                                : exType === 'FIXED'
+                                ? `FIXED (${exFreq}) • ${formatDisplayDate(ex.start_date)}–${formatDisplayDate(ex.end_date)}`
+                                : `ONGOING (${exFreq})`;
+                            const datePreview = c.overlappingDates
+                              .slice(0, 3)
+                              .map(d => formatDisplayDate(d))
+                              .join(', ');
+                            const moreCount = c.overlappingDates.length - 3;
+                            return (
+                              <li
+                                key={idx}
+                                className="bg-black/45 border border-red-500/30 rounded-md px-2.5 py-2 text-xs text-zinc-200 flex flex-col gap-0.5"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-semibold text-red-300">
+                                    {DAYS_OF_WEEK[c.dayOfWeek]} • {ex.start_time} – {ex.end_time}
+                                  </span>
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-200 border border-red-500/30">
+                                    {exTypeLabel}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-mono text-zinc-400">
+                                  Clashing date{c.overlappingDates.length === 1 ? '' : 's'}:{' '}
+                                  <span className="text-red-300 font-semibold">
+                                    {datePreview}
+                                    {moreCount > 0 ? ` (+${moreCount} more)` : ''}
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <p className="text-[11px] text-zinc-400">
+                          Adjust the shift time, day, or schedule dates to resolve the clash before saving.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </form>
@@ -3306,7 +3700,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               <button
                 type="submit"
                 form="add-template-form"
-                className="px-5 py-2 bg-indigo-500 hover:bg-brand-blue text-white rounded-md text-sm font-medium transition-colors flex items-center shadow-sm"
+                disabled={modalTemplateClashes.length > 0}
+                title={
+                  modalTemplateClashes.length > 0
+                    ? 'Resolve the template shift time clash before saving'
+                    : undefined
+                }
+                className="px-5 py-2 bg-indigo-500 hover:bg-brand-blue disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white rounded-md text-sm font-medium transition-colors flex items-center shadow-sm"
               >
                 {editingTemplateId ? <Edit2 className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
                 {editingTemplateId ? 'Update Shift' : 'Save Shift Template'}
@@ -3412,6 +3812,38 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 </p>
               </div>
 
+              {currentTemplateClashes.pairs.length > 0 && (
+                <div className="bg-red-500/10 border border-red-500/40 rounded-lg p-3.5 space-y-2">
+                  <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wider">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Template Shift Clashes Must Be Resolved First</span>
+                  </div>
+                  <p className="text-xs text-red-200/90 leading-relaxed">
+                    This template contains overlapping shift cards on the same day and date. Please edit or delete the clashing card on the template board before running the builder:
+                  </p>
+                  <ul className="space-y-1.5 max-h-28 overflow-y-auto custom-scrollbar pr-1">
+                    {currentTemplateClashes.pairs.map((pair, pIdx) => {
+                      const sampleDates = pair.overlappingDates
+                        .slice(0, 2)
+                        .map(d => formatDisplayDate(d))
+                        .join(', ');
+                      const extra = pair.overlappingDates.length - 2;
+                      return (
+                        <li
+                          key={pIdx}
+                          className="bg-black/45 border border-red-500/30 rounded px-2.5 py-1.5 text-[11px] font-mono text-red-200"
+                        >
+                          <strong className="text-white">{DAYS_OF_WEEK[pair.dayOfWeek]}:</strong>{' '}
+                          {pair.shiftA.start_time}–{pair.shiftA.end_time} clashes with{' '}
+                          {pair.shiftB.start_time}–{pair.shiftB.end_time} ({sampleDates}
+                          {extra > 0 ? ` +${extra} more` : ''})
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
               <div className="bg-brand-blue/10 border border-brand-blue/20 rounded-lg p-3 text-sm text-brand-blue">
                 This will automatically create draft shifts for this client based on their active templates (respecting ONGOING, FIXED, and ONE OFF dates) for the selected period.
               </div>
@@ -3452,8 +3884,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               </button>
               <button
                 onClick={handleGenerateRoster}
-                disabled={generating || templates.length === 0}
-                className="px-5 py-2 bg-brand-green/80 hover:bg-brand-green text-white disabled:bg-zinc-800 disabled:text-zinc-500 rounded-md text-sm font-bold transition-all shadow-md flex items-center justify-center shrink-0 active:scale-[0.98]"
+                disabled={generating || templates.length === 0 || currentTemplateClashes.pairs.length > 0}
+                title={
+                  currentTemplateClashes.pairs.length > 0
+                    ? 'Resolve the overlapping shift cards in the template before building shifts'
+                    : undefined
+                }
+                className="px-5 py-2 bg-brand-green/80 hover:bg-brand-green text-white disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed rounded-md text-sm font-bold transition-all shadow-md flex items-center justify-center shrink-0 active:scale-[0.98]"
               >
                 {generating ? 'Generating...' : 'Build Shifts'}
               </button>
