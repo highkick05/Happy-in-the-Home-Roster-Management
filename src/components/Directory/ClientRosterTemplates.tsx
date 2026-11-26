@@ -2362,15 +2362,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     {formatDisplayDate(viewedTemplateObj?.effective_end_date || activeQuarter.endDateStr)}
                   </span>
                 ) : (
-                  <div className="w-[118px] h-6 flex items-center">
+                  <div className="w-[78px] h-6 flex items-center">
                     <CustomDatePicker
                       position="bottom"
+                      hideClearButton
                       value={
                         homeCareQuarterlySummary?.templateEffectiveStartStr ||
                         viewedTemplateObj?.effective_start_date ||
                         activeQuarter.startDateStr
                       }
-                      onChange={e => handleUpdateTemplateEffectiveDate(e.target.value)}
+                      onChange={e => {
+                        if (e.target.value) {
+                          handleUpdateTemplateEffectiveDate(e.target.value);
+                        }
+                      }}
                       className="w-full bg-transparent text-xs font-mono text-brand-teal font-semibold outline-none cursor-pointer leading-none"
                     />
                   </div>

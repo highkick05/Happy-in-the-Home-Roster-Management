@@ -17,6 +17,7 @@ export interface CustomDatePickerProps {
   required?: boolean;
   position?: 'top' | 'bottom';
   align?: 'left' | 'right';
+  hideClearButton?: boolean;
 }
 
 export function CustomDatePicker({ 
@@ -34,6 +35,7 @@ export function CustomDatePicker({
   required,
   position = 'top',
   align = 'left',
+  hideClearButton = false,
   ...props 
 }: CustomDatePickerProps) {
   
@@ -270,7 +272,7 @@ export function CustomDatePicker({
         <div className="relative w-full">
           <input 
             type="text"
-            className={className + " w-full pl-1 pr-6 cursor-pointer py-0 h-full !border-0 bg-transparent"}
+            className={`${className} w-full ${hideClearButton ? 'px-0.5' : 'pl-1 pr-6'} cursor-pointer py-0 h-full !border-0 bg-transparent`}
             placeholder={placeholderText || "dd/mm/yyyy"}
             value={inputText}
             onChange={handleManualInputChange}
@@ -289,25 +291,27 @@ export function CustomDatePicker({
             id={id}
             required={required}
           />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-1 text-zinc-400">
-             {dateValue ? (
-               <button 
-                 type="button" 
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   setDateValue(null);
-                   setInputText("");
-                   if (onDateChange) onDateChange(null);
-                   if (onChange) onChange({ target: { value: '', name: name || '' } });
-                 }} 
-                 className="p-1 hover:text-white transition-colors cursor-pointer z-10 rounded-full hover:bg-white/10"
-               >
-                 <X className="w-3.5 h-3.5" />
-               </button>
-             ) : (
-               <Calendar className="w-4 h-4 pointer-events-none" />
-             )}
-          </div>
+          {!hideClearButton && (
+            <div className="absolute inset-y-0 right-0 flex items-center pr-1 text-zinc-400">
+               {dateValue ? (
+                 <button 
+                   type="button" 
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     setDateValue(null);
+                     setInputText("");
+                     if (onDateChange) onDateChange(null);
+                     if (onChange) onChange({ target: { value: '', name: name || '' } });
+                   }} 
+                   className="p-1 hover:text-white transition-colors cursor-pointer z-10 rounded-full hover:bg-white/10"
+                 >
+                   <X className="w-3.5 h-3.5" />
+                 </button>
+               ) : (
+                 <Calendar className="w-4 h-4 pointer-events-none" />
+               )}
+            </div>
+          )}
         </div>
       </Datepicker>
     </div>
