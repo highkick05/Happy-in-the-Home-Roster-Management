@@ -39,8 +39,25 @@ export function CustomDatePicker({
   ...props 
 }: CustomDatePickerProps) {
   
+  const parseDateProp = (sel?: Date | null, val?: string): Date | null => {
+    if (sel !== undefined && sel !== null) return sel;
+    if (val) {
+      const parts = val.split('-');
+      if (parts.length === 3) {
+        const parsed = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        if (!isNaN(parsed.getTime())) return parsed;
+      } else {
+        const parsed = new Date(val);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    }
+    return null;
+  };
+
   const [show, setShow] = useState<boolean>(false);
-  const [dateValue, setDateValue] = useState<Date | null>(null);
+  const [dateValue, setDateValue] = useState<Date | null>(() => parseDateProp(selected, value));
+  const [pickerSyncKey, setPickerSyncKey] = useState<string>(() => value || (selected ? selected.toISOString() : 'init'));
+  const isDayCellClickRef = React.useRef<boolean>(false);
   const uniqueId = React.useId();
 
   const datepickerRef = React.useRef<HTMLDivElement>(null);
@@ -71,20 +88,12 @@ export function CustomDatePicker({
   }, [show]);
 
   useEffect(() => {
-    let parsedDate: Date | null | undefined = selected;
-    if (parsedDate === undefined && value) {
-      const parts = value.split('-');
-      if (parts.length === 3) {
-        parsedDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      } else {
-        parsedDate = new Date(value);
-        if (isNaN(parsedDate.getTime())) {
-           parsedDate = null;
-        }
-      }
+    const parsedDate = parseDateProp(selected, value);
+    setDateValue(parsedDate);
+    if (!show) {
+      setPickerSyncKey(value || (parsedDate ? parsedDate.toISOString() : 'empty'));
     }
-    setDateValue(parsedDate || null);
-  }, [selected, value]);
+  }, [selected, value, show]);
 
   useEffect(() => {
     if (!show) return;
@@ -145,7 +154,7 @@ export function CustomDatePicker({
     };
   }, [show]);
 
-  const handleChange = (selectedDate: Date) => {
+  const commitSelectedDate = (selectedDate: Date) => {
     setDateValue(selectedDate);
     
     if (onDateChange) {
@@ -167,12 +176,25 @@ export function CustomDatePicker({
       onChange(pseudoEvent);
     }
   };
+
+  const handleChange = (selectedDate: Date) => {
+    // Only commit the date change if the user actually clicked a day cell in the calendar grid,
+    // NOT when clicking the < or > month/year navigation arrows in tailwind-datepicker-react
+    if (!isDayCellClickRef.current) {
+      return;
+    }
+    isDayCellClickRef.current = false;
+    commitSelectedDate(selectedDate);
+  };
   
   const handleClose = (state: boolean) => {
     setShow(state);
   };
 
-  const [inputText, setInputText] = useState<string>("");
+  const [inputText, setInputText] = useState<string>(() => {
+    const initial = parseDateProp(selected, value);
+    return initial ? initial.toLocaleDateString("en-GB") : "";
+  });
 
   useEffect(() => {
     if (dateValue) {
@@ -203,7 +225,7 @@ export function CustomDatePicker({
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
         const parsed = new Date(year, month - 1, day);
         if (parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day) {
-          handleChange(parsed);
+          commitSelectedDate(parsed);
         }
       }
       return;
@@ -218,7 +240,7 @@ export function CustomDatePicker({
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
         const parsed = new Date(year, month - 1, day);
         if (parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day) {
-          handleChange(parsed);
+          commitSelectedDate(parsed);
         }
       }
     }
@@ -251,7 +273,7 @@ export function CustomDatePicker({
     } ${
       position === 'bottom' ? 'top-full bottom-auto mt-2' : 'bottom-full top-auto mb-2'
     }`,
-    defaultDate: dateValue,
+    defaultDate: dateValue || new Date(),
     language: "en",
     disabledDates: [],
     weekDays: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
@@ -267,8 +289,21 @@ export function CustomDatePicker({
 
   // If we pass children to tailwind-datepicker-react, it renders the children instead of its own input.
   return (
-    <div className={`relative ${containerClassName || 'w-full'}`} ref={datepickerRef}>
-      <Datepicker options={options} onChange={handleChange} show={show} setShow={handleClose}>
+    <div
+      className={`relative ${containerClassName || 'w-full'}`}
+      ref={datepickerRef}
+      onMouseDownCapture={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) {
+          isDayCellClickRef.current = false;
+          return;
+        }
+        const daySpan = target.closest('.custom-datepicker-popup .grid.w-64.grid-cols-7 span');
+        const text = daySpan?.textContent?.trim() || '';
+        isDayCellClickRef.current = Boolean(daySpan && /^\d{1,2}$/.test(text));
+      }}
+    >
+      <Datepicker key={pickerSyncKey} options={options} onChange={handleChange} show={show} setShow={handleClose}>
         <div className="relative w-full">
           <input 
             type="text"

@@ -393,7 +393,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   const fetchData = async () => {
     if (!token || !clientId) return;
-    setLoading(true);
+    if (templates.length === 0 && templateSettingsList.length === 0) {
+      setLoading(true);
+    }
     try {
       const [templatesRes, allServicesRes, staffRes, settingsRes, clientRes, ratesRes, ledgerRes, shiftSummaryRes] = await Promise.all([
         fetch(`/api/clients/${clientId}/roster-templates`, { headers: { Authorization: `Bearer ${token}` } }),
