@@ -1447,6 +1447,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     const hcPlannedFullQuarter = round2(hcPurePlannedFullQuarter + hcAtHmPlannedFullDraw);
     const hcDirectProjected = round2(hcDirectSpent + hcPlannedRemaining);
     const hcAvailableBeforeOverflow = Math.max(0, round2(hcAllocated - hcDirectProjected));
+    const hcAvailableBeforeActualOverflow = Math.max(0, round2(hcAllocated - hcDirectSpent));
+
+    // Calculate Actual ON Spent Overrun -> HC Cascade (only triggers when actual ON Spent exceeds ON Allocation)
+    const actualOnOverrun = Math.max(0, round2(actualOnSpentToDate - totalOnAllocation));
+    const actualHcOverflowUsed = hcAllocated > 0 ? Math.min(hcAvailableBeforeActualOverflow, actualOnOverrun) : 0;
+    const actualUnfundedOnDeficit = Math.max(0, round2(actualOnOverrun - actualHcOverflowUsed));
+    const actualOnRemaining = actualOnOverrun > 0
+      ? (actualUnfundedOnDeficit > 0 ? -actualUnfundedOnDeficit : 0)
+      : round2(totalOnAllocation - actualOnSpentToDate);
+    const actualHcRemainingAfterOverflow = Math.max(0, round2(hcAvailableBeforeActualOverflow - actualHcOverflowUsed));
 
     // Calculate ON Overrun -> HC Cascade for Projected Spend (Schedule Forecast)
     const projectedOnOverrun = Math.max(0, round2(scheduleProjectedOnSpend - totalOnAllocation));
@@ -1457,7 +1467,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       : round2(totalOnAllocation - scheduleProjectedOnSpend);
     const projectedHcRemainingAfterOverflow = Math.max(0, round2(hcAvailableBeforeOverflow - projectedHcOverflowUsed));
 
-    // Also calculate Full-Quarter Planned Roster vs ON + HC Allocation
+    // Calculate Full-Quarter Planned Roster vs ON + HC Allocation (for planning overflow warnings)
     const plannedOnOverrun = Math.max(0, round2(fullQuarterPlannedOnDrawdown - totalOnAllocation));
     const hcAvailableForPlanned = Math.max(0, round2(hcAllocated - hcDirectSpent - hcPlannedFullQuarter));
     const plannedHcOverflowUsed = hcAllocated > 0 ? Math.min(hcAvailableForPlanned, plannedOnOverrun) : 0;
@@ -1515,9 +1525,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         plannedRemaining = round2(plannedDrawdownByStream[code]?.remainingQuarter || 0);
       }
 
-      const actualSpent = round2(manualSpent + ledgerSpent);
-      const onOverflowDraw = code === 'HC' ? projectedHcOverflowUsed : 0;
-      const projectedRemaining = round2(allocated - actualSpent - plannedRemaining - onOverflowDraw);
+      // Actual spent on HC only includes direct HC spend + actual AT/HM drawn from HC + actual ON Spent overflow (never planned/projected overflow)
+      const actualOnOverflowDraw = code === 'HC' ? actualHcOverflowUsed : 0;
+      const actualSpent = round2(manualSpent + ledgerSpent + actualOnOverflowDraw);
+      const actualRemaining = round2(allocated - actualSpent);
+
+      // Planned overflow from ON into HC (for planning purposes & warnings on the Planned line)
+      const plannedOnOverflowDraw = code === 'HC' ? plannedHcOverflowUsed : 0;
+      const onOverflowDraw = plannedOnOverflowDraw;
+      const projectedRemaining = round2(allocated - (manualSpent + ledgerSpent) - plannedRemaining - (code === 'HC' ? projectedHcOverflowUsed : 0));
       const streamName = matchingStreams[0]?.name || STANDARD_FUNDING_STREAM_LABELS[code] || `${code} Funding Stream`;
       const atHmFeeConfig = code === 'AT' || code === 'HM' ? getAtHmFeeConfigForClient(activeQuarterStreams, code) : null;
       const hcCoveredAmount =
@@ -1526,7 +1542,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           : code === 'HM'
           ? round2(hcUsedForHmActual + hcUsedForHmPlannedRem)
           : code === 'HC'
-          ? round2(hcAtHmActualDraw + hcAtHmPlannedRemDraw)
+          ? round2(hcAtHmActualDraw)
           : 0;
 
       return {
@@ -1535,6 +1551,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         isConfigured: matchingStreams.length > 0,
         allocated,
         actualSpent,
+        actualRemaining,
+        actualOnOverflowDraw,
+        plannedOnOverflowDraw,
         plannedFullQuarter,
         plannedRemaining,
         onOverflowDraw,
@@ -1567,6 +1586,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       fullQuarterPlannedOnDrawdown,
       remainingQuarterPlannedOnDrawdown,
       actualOnSpentToDate,
+      actualOnOverrun,
+      actualHcOverflowUsed,
+      actualUnfundedOnDeficit,
+      actualOnRemaining,
+      actualHcRemainingAfterOverflow,
       scheduleProjectedOnSpend,
       burnRateProjectedOnSpend,
       projectedOnOverrun,
@@ -3215,13 +3239,23 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 const alloc = Math.max(0.01, homeCareQuarterlySummary.totalOnAllocation);
                 const plannedVal = homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown;
                 const spentVal = homeCareQuarterlySummary.actualOnSpentToDate;
-                const remVal = homeCareQuarterlySummary.projectedOnRemaining;
+                // Remaining is strictly Allocated - Actual Spent (plus actual HC overflow only if actual Spent exceeds ON Alloc)
+                const remVal = homeCareQuarterlySummary.actualOnRemaining;
                 const projVal = homeCareQuarterlySummary.scheduleProjectedOnSpend;
 
                 const plannedPct = Math.min(100, Math.max(0, Math.round((plannedVal / alloc) * 100)));
                 const spentPct = Math.min(100, Math.max(0, Math.round((spentVal / alloc) * 100)));
                 const remPct = Math.min(100, Math.max(0, Math.round((Math.max(0, remVal) / alloc) * 100)));
                 const projPct = Math.min(100, Math.max(0, Math.round((projVal / alloc) * 100)));
+
+                const hasPlannedOverflowToHc = homeCareQuarterlySummary.plannedHcOverflowUsed > 0;
+                const hasPlannedUnfundedOverrun = homeCareQuarterlySummary.plannedUnfundedDeficit > 0;
+
+                const plannedBarColor = hasPlannedUnfundedOverrun
+                  ? 'bg-red-400'
+                  : hasPlannedOverflowToHc
+                  ? 'bg-amber-400'
+                  : 'bg-indigo-400';
 
                 const projBarColor =
                   homeCareQuarterlySummary.projectedUnfundedDeficit > 0
@@ -3233,9 +3267,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 return (
                   <div
                     className={`w-[360px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-[7px] flex flex-col justify-between ${
-                      homeCareQuarterlySummary.projectedUnfundedDeficit > 0
+                      homeCareQuarterlySummary.actualUnfundedOnDeficit > 0 || hasPlannedUnfundedOverrun
                         ? 'border-red-500/40'
-                        : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
+                        : hasPlannedOverflowToHc || homeCareQuarterlySummary.actualHcOverflowUsed > 0
                         ? 'border-amber-500/40'
                         : 'border-brand-teal/30'
                     }`}
@@ -3249,13 +3283,27 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         <span className="text-[10.5px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
                           Ongoing Funds ({activeQuarter.shortLabel})
                         </span>
-                        {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
+                        {homeCareQuarterlySummary.actualUnfundedOnDeficit > 0 ? (
                           <span className="text-[9.5px] font-semibold px-1 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
                             Over
                           </span>
-                        ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
-                          <span className="text-[9.5px] font-semibold px-1 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                            ⚡ HC Draw
+                        ) : hasPlannedUnfundedOverrun ? (
+                          <span
+                            className="text-[9.5px] font-semibold px-1 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0"
+                            title={
+                              hasPlannedOverflowToHc
+                                ? `Planned roster exceeds ON by ${formatCurrency(homeCareQuarterlySummary.plannedOnOverrun)} (${formatCurrency(homeCareQuarterlySummary.plannedHcOverflowUsed)} overflows to HC; ${formatCurrency(homeCareQuarterlySummary.plannedUnfundedDeficit)} unfunded)`
+                                : `Planned roster exceeds ON allocation by ${formatCurrency(homeCareQuarterlySummary.plannedOnOverrun)}`
+                            }
+                          >
+                            ⚠️ Planned Over
+                          </span>
+                        ) : hasPlannedOverflowToHc ? (
+                          <span
+                            className="text-[9.5px] font-semibold px-1 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0"
+                            title={`Planned roster exceeds ON allocation by ${formatCurrency(homeCareQuarterlySummary.plannedHcOverflowUsed)} — will overflow into HC Home Care Account`}
+                          >
+                            ⚠️ Planned → HC
                           </span>
                         ) : null}
                       </div>
@@ -3269,16 +3317,31 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                     {/* 4 Horizontal Bar Graph Lines: Planned, Spent, Remaining, Projected */}
                     <div className="space-y-0.5">
-                      {/* Line 1: Planned */}
-                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
+                      {/* Line 1: Planned (shows planning overflow warning when Planned > ON Alloc) */}
+                      <div
+                        className="flex items-center gap-2 text-[10.5px] leading-tight"
+                        title={
+                          homeCareQuarterlySummary.plannedOnOverrun > 0
+                            ? `Planned exceeds ON allocation by ${formatCurrency(homeCareQuarterlySummary.plannedOnOverrun)} (${formatCurrency(homeCareQuarterlySummary.plannedHcOverflowUsed)} overflows to HC)`
+                            : undefined
+                        }
+                      >
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Planned</span>
                         <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
-                            className="h-full bg-indigo-400 rounded-full transition-all"
+                            className={`h-full rounded-full transition-all ${plannedBarColor}`}
                             style={{ width: `${plannedPct}%` }}
                           />
                         </div>
-                        <span className="w-20 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                        <span
+                          className={`w-20 text-right font-mono font-semibold shrink-0 ${
+                            hasPlannedUnfundedOverrun
+                              ? 'text-red-400'
+                              : hasPlannedOverflowToHc
+                              ? 'text-amber-300'
+                              : 'text-zinc-200'
+                          }`}
+                        >
                           {formatCurrency(plannedVal)}
                         </span>
                       </div>
@@ -3297,8 +3360,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         </span>
                       </div>
 
-                      {/* Line 3: Remaining (under Spent) */}
-                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
+                      {/* Line 3: Remaining (strictly Alloc - Spent) */}
+                      <div
+                        className="flex items-center gap-2 text-[10.5px] leading-tight"
+                        title={`Allocated (${formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}) − Spent (${formatCurrency(spentVal)}) = ${formatCurrency(remVal)}`}
+                      >
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
                         <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
@@ -3337,7 +3403,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         </span>
                       </div>
 
-                      {/* Line 5: Spare Hourly Capacity Helper */}
+                      {/* Line 5: Spare Hourly Capacity Helper (based on unplanned capacity remaining before ON overflows) */}
                       {(() => {
                         let refWeekdayBaseRate = 80;
                         const weekdayShift = currentTemplateList.find(
@@ -3353,18 +3419,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           if (candidateRate > 0) refWeekdayBaseRate = candidateRate;
                         }
                         const hourlyDrawdown = Math.max(1, applyShiftDrawdownFees(refWeekdayBaseRate));
-                        const spareTotalHours = Math.max(0, remVal) / hourlyDrawdown;
+                        const unplannedCapacityLeft = Math.max(0, homeCareQuarterlySummary.totalOnAllocation - plannedVal);
+                        const spareTotalHours = unplannedCapacityLeft / hourlyDrawdown;
                         const remWeeks = Math.max(1, homeCareQuarterlySummary.daysRemaining / 7);
                         const spareWeeklyHours = spareTotalHours / remWeeks;
 
                         return (
                           <div
                             className="pt-0.5 mt-0.5 border-t border-white/[0.06] flex items-center justify-between text-[9.5px] font-mono leading-tight"
-                            title={`Estimated additional weekday hours available in ${activeQuarter.shortLabel} at $${refWeekdayBaseRate.toFixed(2)}/hr base (${formatCurrency(hourlyDrawdown)}/hr incl. fees)`}
+                            title={`Estimated additional unplanned weekday hours available in ${activeQuarter.shortLabel} before exceeding ON allocation at $${refWeekdayBaseRate.toFixed(2)}/hr base (${formatCurrency(hourlyDrawdown)}/hr incl. fees)`}
                           >
                             <span className="text-zinc-400">Spare Capacity (@ ${refWeekdayBaseRate.toFixed(0)}/hr):</span>
-                            <span className={remVal > 0 ? 'text-brand-teal font-semibold' : 'text-zinc-500'}>
-                              {remVal > 0
+                            <span className={unplannedCapacityLeft > 0 ? 'text-brand-teal font-semibold' : 'text-zinc-500'}>
+                              {unplannedCapacityLeft > 0
                                 ? `≈ ${spareTotalHours.toFixed(1)} hrs (~${spareWeeklyHours.toFixed(1)} hrs/wk)`
                                 : '0.0 hrs'}
                             </span>
@@ -3381,9 +3448,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 const isHc = s.code === 'HC';
                 const cleanTitle = s.name.replace(new RegExp(`^${s.code}\\s*[-—]?\\s*`, 'i'), '');
                 const alloc = Math.max(0.01, s.allocated);
-                const plannedVal = round2(s.plannedFullQuarter + s.onOverflowDraw);
+                const plannedOverflowVal = (s as any).plannedOnOverflowDraw || 0;
+                const actualOverflowVal = (s as any).actualOnOverflowDraw || 0;
+                const plannedVal = round2(s.plannedFullQuarter + plannedOverflowVal);
                 const spentVal = s.actualSpent;
-                const remVal = s.projectedRemaining;
+                // Remaining is strictly Alloc - Actual Spent (only reduced when actual ON Spent overflows into HC or direct AT/HM/HC is spent)
+                const remVal = (s as any).actualRemaining !== undefined ? (s as any).actualRemaining : round2(s.allocated - s.actualSpent);
 
                 const plannedPct = s.allocated > 0 ? Math.min(100, Math.max(0, Math.round((plannedVal / alloc) * 100))) : 0;
                 const spentPct = s.allocated > 0 ? Math.min(100, Math.max(0, Math.round((spentVal / alloc) * 100))) : 0;
@@ -3393,9 +3463,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   <div
                     key={s.code}
                     className={`w-[340px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-[7px] flex flex-col justify-between ${
-                      s.projectedRemaining < 0
+                      remVal < 0
                         ? 'border-red-500/40'
-                        : s.onOverflowDraw > 0
+                        : plannedOverflowVal > 0 || actualOverflowVal > 0
                         ? 'border-amber-500/40'
                         : isHc
                         ? 'border-sky-500/30'
@@ -3420,18 +3490,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         {isHc && (
                           <span
                             className={`text-[9.5px] font-medium px-1 py-0.2 rounded border shrink-0 ${
-                              s.onOverflowDraw > 0 || (s as any).hcCoveredAmount > 0
+                              plannedOverflowVal > 0 || actualOverflowVal > 0 || (s as any).hcCoveredAmount > 0
                                 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                                 : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                             }`}
                             title={
-                              (s as any).hcCoveredAmount > 0
-                                ? `Drawing ${formatCurrency((s as any).hcCoveredAmount)} first for AT/HM items before AT/HM streams`
+                              actualOverflowVal > 0
+                                ? `Actual ON Spent has overflowed into HC by ${formatCurrency(actualOverflowVal)}`
+                                : plannedOverflowVal > 0
+                                ? `Warning: Planned ON schedule overflows into HC by ${formatCurrency(plannedOverflowVal)} (Remaining HC balance is not reduced until actual ON Spent overflows)`
+                                : (s as any).hcCoveredAmount > 0
+                                ? `Drawn ${formatCurrency((s as any).hcCoveredAmount)} first for AT/HM items before AT/HM streams`
                                 : 'Linked to ON Ongoing Funds & AT/HM for priority drawdown'
                             }
                           >
-                            {s.onOverflowDraw > 0
-                              ? '⚡ Overflow'
+                            {actualOverflowVal > 0
+                              ? '⚡ ON Overflow'
+                              : plannedOverflowVal > 0
+                              ? '⚠️ Planned Overflow'
                               : (s as any).hcCoveredAmount > 0
                               ? '⚡ AT/HM Draw'
                               : '🔗 Linked ON'}
@@ -3456,22 +3532,27 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                     {/* 3 Horizontal Bar Graph Lines: Planned, Spent, Remaining */}
                     <div className="space-y-1 my-auto">
-                      {/* Line 1: Planned (includes any ON overflow draw for HC) */}
-                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
-                        <span className="w-14 text-zinc-400 font-medium shrink-0">
-                          {isHc && s.onOverflowDraw > 0 ? 'Overflow' : 'Planned'}
-                        </span>
+                      {/* Line 1: Planned (always labeled "Planned", includes any planned ON overflow draw for HC with amber warning) */}
+                      <div
+                        className="flex items-center gap-2 text-[10.5px] leading-tight"
+                        title={
+                          isHc && plannedOverflowVal > 0
+                            ? `Includes ${formatCurrency(plannedOverflowVal)} planned overflow from ON Ongoing Funds`
+                            : undefined
+                        }
+                      >
+                        <span className="w-14 text-zinc-400 font-medium shrink-0">Planned</span>
                         <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${
-                              s.onOverflowDraw > 0 ? 'bg-amber-400' : 'bg-indigo-400'
+                              plannedOverflowVal > 0 ? 'bg-amber-400' : 'bg-indigo-400'
                             }`}
                             style={{ width: `${plannedPct}%` }}
                           />
                         </div>
                         <span
                           className={`w-20 text-right font-mono font-semibold shrink-0 ${
-                            s.onOverflowDraw > 0 ? 'text-amber-300' : 'text-zinc-200'
+                            plannedOverflowVal > 0 ? 'text-amber-300' : 'text-zinc-200'
                           }`}
                         >
                           {formatCurrency(plannedVal)}
@@ -3492,8 +3573,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         </span>
                       </div>
 
-                      {/* Line 3: Remaining */}
-                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
+                      {/* Line 3: Remaining (strictly Alloc - Actual Spent) */}
+                      <div
+                        className="flex items-center gap-2 text-[10.5px] leading-tight"
+                        title={`Allocated (${formatCurrency(s.allocated)}) − Spent (${formatCurrency(spentVal)}) = ${formatCurrency(remVal)}`}
+                      >
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
                         <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
