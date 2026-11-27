@@ -19043,11 +19043,59 @@ app.get("/api/health", (req, res) => {
     },
   );
 
+  const resolveServerTimezoneForTemplates = (): string => {
+    let timezone = "Australia/Perth";
+    try {
+      const tzRow = db
+        .prepare("SELECT value FROM settings WHERE key = 'timezone' LIMIT 1")
+        .get() as any;
+      if (tzRow?.value) {
+        try {
+          timezone = JSON.parse(tzRow.value);
+        } catch {
+          timezone = String(tzRow.value).replace(/['"]+/g, "");
+        }
+      }
+    } catch {}
+    return timezone || "Australia/Perth";
+  };
+
+  const findLinkedCalendarShiftForOneOff = (
+    clientId: number | string,
+    sourceShiftId?: number | null,
+    oneOffDate?: string | null,
+    startTime?: string | null,
+    endTime?: string | null,
+    timezone?: string,
+  ): any | null => {
+    if (sourceShiftId) {
+      const byId = db
+        .prepare("SELECT * FROM shifts WHERE id = ? LIMIT 1")
+        .get(sourceShiftId) as any;
+      if (byId) return byId;
+    }
+    if (!clientId || !oneOffDate || !startTime || !endTime) return null;
+    const cleanDate = String(oneOffDate).split("T")[0];
+    const tz = timezone || resolveServerTimezoneForTemplates();
+    try {
+      const startIso = getUtcTimeFromLocal(cleanDate, startTime, tz).toISOString();
+      const endIso = getUtcTimeFromLocal(cleanDate, endTime, tz).toISOString();
+      const byExactTime = db
+        .prepare(
+          "SELECT * FROM shifts WHERE client_id = ? AND start_time = ? AND end_time = ? ORDER BY id DESC LIMIT 1",
+        )
+        .get(clientId, startIso, endIso) as any;
+      if (byExactTime) return byExactTime;
+    } catch {}
+    return null;
+  };
+
   app.get(
     "/api/clients/:id/roster-templates",
     authenticateToken,
     (req: any, res: any) => {
       try {
+        const timezone = resolveServerTimezoneForTemplates();
         const templates = db
           .prepare(
             `
@@ -19063,12 +19111,38 @@ app.get("/api/health", (req, res) => {
           )
           .all(req.params.id);
 
-        // Parse JSON for the frontend
+        // Parse JSON and resolve linked calendar shift status for ONE_OFF cards
         templates.forEach((t: any) => {
           try {
             t.servicesData = t.services_json ? JSON.parse(t.services_json) : [];
           } catch (e) {
             t.servicesData = [];
+          }
+
+          if (String(t.schedule_type || "").toUpperCase() === "ONE_OFF") {
+            const linkedShift = findLinkedCalendarShiftForOneOff(
+              t.client_id,
+              t.source_shift_id,
+              t.one_off_date,
+              t.start_time,
+              t.end_time,
+              timezone,
+            );
+            if (linkedShift) {
+              if (Number(t.source_shift_id) !== Number(linkedShift.id)) {
+                try {
+                  db.prepare(
+                    "UPDATE client_roster_templates SET source_shift_id = ? WHERE id = ?",
+                  ).run(linkedShift.id, t.id);
+                } catch {}
+              }
+              t.source_shift_id = linkedShift.id;
+              t.linked_shift_status = linkedShift.status || "DRAFT";
+            } else {
+              t.linked_shift_status = null;
+            }
+          } else {
+            t.linked_shift_status = null;
           }
         });
         res.json(templates);
@@ -19083,7 +19157,7 @@ app.get("/api/health", (req, res) => {
     "/api/clients/:id/roster-templates",
     authenticateToken,
     requireAdmin,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
         const {
           daysOfWeek = [],
@@ -19099,20 +19173,83 @@ app.get("/api/health", (req, res) => {
           oneOffDate = null,
           frequency = "Weekly",
         } = req.body;
+        const clientId = req.params.id;
+        const timezone = resolveServerTimezoneForTemplates();
         const stmt = db.prepare(`
-        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date, frequency)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date, frequency, source_shift_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
         const daysToIterate =
           Array.isArray(daysOfWeek) && daysOfWeek.length > 0
             ? daysOfWeek
             : [dayOfWeek];
 
+        const staffDatesToRecalculate: Array<{ staffId: number; startIso: string }> = [];
+
         db.transaction(() => {
+          const clientRow = db
+            .prepare("SELECT funding_type, home_care_sub_type FROM clients WHERE id = ?")
+            .get(clientId) as any;
+          const rawFType = String(clientRow?.funding_type || "").toUpperCase();
+          const fundingType =
+            rawFType === "HOME_CARE" ||
+            rawFType === "HOME CARE" ||
+            rawFType === "HCP" ||
+            (!rawFType && clientRow?.home_care_sub_type)
+              ? "HOME_CARE"
+              : "NDIS";
+
           for (const day of daysToIterate) {
             if (day !== undefined && day !== null) {
+              let linkedShiftId: number | null = null;
+              const isOneOff =
+                String(scheduleType || "ONGOING").toUpperCase() === "ONE_OFF" &&
+                Boolean(oneOffDate);
+
+              if (isOneOff) {
+                const cleanDate = String(oneOffDate).split("T")[0];
+                const existingShift = findLinkedCalendarShiftForOneOff(
+                  clientId,
+                  null,
+                  cleanDate,
+                  startTime,
+                  endTime,
+                  timezone,
+                );
+                if (existingShift) {
+                  linkedShiftId = Number(existingShift.id);
+                } else {
+                  const startDt = getUtcTimeFromLocal(cleanDate, startTime, timezone);
+                  const endDt = getUtcTimeFromLocal(cleanDate, endTime, timezone);
+                  const parsedServices = Array.isArray(servicesData) ? servicesData : [];
+                  const mainServiceId =
+                    parsedServices.length > 0 ? parsedServices[0].serviceId || null : null;
+                  const shiftInsert = db
+                    .prepare(
+                      `INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, funding_type, is_abt_approved)
+                       VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, 0)`,
+                    )
+                    .run(
+                      clientId,
+                      staffId || null,
+                      mainServiceId,
+                      JSON.stringify(parsedServices),
+                      startDt.toISOString(),
+                      endDt.toISOString(),
+                      fundingType,
+                    );
+                  linkedShiftId = Number(shiftInsert.lastInsertRowid);
+                  if (staffId) {
+                    staffDatesToRecalculate.push({
+                      staffId: Number(staffId),
+                      startIso: startDt.toISOString(),
+                    });
+                  }
+                }
+              }
+
               stmt.run(
-                req.params.id,
+                clientId,
                 day,
                 startTime,
                 endTime,
@@ -19124,10 +19261,16 @@ app.get("/api/health", (req, res) => {
                 endDate || null,
                 oneOffDate || null,
                 frequency || "Weekly",
+                linkedShiftId,
               );
             }
           }
         })();
+
+        for (const item of staffDatesToRecalculate) {
+          await recalculateDayTravelForStaff(item.staffId, item.startIso);
+        }
+
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -19140,7 +19283,7 @@ app.get("/api/health", (req, res) => {
     "/api/client-roster-templates/:id",
     authenticateToken,
     requireAdmin,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
         const {
           dayOfWeek,
@@ -19153,24 +19296,224 @@ app.get("/api/health", (req, res) => {
           endDate = null,
           oneOffDate = null,
           frequency = "Weekly",
+          additionalDays = [],
         } = req.body;
-        db.prepare(`
-          UPDATE client_roster_templates 
-          SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?, schedule_type = ?, start_date = ?, end_date = ?, one_off_date = ?, frequency = ?
-          WHERE id = ?
-        `).run(
-          dayOfWeek,
-          startTime,
-          endTime,
-          staffId || null,
-          JSON.stringify(servicesData || []),
-          scheduleType || "ONGOING",
-          startDate || null,
-          endDate || null,
-          oneOffDate || null,
-          frequency || "Weekly",
-          req.params.id
-        );
+
+        const existingTmpl = db
+          .prepare("SELECT * FROM client_roster_templates WHERE id = ?")
+          .get(req.params.id) as any;
+        if (!existingTmpl) {
+          return res.status(404).json({ error: "Template shift not found" });
+        }
+
+        const timezone = resolveServerTimezoneForTemplates();
+        const wasOneOff =
+          String(existingTmpl.schedule_type || "").toUpperCase() === "ONE_OFF";
+        const isNowOneOff =
+          String(scheduleType || "ONGOING").toUpperCase() === "ONE_OFF";
+
+        const oldLinkedShift = wasOneOff
+          ? findLinkedCalendarShiftForOneOff(
+              existingTmpl.client_id,
+              existingTmpl.source_shift_id,
+              existingTmpl.one_off_date,
+              existingTmpl.start_time,
+              existingTmpl.end_time,
+              timezone,
+            )
+          : null;
+
+        if (
+          oldLinkedShift &&
+          ["COMPLETED", "IN_PROGRESS"].includes(
+            String(oldLinkedShift.status || "").toUpperCase(),
+          )
+        ) {
+          return res.status(400).json({
+            error:
+              "This One-Off shift has already been COMPLETED on the roster calendar and cannot be modified.",
+          });
+        }
+
+        const staffDatesToRecalculate: Array<{ staffId: number; startIso: string }> = [];
+        let updatedSourceShiftId: number | null = existingTmpl.source_shift_id || null;
+
+        db.transaction(() => {
+          const clientRow = db
+            .prepare("SELECT funding_type, home_care_sub_type FROM clients WHERE id = ?")
+            .get(existingTmpl.client_id) as any;
+          const rawFType = String(clientRow?.funding_type || "").toUpperCase();
+          const fundingType =
+            rawFType === "HOME_CARE" ||
+            rawFType === "HOME CARE" ||
+            rawFType === "HCP" ||
+            (!rawFType && clientRow?.home_care_sub_type)
+              ? "HOME_CARE"
+              : "NDIS";
+
+          if (isNowOneOff && oneOffDate) {
+            const cleanDate = String(oneOffDate).split("T")[0];
+            const startDt = getUtcTimeFromLocal(cleanDate, startTime, timezone);
+            const endDt = getUtcTimeFromLocal(cleanDate, endTime, timezone);
+            const parsedServices = Array.isArray(servicesData) ? servicesData : [];
+            const mainServiceId =
+              parsedServices.length > 0 ? parsedServices[0].serviceId || null : null;
+
+            if (oldLinkedShift) {
+              if (oldLinkedShift.staff_id && oldLinkedShift.start_time) {
+                staffDatesToRecalculate.push({
+                  staffId: Number(oldLinkedShift.staff_id),
+                  startIso: oldLinkedShift.start_time,
+                });
+              }
+              db.prepare(
+                `UPDATE shifts
+                 SET staff_id = ?, service_id = ?, services_json = ?, start_time = ?, end_time = ?
+                 WHERE id = ?`,
+              ).run(
+                staffId || null,
+                mainServiceId,
+                JSON.stringify(parsedServices),
+                startDt.toISOString(),
+                endDt.toISOString(),
+                oldLinkedShift.id,
+              );
+              updatedSourceShiftId = Number(oldLinkedShift.id);
+              if (staffId) {
+                staffDatesToRecalculate.push({
+                  staffId: Number(staffId),
+                  startIso: startDt.toISOString(),
+                });
+              }
+            } else {
+              const shiftInsert = db
+                .prepare(
+                  `INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, funding_type, is_abt_approved)
+                   VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, 0)`,
+                )
+                .run(
+                  existingTmpl.client_id,
+                  staffId || null,
+                  mainServiceId,
+                  JSON.stringify(parsedServices),
+                  startDt.toISOString(),
+                  endDt.toISOString(),
+                  fundingType,
+                );
+              updatedSourceShiftId = Number(shiftInsert.lastInsertRowid);
+              if (staffId) {
+                staffDatesToRecalculate.push({
+                  staffId: Number(staffId),
+                  startIso: startDt.toISOString(),
+                });
+              }
+            }
+          } else if (wasOneOff && !isNowOneOff && oldLinkedShift) {
+            if (oldLinkedShift.staff_id && oldLinkedShift.start_time) {
+              staffDatesToRecalculate.push({
+                staffId: Number(oldLinkedShift.staff_id),
+                startIso: oldLinkedShift.start_time,
+              });
+            }
+            db.prepare("DELETE FROM invoices WHERE shift_id = ?").run(oldLinkedShift.id);
+            db.prepare("DELETE FROM shifts WHERE id = ?").run(oldLinkedShift.id);
+            updatedSourceShiftId = null;
+          }
+
+          db.prepare(`
+            UPDATE client_roster_templates 
+            SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?, schedule_type = ?, start_date = ?, end_date = ?, one_off_date = ?, frequency = ?, source_shift_id = ?
+            WHERE id = ?
+          `).run(
+            dayOfWeek,
+            startTime,
+            endTime,
+            staffId || null,
+            JSON.stringify(servicesData || []),
+            scheduleType || "ONGOING",
+            startDate || null,
+            endDate || null,
+            oneOffDate || null,
+            frequency || "Weekly",
+            updatedSourceShiftId,
+            req.params.id,
+          );
+
+          // If user also selected additional days to copy/apply this recurring shift to while editing
+          if (!isNowOneOff && Array.isArray(additionalDays) && additionalDays.length > 0) {
+            const insertStmt = db.prepare(`
+              INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date, frequency)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            for (const addItem of additionalDays) {
+              const targetDay =
+                typeof addItem === "object" && addItem !== null
+                  ? Number(addItem.dayOfWeek)
+                  : Number(addItem);
+              if (isNaN(targetDay) || targetDay === Number(dayOfWeek)) continue;
+              const dayServices =
+                typeof addItem === "object" && addItem !== null && Array.isArray(addItem.servicesData)
+                  ? addItem.servicesData
+                  : servicesData || [];
+
+              // Check if an identical time slot already exists on that day in the same template; if so update it, otherwise insert
+              const existingSameSlot = db
+                .prepare(
+                  `SELECT id FROM client_roster_templates
+                   WHERE client_id = ?
+                     AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
+                     AND day_of_week = ?
+                     AND start_time = ?
+                     AND end_time = ?
+                     AND UPPER(COALESCE(schedule_type, 'ONGOING')) = ?
+                   LIMIT 1`,
+                )
+                .get(
+                  existingTmpl.client_id,
+                  existingTmpl.template_name || "Default Template",
+                  targetDay,
+                  startTime,
+                  endTime,
+                  String(scheduleType || "ONGOING").toUpperCase(),
+                ) as any;
+
+              if (existingSameSlot?.id) {
+                db.prepare(
+                  `UPDATE client_roster_templates
+                   SET staff_id = ?, services_json = ?, start_date = ?, end_date = ?, frequency = ?
+                   WHERE id = ?`,
+                ).run(
+                  staffId || null,
+                  JSON.stringify(dayServices),
+                  startDate || null,
+                  endDate || null,
+                  frequency || "Weekly",
+                  existingSameSlot.id,
+                );
+              } else {
+                insertStmt.run(
+                  existingTmpl.client_id,
+                  targetDay,
+                  startTime,
+                  endTime,
+                  staffId || null,
+                  JSON.stringify(dayServices),
+                  existingTmpl.template_name || "Default Template",
+                  scheduleType || "ONGOING",
+                  startDate || null,
+                  endDate || null,
+                  null,
+                  frequency || "Weekly",
+                );
+              }
+            }
+          }
+        })();
+
+        for (const item of staffDatesToRecalculate) {
+          await recalculateDayTravelForStaff(item.staffId, item.startIso);
+        }
+
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -19231,8 +19574,59 @@ app.get("/api/health", (req, res) => {
     "/api/client-roster-templates/:id",
     authenticateToken,
     requireAdmin,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
+        const existingTmpl = db
+          .prepare("SELECT * FROM client_roster_templates WHERE id = ?")
+          .get(req.params.id) as any;
+
+        let staffToRecalc: { staffId: number; startIso: string } | null = null;
+
+        if (
+          existingTmpl &&
+          String(existingTmpl.schedule_type || "").toUpperCase() === "ONE_OFF"
+        ) {
+          const timezone = resolveServerTimezoneForTemplates();
+          const linkedShift = findLinkedCalendarShiftForOneOff(
+            existingTmpl.client_id,
+            existingTmpl.source_shift_id,
+            existingTmpl.one_off_date,
+            existingTmpl.start_time,
+            existingTmpl.end_time,
+            timezone,
+          );
+
+          if (linkedShift) {
+            const st = String(linkedShift.status || "").toUpperCase();
+            if (st === "COMPLETED" || st === "IN_PROGRESS") {
+              return res.status(400).json({
+                error:
+                  "Cannot delete a One-Off shift that has already been COMPLETED on the roster calendar.",
+              });
+            }
+            db.transaction(() => {
+              db.prepare("DELETE FROM invoices WHERE shift_id = ?").run(linkedShift.id);
+              db.prepare("DELETE FROM shifts WHERE id = ?").run(linkedShift.id);
+              db.prepare("DELETE FROM client_roster_templates WHERE id = ?").run(
+                req.params.id,
+              );
+            })();
+            if (linkedShift.staff_id && linkedShift.start_time) {
+              staffToRecalc = {
+                staffId: Number(linkedShift.staff_id),
+                startIso: linkedShift.start_time,
+              };
+            }
+            if (staffToRecalc) {
+              await recalculateDayTravelForStaff(
+                staffToRecalc.staffId,
+                staffToRecalc.startIso,
+              );
+            }
+            return res.json({ success: true, deletedLinkedShiftId: linkedShift.id });
+          }
+        }
+
         db.prepare("DELETE FROM client_roster_templates WHERE id = ?").run(
           req.params.id,
         );

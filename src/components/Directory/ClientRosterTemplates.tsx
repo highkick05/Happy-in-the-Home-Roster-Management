@@ -1759,18 +1759,33 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const handleDayToggle = (idx: number) => {
     if (scheduleType === 'ONE_OFF') return; // Day of week is auto-determined by one_off_date
     let newDays: number[];
-    if (editingTemplateId) {
-      newDays = [idx];
+    if (daysOfWeek.includes(idx)) {
+      newDays = daysOfWeek.filter(d => d !== idx);
     } else {
-      if (daysOfWeek.includes(idx)) {
-        newDays = daysOfWeek.filter(d => d !== idx);
-      } else {
-        newDays = [...daysOfWeek, idx];
-      }
+      newDays = [...daysOfWeek, idx];
     }
     const oldDay = daysOfWeek[0] ?? 1;
     const targetDay = newDays.length > 0 ? newDays[0] : 1;
     setDaysOfWeek(newDays);
+
+    if (oldDay !== targetDay) {
+      setServicesData(prev => prev.map(s => {
+        if (!s.serviceId) return s;
+        const oldDetails = getServiceDetails(s.serviceId, oldDay, startTime);
+        const newDetails = getServiceDetails(s.serviceId, targetDay, startTime);
+        if (!s.rateOverride || Number(s.rateOverride) === oldDetails.rate) {
+          return { ...s, rateOverride: newDetails.rate > 0 ? newDetails.rate.toFixed(2) : '' };
+        }
+        return s;
+      }));
+    }
+  };
+
+  const handleSelectDayPreset = (presetDays: number[]) => {
+    if (scheduleType === 'ONE_OFF') return;
+    const oldDay = daysOfWeek[0] ?? 1;
+    const targetDay = presetDays.length > 0 ? presetDays[0] : 1;
+    setDaysOfWeek(presetDays);
 
     if (oldDay !== targetDay) {
       setServicesData(prev => prev.map(s => {
@@ -1876,28 +1891,47 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
 
     if (editingTemplateId) {
+      const editedShiftObj = currentTemplateList.find(t => Number(t.id) === Number(editingTemplateId));
       const targetDay = scheduleType === 'ONE_OFF' && shiftOneOffDate
         ? new Date(`${shiftOneOffDate}T12:00:00`).getDay()
-        : (daysOfWeek[0] ?? 1);
-      const finalServicesData = servicesData.map(s => {
-        const sDetails = getServiceDetails(s.serviceId, targetDay, startTime);
-        const effectiveRate =
-          s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== ''
-            ? Number(s.rateOverride)
-            : sDetails.rate;
-        const effectiveQty =
-          s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== ''
-            ? Number(s.qtyOverride)
-            : sDetails.unit === 'Hour'
-            ? shiftHours
-            : 1;
-        return {
-          serviceId: s.serviceId,
-          rateOverride: effectiveRate > 0 ? Number(effectiveRate.toFixed(2)) : (sDetails.rate > 0 ? Number(sDetails.rate.toFixed(2)) : 0),
-          qtyOverride: effectiveQty,
-          fundingStream: String(s.fundingStream || sDetails.fundingStream || 'ON').toUpperCase()
-        };
-      });
+        : (editedShiftObj && daysOfWeek.includes(Number(editedShiftObj.day_of_week))
+            ? Number(editedShiftObj.day_of_week)
+            : (daysOfWeek[0] ?? 1));
+
+      const buildServicesForDay = (dayNum: number) =>
+        servicesData.map(s => {
+          const sDetails = getServiceDetails(s.serviceId, dayNum, startTime);
+          const primaryDayDetails = getServiceDetails(s.serviceId, targetDay, startTime);
+          const isManuallyOverridden =
+            s.rateOverride !== undefined &&
+            s.rateOverride !== null &&
+            s.rateOverride !== '' &&
+            (dayNum === targetDay || Number(s.rateOverride) !== primaryDayDetails.rate);
+          const effectiveRate = isManuallyOverridden ? Number(s.rateOverride) : sDetails.rate;
+          const effectiveQty =
+            s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== ''
+              ? Number(s.qtyOverride)
+              : sDetails.unit === 'Hour'
+              ? shiftHours
+              : 1;
+          return {
+            serviceId: s.serviceId,
+            rateOverride: effectiveRate > 0 ? Number(effectiveRate.toFixed(2)) : (sDetails.rate > 0 ? Number(sDetails.rate.toFixed(2)) : 0),
+            qtyOverride: effectiveQty,
+            fundingStream: String(s.fundingStream || sDetails.fundingStream || 'ON').toUpperCase()
+          };
+        });
+
+      const finalServicesData = buildServicesForDay(targetDay);
+      const extraDaysPayload =
+        scheduleType === 'ONE_OFF'
+          ? []
+          : daysOfWeek
+              .filter(d => Number(d) !== Number(targetDay))
+              .map(d => ({
+                dayOfWeek: d,
+                servicesData: buildServicesForDay(d)
+              }));
 
       try {
         const res = await fetch(`/api/client-roster-templates/${editingTemplateId}`, {
@@ -1913,15 +1947,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             frequency: scheduleType === 'ONE_OFF' ? 'One-Off' : shiftFrequency,
             startDate: scheduleType !== 'ONE_OFF' ? (shiftStartDate || resolvedEffectiveStartDateStr || null) : null,
             endDate: scheduleType === 'FIXED' ? (shiftEndDate || null) : null,
-            oneOffDate: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null
+            oneOffDate: scheduleType === 'ONE_OFF' ? (shiftOneOffDate || null) : null,
+            additionalDays: extraDaysPayload
           })
         });
         if (res.ok) {
           fetchData();
+          if (scheduleType === 'ONE_OFF') {
+            window.dispatchEvent(new CustomEvent('offline-sync-completed'));
+          }
           setShowAddTemplateModal(false);
           setEditingTemplateId(null);
         } else {
-          alert('Failed to update template shift.');
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.error || 'Failed to update template shift.');
         }
       } catch (e) {
         console.error(e);
@@ -1975,6 +2014,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           });
         }
         fetchData();
+        if (scheduleType === 'ONE_OFF') {
+          window.dispatchEvent(new CustomEvent('offline-sync-completed'));
+        }
         setShowAddTemplateModal(false);
       } catch (e) {
         console.error(e);
@@ -1989,7 +2031,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        fetchData();
+        window.dispatchEvent(new CustomEvent('offline-sync-completed'));
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.error) alert(errData.error);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -2218,6 +2266,59 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     } else {
       setServicesData([{ serviceId: '', fundingStream: 'ON,HC' }]);
     }
+    setShowAddTemplateModal(true);
+  };
+
+  const handleDuplicateTemplate = (t: any) => {
+    setEditingTemplateId(null);
+    setDaysOfWeek([t.day_of_week]);
+    setStartTime(t.start_time);
+    setEndTime(t.end_time);
+    setStaffId(String(t.staff_id));
+    const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
+    setScheduleType(sType);
+    const resolvedFreq = getShiftFrequency(t);
+    setShiftFrequency(resolvedFreq === 'One-Off' ? 'Weekly' : resolvedFreq);
+    const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+    const effectiveEditStart =
+      sType === 'ONGOING'
+        ? (rawShiftStart && rawShiftStart > resolvedEffectiveStartDateStr ? rawShiftStart : resolvedEffectiveStartDateStr)
+        : (rawShiftStart || resolvedEffectiveStartDateStr);
+    setShiftStartDate(effectiveEditStart);
+    setShiftEndDate(t.end_date || activeQuarter.endDateStr);
+    setShiftOneOffDate(t.one_off_date || todayStr);
+
+    if (t.servicesData && t.servicesData.length > 0) {
+      setServicesData(
+        t.servicesData.map((sd: any) => {
+          const sDetails = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+          return {
+            ...sd,
+            fundingStream: resolveShiftServiceFundingStream(sd.fundingStream, sDetails.fundingStream)
+          };
+        })
+      );
+    } else if (t.service_id) {
+      const sDetails = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
+      setServicesData([{ serviceId: String(t.service_id), fundingStream: sDetails.fundingStream || 'ON,HC' }]);
+    } else {
+      setServicesData([{ serviceId: '', fundingStream: 'ON,HC' }]);
+    }
+    setShowAddTemplateModal(true);
+  };
+
+  const handleQuickAddForDay = (dayIdx: number) => {
+    setEditingTemplateId(null);
+    setDaysOfWeek([dayIdx]);
+    setStartTime('09:00');
+    setEndTime('10:00');
+    setStaffId('');
+    setScheduleType('ONGOING');
+    setShiftFrequency('Weekly');
+    setShiftStartDate(resolvedEffectiveStartDateStr);
+    setShiftEndDate(activeQuarter.endDateStr);
+    setShiftOneOffDate(todayStr);
+    setServicesData([{ serviceId: '', fundingStream: 'ON,HC' }]);
     setShowAddTemplateModal(true);
   };
 
@@ -2593,120 +2694,174 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     key={slideTemplateName}
                     className="w-full shrink-0 overflow-x-auto p-3 flex gap-3.5 custom-scrollbar items-stretch h-full"
                   >
-                    {slideTemplateList.length === 0 ? (
-                      <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
-                        No shifts defined in "{slideTemplateName}" yet.
-                      </div>
-                    ) : (
-                      displayDaysOrder.map(dayIdx => {
-                        const dayTemplates = slideTemplateList
-                          .filter(t => t.day_of_week === dayIdx)
-                          .sort((a, b) => a.start_time.localeCompare(b.start_time));
+                    {displayDaysOrder.map(dayIdx => {
+                      const dayTemplates = slideTemplateList
+                        .filter(t => t.day_of_week === dayIdx)
+                        .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-                        return (
-                          <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
-                            <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white flex items-center justify-between">
-                              <span className="text-sm font-medium text-zinc-300">{DAYS_OF_WEEK[dayIdx]}</span>
+                      return (
+                        <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
+                          <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-2 text-[13px] text-white flex items-center justify-between gap-1.5">
+                            <span className="text-sm font-medium text-zinc-300 truncate">{DAYS_OF_WEEK[dayIdx]}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
                                 {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
                               </span>
+                              {!slideIsHistorical && user?.role === 'ADMIN' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickAddForDay(dayIdx)}
+                                  title={`Add shift on ${DAYS_OF_WEEK[dayIdx]}`}
+                                  className="w-5 h-5 rounded bg-indigo-500/20 hover:bg-indigo-500/40 text-brand-teal border border-brand-teal/30 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
+                          </div>
 
-                            <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
-                              {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
-                                const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
-                                const shiftFreq = getShiftFrequency(t);
-                                const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
-                                const effectiveCardStart =
-                                  sType === 'ONGOING'
-                                    ? (rawShiftStart && rawShiftStart > slideQStart ? rawShiftStart : slideQStart)
-                                    : (rawShiftStart || slideQStart);
-                                const shiftForCount =
-                                  sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
-                                const qOccurrences = countShiftOccurrencesInRange(shiftForCount, slideQStart, slideQEnd, shiftFreq);
-                                const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
-                                const cardClashes = slideClashes.byShiftId[t.id] || [];
-                                const hasCardClash = cardClashes.length > 0;
+                          <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
+                            {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
+                              const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
+                              const shiftFreq = getShiftFrequency(t);
+                              const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+                              const effectiveCardStart =
+                                sType === 'ONGOING'
+                                  ? (rawShiftStart && rawShiftStart > slideQStart ? rawShiftStart : slideQStart)
+                                  : (rawShiftStart || slideQStart);
+                              const shiftForCount =
+                                sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
+                              const qOccurrences = countShiftOccurrencesInRange(shiftForCount, slideQStart, slideQEnd, shiftFreq);
+                              const { drawdownTotal } = getTemplateShiftOccurrenceBreakdown(t);
+                              const cardClashes = slideClashes.byShiftId[t.id] || [];
+                              const hasCardClash = cardClashes.length > 0;
+                              const linkedStatus = sType === 'ONE_OFF' && t.linked_shift_status
+                                ? String(t.linked_shift_status).toUpperCase()
+                                : '';
+                              const isOneOffLocked =
+                                sType === 'ONE_OFF' &&
+                                (linkedStatus === 'COMPLETED' || linkedStatus === 'IN_PROGRESS');
 
-                                return (
-                                  <div
-                                    key={t.id}
-                                    className={`flex flex-col justify-between p-3 bg-[#09090b] border rounded-lg transition-colors group ${
-                                      hasCardClash
-                                        ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
-                                        : 'border-white/[0.08] hover:border-white/[0.12]'
-                                    }`}
-                                  >
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div className="flex-1 pr-2">
-                                        <div className="flex items-center flex-wrap gap-1.5 mb-1">
-                                          <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
-                                          {sType !== 'ONE_OFF' && (
-                                            <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
-                                              {shiftFreq}
-                                            </span>
-                                          )}
-                                          {sType === 'ONE_OFF' ? (
+                              return (
+                                <div
+                                  key={t.id}
+                                  className={`flex flex-col justify-between p-3 bg-[#09090b] border rounded-lg transition-colors group ${
+                                    hasCardClash
+                                      ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
+                                      : 'border-white/[0.08] hover:border-white/[0.12]'
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1 pr-1.5">
+                                      <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                                        <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
+                                        {sType !== 'ONE_OFF' && (
+                                          <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
+                                            {shiftFreq}
+                                          </span>
+                                        )}
+                                        {sType === 'ONE_OFF' ? (
+                                          <>
                                             <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
                                               ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
                                             </span>
-                                          ) : sType === 'FIXED' ? (
-                                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                                              FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
-                                            </span>
-                                          ) : (
-                                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                              ONGOING
-                                              {effectiveCardStart
-                                                ? slideIsHistorical && slideTmpl.effective_end_date
-                                                  ? ` • ${formatDisplayDate(effectiveCardStart)}–${formatDisplayDate(slideTmpl.effective_end_date)}`
-                                                  : ` • From ${formatDisplayDate(effectiveCardStart)}`
-                                                : ''}
-                                            </span>
-                                          )}
-                                        </div>
-                                        {hasCardClash && (
-                                          <div className="mb-1.5 flex flex-col gap-1">
-                                            {cardClashes.map((clashItem, cIdx) => {
-                                              const other = clashItem.otherShift;
-                                              const sampleDates = clashItem.overlappingDates
-                                                .slice(0, 2)
-                                                .map(d => formatDisplayDate(d))
-                                                .join(', ');
-                                              const extraCount = clashItem.overlappingDates.length - 2;
-                                              return (
-                                                <div
-                                                  key={cIdx}
-                                                  className="inline-flex items-center gap-1 px-1.5 py-1 rounded bg-red-500/15 border border-red-500/40 text-[10px] font-mono font-semibold text-red-300 leading-tight"
-                                                  title={`Overlaps with ${other.start_time} - ${other.end_time} on ${clashItem.overlappingDates.map(d => formatDisplayDate(d)).join(', ')}`}
-                                                >
-                                                  <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
-                                                  <span>
-                                                    TIME CLASH • {other.start_time}–{other.end_time} ({sampleDates}
-                                                    {extraCount > 0 ? ` +${extraCount} more` : ''})
-                                                  </span>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
-                                        <div className="mb-1.5">
-                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
-                                            Staff: {t.staff_first_name} {t.staff_last_name}
+                                            {linkedStatus && (
+                                              <span
+                                                className={`text-[9px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                                                  linkedStatus === 'COMPLETED' || linkedStatus === 'IN_PROGRESS'
+                                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                                    : linkedStatus === 'PUBLISHED'
+                                                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                    : linkedStatus === 'CANCELLED'
+                                                    ? 'bg-red-500/15 text-red-300 border-red-500/30'
+                                                    : 'bg-zinc-700/40 text-zinc-300 border-white/[0.12]'
+                                                }`}
+                                                title={`Calendar Shift Status: ${linkedStatus}`}
+                                              >
+                                                {linkedStatus === 'IN_PROGRESS' ? 'IN PROGRESS' : linkedStatus}
+                                                {isOneOffLocked ? ' 🔒' : ''}
+                                              </span>
+                                            )}
+                                          </>
+                                        ) : sType === 'FIXED' ? (
+                                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                            FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
                                           </span>
-                                        </div>
+                                        ) : (
+                                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                            ONGOING
+                                            {effectiveCardStart
+                                              ? slideIsHistorical && slideTmpl.effective_end_date
+                                                ? ` • ${formatDisplayDate(effectiveCardStart)}–${formatDisplayDate(slideTmpl.effective_end_date)}`
+                                                : ` • From ${formatDisplayDate(effectiveCardStart)}`
+                                              : ''}
+                                          </span>
+                                        )}
                                       </div>
-                                      {!slideIsHistorical && user?.role === 'ADMIN' && (
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
-                                            <Edit2 className="w-4 h-4" />
-                                          </button>
-                                          <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]">
-                                            <Trash2 className="w-4 h-4" />
-                                          </button>
+                                      {hasCardClash && (
+                                        <div className="mb-1.5 flex flex-col gap-1">
+                                          {cardClashes.map((clashItem, cIdx) => {
+                                            const other = clashItem.otherShift;
+                                            const sampleDates = clashItem.overlappingDates
+                                              .slice(0, 2)
+                                              .map(d => formatDisplayDate(d))
+                                              .join(', ');
+                                            const extraCount = clashItem.overlappingDates.length - 2;
+                                            return (
+                                              <div
+                                                key={cIdx}
+                                                className="inline-flex items-center gap-1 px-1.5 py-1 rounded bg-red-500/15 border border-red-500/40 text-[10px] font-mono font-semibold text-red-300 leading-tight"
+                                                title={`Overlaps with ${other.start_time} - ${other.end_time} on ${clashItem.overlappingDates.map(d => formatDisplayDate(d)).join(', ')}`}
+                                              >
+                                                <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+                                                <span>
+                                                  TIME CLASH • {other.start_time}–{other.end_time} ({sampleDates}
+                                                  {extraCount > 0 ? ` +${extraCount} more` : ''})
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       )}
+                                      <div className="mb-1.5">
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
+                                          Staff: {t.staff_first_name} {t.staff_last_name}
+                                        </span>
+                                      </div>
                                     </div>
+                                    {!slideIsHistorical && user?.role === 'ADMIN' && (
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDuplicateTemplate(t)}
+                                          title="Duplicate shift to other day(s) or time"
+                                          className="p-1.5 text-zinc-400 hover:text-indigo-300 transition-colors rounded-md hover:bg-white/[0.04] cursor-pointer"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        {!isOneOffLocked && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditTemplate(t)}
+                                              title="Edit shift"
+                                              className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04] cursor-pointer"
+                                            >
+                                              <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteTemplate(t.id)}
+                                              title="Delete shift"
+                                              className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04] cursor-pointer"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
 
                                     <div className="space-y-1.5 mt-auto">
                                       {t.servicesData && t.servicesData.length > 0 ? (
@@ -2808,8 +2963,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                             </div>
                           </div>
                         );
-                      })
-                    )}
+                      })}
                   </div>
                 );
               })}
@@ -2968,6 +3122,41 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           {formatCurrency(projVal)}
                         </span>
                       </div>
+
+                      {/* Line 5: Spare Hourly Capacity Helper */}
+                      {(() => {
+                        let refWeekdayBaseRate = 80;
+                        const weekdayShift = currentTemplateList.find(
+                          t => t.day_of_week >= 1 && t.day_of_week <= 5 && Array.isArray(t.servicesData) && t.servicesData.length > 0
+                        );
+                        if (weekdayShift?.servicesData?.[0]) {
+                          const sd = weekdayShift.servicesData[0];
+                          const sDet = getServiceDetails(String(sd.serviceId), weekdayShift.day_of_week, weekdayShift.start_time);
+                          const candidateRate =
+                            sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
+                              ? Number(sd.rateOverride)
+                              : sDet.rate;
+                          if (candidateRate > 0) refWeekdayBaseRate = candidateRate;
+                        }
+                        const hourlyDrawdown = Math.max(1, applyShiftDrawdownFees(refWeekdayBaseRate));
+                        const spareTotalHours = Math.max(0, remVal) / hourlyDrawdown;
+                        const remWeeks = Math.max(1, homeCareQuarterlySummary.daysRemaining / 7);
+                        const spareWeeklyHours = spareTotalHours / remWeeks;
+
+                        return (
+                          <div
+                            className="pt-1 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono"
+                            title={`Estimated additional weekday hours available in ${activeQuarter.shortLabel} at $${refWeekdayBaseRate.toFixed(2)}/hr base (${formatCurrency(hourlyDrawdown)}/hr incl. fees)`}
+                          >
+                            <span className="text-zinc-400">Spare Capacity (@ ${refWeekdayBaseRate.toFixed(0)}/hr):</span>
+                            <span className={remVal > 0 ? 'text-brand-teal font-semibold' : 'text-zinc-500'}>
+                              {remVal > 0
+                                ? `≈ ${spareTotalHours.toFixed(1)} hrs (~${spareWeeklyHours.toFixed(1)} hrs/wk)`
+                                : '0.0 hrs'}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -3369,13 +3558,33 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                     {/* Days of Week */}
                     <div>
-                      <label className="block text-xs font-medium text-zinc-400 mb-2">
-                        {scheduleType === 'ONE_OFF'
-                          ? 'Day of Week (Auto-matched to One-Off Date)'
-                          : editingTemplateId
-                          ? 'Day of Week'
-                          : 'Days of Week'}
-                      </label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-medium text-zinc-400">
+                          {scheduleType === 'ONE_OFF'
+                            ? 'Day of Week (Auto-matched to One-Off Date)'
+                            : editingTemplateId
+                            ? 'Days of Week (Select extra days to copy/apply)'
+                            : 'Days of Week'}
+                        </label>
+                        {scheduleType !== 'ONE_OFF' && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectDayPreset([1, 2, 3, 4, 5])}
+                              className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-white/[0.04] hover:bg-brand-teal/20 text-zinc-300 hover:text-brand-teal border border-white/[0.08] transition-colors cursor-pointer"
+                            >
+                              Mon–Fri
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectDayPreset([1, 2, 3, 4, 5, 6, 0])}
+                              className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-white/[0.04] hover:bg-brand-teal/20 text-zinc-300 hover:text-brand-teal border border-white/[0.08] transition-colors cursor-pointer"
+                            >
+                              All 7
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-1.5">
                         {displayDaysOrder.map((idx) => (
                           <button
