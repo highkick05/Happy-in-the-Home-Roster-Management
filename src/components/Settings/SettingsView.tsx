@@ -609,16 +609,37 @@ export default function SettingsView() {
     return formatCanonicalFundingStreams(nextCodes);
   };
 
+  const getDefaultFundingStreamForGroup = (groupName?: string | null, serviceName?: string | null): string => {
+    const grp = String(groupName || '').trim().toLowerCase();
+    const nm = String(serviceName || '').trim().toLowerCase();
+    if (
+      grp === 'equipment and products' ||
+      nm.includes('assistive technology') ||
+      nm === 'mobility products' ||
+      nm === 'domestic life products' ||
+      nm === 'managing body functions' ||
+      nm === 'self-care products' ||
+      nm === 'communication and information management products'
+    ) {
+      return 'HC,AT';
+    }
+    if (grp === 'home adjustments' || nm.includes('home modification')) {
+      return 'HC,HM';
+    }
+    return 'ON,HC';
+  };
+
   const handleOpenAddServiceModal = (preselectedGroup?: string) => {
+    const initialGroup = preselectedGroup || homeCareGroups[0] || 'Equipment and Products';
     setEditingServiceId(null);
     setIsAddingInlineGroup(false);
     setInlineNewGroupName('');
     setNewServiceForm({
       name: '',
-      service_group: preselectedGroup || homeCareGroups[0] || 'Equipment and Products',
+      service_group: initialGroup,
       service_category: 'Independence',
-      funding_stream: '',
-      unit: 'Hour',
+      funding_stream: getDefaultFundingStreamForGroup(initialGroup),
+      unit: initialGroup === 'Equipment and Products' || initialGroup === 'Home Adjustments' ? 'Each' : 'Hour',
       rates_json: {
         'Weekday': 0,
         'Weekday (Non-Standard)': 0,
@@ -653,16 +674,16 @@ export default function SettingsView() {
       }
     } catch (e) {}
 
-    const hasFixedRate = Object.values(parsedRates).some(v => Number(v) > 0);
+    const groupVal = service.service_group || homeCareGroups[0] || 'Equipment and Products';
 
     setEditingServiceId(service.id);
     setIsAddingInlineGroup(false);
     setInlineNewGroupName('');
     setNewServiceForm({
       name: service.name || '',
-      service_group: service.service_group || homeCareGroups[0] || 'Equipment and Products',
+      service_group: groupVal,
       service_category: service.service_category || 'Independence',
-      funding_stream: service.funding_stream || (hasFixedRate ? 'ON,HC' : ''),
+      funding_stream: service.funding_stream || getDefaultFundingStreamForGroup(groupVal, service.name),
       unit: service.unit || 'Hour',
       rates_json: parsedRates
     });
@@ -2579,7 +2600,9 @@ export default function SettingsView() {
                                   } catch (e) {
                                     isVariable = false;
                                   }
-                                  const effectiveFundingStream = s.funding_stream || (!isVariable ? 'ON,HC' : '');
+                                  const effectiveFundingStream =
+                                    s.funding_stream ||
+                                    getDefaultFundingStreamForGroup(s.service_group || section.groupName, s.name);
                                   const selectedStreamCodes = parseFundingStreamCodes(effectiveFundingStream);
                                   const isDropdownOpen = openFundingStreamDropdownId === s.id;
                                   return (
@@ -2608,7 +2631,11 @@ export default function SettingsView() {
                                           onClick={() => setOpenFundingStreamDropdownId(isDropdownOpen ? null : s.id)}
                                           disabled={savingCategoryIds.has(s.id)}
                                           className={`w-full bg-brand-navy border rounded px-2 py-1 flex items-center justify-between gap-1.5 min-h-[32px] text-xs focus:border-brand-primary outline-none transition-colors ${
-                                            selectedStreamCodes.includes('ON')
+                                            selectedStreamCodes.includes('AT')
+                                              ? 'border-amber-500/35 text-[#E6EDF3]'
+                                              : selectedStreamCodes.includes('HM')
+                                              ? 'border-purple-500/35 text-[#E6EDF3]'
+                                              : selectedStreamCodes.includes('ON')
                                               ? 'border-brand-teal/35 text-[#E6EDF3]'
                                               : selectedStreamCodes.length > 0
                                               ? 'border-border-subtle text-[#E6EDF3]'
@@ -2625,6 +2652,10 @@ export default function SettingsView() {
                                                       ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
                                                       : code === 'HC'
                                                       ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                      : code === 'AT' || code === 'AS'
+                                                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                                      : code === 'HM'
+                                                      ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                                                       : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
                                                   }`}
                                                 >
@@ -2645,25 +2676,32 @@ export default function SettingsView() {
                                               onClick={() => setOpenFundingStreamDropdownId(null)}
                                             />
                                             <div className="absolute left-2 top-full mt-1 z-50 w-64 bg-[#161b22] border border-border-subtle rounded-lg shadow-2xl p-2 space-y-1.5">
-                                              <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-border-subtle/70">
+                                              <div className="flex items-center flex-wrap justify-between gap-1 pb-1.5 border-b border-border-subtle/70">
                                                 <button
                                                   type="button"
                                                   onClick={() => handleFundingStreamChange(s.id, 'ON,HC')}
-                                                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-teal/15 text-brand-teal border border-brand-teal/30 hover:bg-brand-teal/25 transition-colors"
+                                                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-brand-teal/15 text-brand-teal border border-brand-teal/30 hover:bg-brand-teal/25 transition-colors"
                                                 >
-                                                  Link ON + HC
+                                                  ON + HC
                                                 </button>
                                                 <button
                                                   type="button"
-                                                  onClick={() => handleFundingStreamChange(s.id, 'ON')}
-                                                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.04] text-[#E6EDF3] border border-border-subtle hover:bg-white/[0.08] transition-colors"
+                                                  onClick={() => handleFundingStreamChange(s.id, 'HC,AT')}
+                                                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
                                                 >
-                                                  ON Only
+                                                  HC + AT
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleFundingStreamChange(s.id, 'HC,HM')}
+                                                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 transition-colors"
+                                                >
+                                                  HC + HM
                                                 </button>
                                                 <button
                                                   type="button"
                                                   onClick={() => handleFundingStreamChange(s.id, '')}
-                                                  className="px-2 py-0.5 rounded text-[10px] font-medium text-[#8B949E] hover:text-red-400 transition-colors"
+                                                  className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#8B949E] hover:text-red-400 transition-colors"
                                                 >
                                                   Clear
                                                 </button>
@@ -2695,6 +2733,10 @@ export default function SettingsView() {
                                                             ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
                                                             : fs.code === 'HC'
                                                             ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                            : fs.code === 'AT' || fs.code === 'AS'
+                                                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                                            : fs.code === 'HM'
+                                                            ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                                                             : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
                                                         }`}
                                                       >
@@ -2872,7 +2914,17 @@ export default function SettingsView() {
                     <select
                       required
                       value={newServiceForm.service_group}
-                      onChange={(e) => setNewServiceForm(prev => ({ ...prev, service_group: e.target.value }))}
+                      onChange={(e) => {
+                        const nextGroup = e.target.value;
+                        setNewServiceForm(prev => ({
+                          ...prev,
+                          service_group: nextGroup,
+                          funding_stream:
+                            editingServiceId === null
+                              ? getDefaultFundingStreamForGroup(nextGroup, prev.name)
+                              : prev.funding_stream
+                        }));
+                      }}
                       className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
                     >
                       {homeCareGroups.map(grp => (
@@ -2920,13 +2972,27 @@ export default function SettingsView() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-medium text-[#8B949E]">Funding Streams (Multi-Select)</label>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => setNewServiceForm(prev => ({ ...prev, funding_stream: 'ON,HC' }))}
-                        className="text-[10px] px-2 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 hover:bg-brand-teal/25 font-semibold transition-colors"
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 hover:bg-brand-teal/25 font-semibold transition-colors"
                       >
-                        Link ON + HC
+                        ON + HC
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewServiceForm(prev => ({ ...prev, funding_stream: 'HC,AT' }))}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 font-semibold transition-colors"
+                      >
+                        HC + AT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewServiceForm(prev => ({ ...prev, funding_stream: 'HC,HM' }))}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 font-semibold transition-colors"
+                      >
+                        HC + HM
                       </button>
                       <button
                         type="button"

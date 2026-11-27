@@ -2409,12 +2409,32 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
         if (m) nextServNum = parseInt(m[1], 10) + 1;
       }
 
+      const getDefaultHcFundingStreamForGroup = (groupName?: string | null, serviceName?: string | null): string => {
+        const grp = String(groupName || "").trim().toLowerCase();
+        const nm = String(serviceName || "").trim().toLowerCase();
+        if (
+          grp === "equipment and products" ||
+          nm.includes("assistive technology") ||
+          nm === "mobility products" ||
+          nm === "domestic life products" ||
+          nm === "managing body functions" ||
+          nm === "self-care products" ||
+          nm === "communication and information management products"
+        ) {
+          return "HC,AT";
+        }
+        if (grp === "home adjustments" || nm.includes("home modification")) {
+          return "HC,HM";
+        }
+        return "ON,HC";
+      };
+
       const updateGroupOnlyStmt = db.prepare(
         "UPDATE services SET service_group = ?, service_category = COALESCE(NULLIF(service_category, ''), ?) WHERE id = ?"
       );
       const insertHcServiceStmt = db.prepare(`
-        INSERT INTO services (code, name, service_category, service_group, unit, rate, rates_json, type, status)
-        VALUES (?, ?, ?, ?, ?, 0, ?, 'HOME_CARE', 'ACTIVE')
+        INSERT INTO services (code, name, service_category, service_group, funding_stream, unit, rate, rates_json, type, status)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'HOME_CARE', 'ACTIVE')
       `);
       const zeroRatesJson = JSON.stringify({
         Weekday: 0,
@@ -2444,6 +2464,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
               item.name,
               item.coContribution,
               grp.group,
+              getDefaultHcFundingStreamForGroup(grp.group, item.name),
               item.unit,
               zeroRatesJson
             );
@@ -2535,53 +2556,63 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       } catch (e) {}
     }
 
-    // Automatically map Home Care services that already have rates (> 0) to the "ON,HC" (Ongoing Funds + Home Care Account) streams
+    // Automatically map all Home Care services by category:
+    // - Equipment and Products -> "HC,AT"
+    // - Home Adjustments -> "HC,HM"
+    // - All other 11 ongoing Support at Home categories -> "ON,HC"
     const hcServices = db
       .prepare(
-        "SELECT id, rate, rates_json, funding_stream FROM services WHERE (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') AND (status IS NULL OR status != 'ARCHIVED')"
+        "SELECT id, name, service_group, rate, rates_json, funding_stream FROM services WHERE (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') AND (status IS NULL OR status != 'ARCHIVED')"
       )
       .all() as any[];
 
-    const autoLinkFlag = db
-      .prepare("SELECT value FROM settings WHERE key = 'home_care_on_hc_autolink_v1'")
+    const autoLinkAllFlag = db
+      .prepare("SELECT value FROM settings WHERE key = 'home_care_all_streams_autolink_v1'")
       .get() as any;
-    const shouldUpgradeSingleOnToOnHc = !autoLinkFlag;
+    const isInitialAllStreamsMigration = !autoLinkAllFlag;
 
     const updateFundingStreamStmt = db.prepare(
-      "UPDATE services SET funding_stream = 'ON,HC' WHERE id = ?"
+      "UPDATE services SET funding_stream = ? WHERE id = ?"
     );
 
     db.transaction(() => {
       for (const s of hcServices) {
+        const grp = String(s.service_group || "").trim().toLowerCase();
+        const nm = String(s.name || "").trim().toLowerCase();
+        let targetStream = "ON,HC";
+        if (
+          grp === "equipment and products" ||
+          nm.includes("assistive technology") ||
+          nm === "mobility products" ||
+          nm === "domestic life products" ||
+          nm === "managing body functions" ||
+          nm === "self-care products" ||
+          nm === "communication and information management products"
+        ) {
+          targetStream = "HC,AT";
+        } else if (grp === "home adjustments" || nm.includes("home modification")) {
+          targetStream = "HC,HM";
+        }
+
         const currentStream = s.funding_stream ? String(s.funding_stream).trim().toUpperCase() : "";
-        if (currentStream !== "" && !(shouldUpgradeSingleOnToOnHc && currentStream === "ON")) {
-          continue;
-        }
-        let hasRate = Number(s.rate) > 0;
-        if (!hasRate && s.rates_json) {
-          try {
-            const rates = JSON.parse(s.rates_json);
-            const wk = Number(rates["Weekday"]) || 0;
-            const wkn = Number(rates["Weekday (Non-Standard)"]) || 0;
-            const sat = Number(rates["Saturday"]) || 0;
-            const sun = Number(rates["Sunday"]) || 0;
-            const pub = Number(rates["Public Holiday"]) || 0;
-            if (wk > 0 || wkn > 0 || sat > 0 || sun > 0 || pub > 0) {
-              hasRate = true;
-            }
-          } catch (e) {}
-        }
-        if (hasRate) {
-          updateFundingStreamStmt.run(s.id);
+        if (currentStream === "") {
+          updateFundingStreamStmt.run(targetStream, s.id);
+        } else if (isInitialAllStreamsMigration) {
+          // On initial migration, ensure Equipment & Products get HC,AT, Home Adjustments get HC,HM, and single-ON gets ON,HC
+          if ((targetStream === "HC,AT" || targetStream === "HC,HM") && (currentStream === "ON" || currentStream === "ON,HC")) {
+            updateFundingStreamStmt.run(targetStream, s.id);
+          } else if (targetStream === "ON,HC" && currentStream === "ON") {
+            updateFundingStreamStmt.run("ON,HC", s.id);
+          }
         }
       }
-      if (shouldUpgradeSingleOnToOnHc) {
+      if (isInitialAllStreamsMigration) {
         db.prepare(
-          "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_on_hc_autolink_v1', 'true')"
+          "INSERT OR REPLACE INTO settings (key, value) VALUES ('home_care_all_streams_autolink_v1', 'true')"
         ).run();
       }
     })();
-    console.log("[DEBUG] Completed Home Care funding_stream auto-mapping to ON,HC");
+    console.log("[DEBUG] Completed Home Care funding_stream auto-mapping (HC,AT / HC,HM / ON,HC)");
   } catch (e: any) {
     console.warn("Migration warning mapping Home Care funding_stream:", e.message);
   }
@@ -15533,11 +15564,54 @@ app.get("/api/health", (req, res) => {
 
     const client = db
       .prepare(
-        `SELECT billing_tier, historical_monthly_cap, care_coordination_fee, management_fee FROM clients WHERE id = ?`,
+        `SELECT billing_tier, historical_monthly_cap, care_coordination_fee, management_fee, additional_funding_streams FROM clients WHERE id = ?`,
       )
       .get(clientId) as any;
     const billingTier = client?.billing_tier || "SAH_Full_Pensioner";
     const historicalMonthlyCap = client?.historical_monthly_cap || 0;
+
+    let clientAdditionalStreams: any[] = [];
+    try {
+      if (client?.additional_funding_streams) {
+        clientAdditionalStreams = typeof client.additional_funding_streams === "string"
+          ? JSON.parse(client.additional_funding_streams)
+          : client.additional_funding_streams;
+      }
+    } catch {}
+    if (!Array.isArray(clientAdditionalStreams)) clientAdditionalStreams = [];
+
+    const computeLineFeesForStream = (baseAmt: number, rawStream: string) => {
+      const codes = String(rawStream || "ON")
+        .toUpperCase()
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      const atHmType = codes.includes("HM") ? "HM" : codes.includes("AT") ? "AT" : null;
+      if (atHmType) {
+        const defCcPct = 5;
+        const defCcCap = atHmType === "HM" ? 500 : 250;
+        const defLoadPct = atHmType === "HM" ? 15 : 10;
+        const defLoadCap = atHmType === "HM" ? 1500 : 500;
+        const match = clientAdditionalStreams.find((s: any) => String(s?.code || "").toUpperCase() === atHmType);
+        const ccPct = match?.careCoordPercent !== undefined && !isNaN(Number(match.careCoordPercent)) ? Number(match.careCoordPercent) : defCcPct;
+        const ccCap = match?.careCoordCap !== undefined && !isNaN(Number(match.careCoordCap)) ? Number(match.careCoordCap) : defCcCap;
+        const loadPct = match?.serviceLoadingPercent !== undefined && !isNaN(Number(match.serviceLoadingPercent)) ? Number(match.serviceLoadingPercent) : defLoadPct;
+        const loadCap = match?.serviceLoadingCap !== undefined && !isNaN(Number(match.serviceLoadingCap)) ? Number(match.serviceLoadingCap) : defLoadCap;
+
+        const rawCoord = baseAmt * (ccPct / 100);
+        const coordFee = parseFloat((ccCap > 0 ? Math.min(rawCoord, ccCap) : rawCoord).toFixed(2));
+        const rawLoad = baseAmt * (loadPct / 100);
+        const mgmtFee = parseFloat((loadCap > 0 ? Math.min(rawLoad, loadCap) : rawLoad).toFixed(2));
+        const lineGrandTotal = parseFloat((baseAmt + coordFee + mgmtFee).toFixed(2));
+        return { coordFee, mgmtFee, lineGrandTotal };
+      }
+
+      const coordFee = parseFloat((baseAmt * (careCoordPercent / 100)).toFixed(2));
+      const subtotalWithCoord = baseAmt + coordFee;
+      const mgmtFee = parseFloat((subtotalWithCoord * (managementFeePercent / 100)).toFixed(2));
+      const lineGrandTotal = parseFloat((subtotalWithCoord + mgmtFee).toFixed(2));
+      return { coordFee, mgmtFee, lineGrandTotal };
+    };
 
     const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
     const settingsMap: Record<string, any> = {};
@@ -15641,10 +15715,7 @@ app.get("/api/health", (req, res) => {
               sCat,
             );
             const baseAmt = Number(li.amount || 0);
-            const coordFee = parseFloat((baseAmt * (careCoordPercent / 100)).toFixed(2));
-            const subtotalWithCoord = baseAmt + coordFee;
-            const mgmtFee = parseFloat((subtotalWithCoord * (managementFeePercent / 100)).toFixed(2));
-            const lineGrandTotal = parseFloat((subtotalWithCoord + mgmtFee).toFixed(2));
+            const { coordFee, mgmtFee, lineGrandTotal } = computeLineFeesForStream(baseAmt, fStream);
 
             total += baseAmt;
             grandTotal += lineGrandTotal;
@@ -15688,10 +15759,7 @@ app.get("/api/health", (req, res) => {
               sCat,
             );
             const baseAmt = Number(li.amount || 0);
-            const coordFee = parseFloat((baseAmt * (careCoordPercent / 100)).toFixed(2));
-            const subtotalWithCoord = baseAmt + coordFee;
-            const mgmtFee = parseFloat((subtotalWithCoord * (managementFeePercent / 100)).toFixed(2));
-            const lineGrandTotal = parseFloat((subtotalWithCoord + mgmtFee).toFixed(2));
+            const { coordFee, mgmtFee, lineGrandTotal } = computeLineFeesForStream(baseAmt, fStream);
 
             total += baseAmt;
             grandTotal += lineGrandTotal;
@@ -16030,15 +16098,28 @@ app.get("/api/health", (req, res) => {
                   .split(",")
                   .map((c) => c.trim())
                   .filter(Boolean);
+                if (codes.includes("HM")) return "HM";
+                if (codes.includes("AT")) return "AT";
                 if (codes.length === 0 || codes.includes("ON")) return "ON";
                 return codes.find((c) => c !== "HC") || codes[0] || "ON";
               };
               totalSpent = ledgerData.items
-                .filter((item: any) => !separateStreamCodes.has(getPrimaryStream(item.funding_stream)))
+                .filter((item: any) => {
+                  const p = getPrimaryStream(item.funding_stream);
+                  if (p === "AT" || p === "HM") return false;
+                  return !separateStreamCodes.has(p);
+                })
                 .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
-              hcDirectLedgerSpent = ledgerData.items
+              const pureHcSpent = ledgerData.items
                 .filter((item: any) => getPrimaryStream(item.funding_stream) === "HC")
                 .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
+              const atHmSpent = ledgerData.items
+                .filter((item: any) => {
+                  const p = getPrimaryStream(item.funding_stream);
+                  return p === "AT" || p === "HM";
+                })
+                .reduce((sum: number, item: any) => sum + (Number(item.grand_total ?? item.amount) || 0), 0);
+              hcDirectLedgerSpent = pureHcSpent + atHmSpent;
             } else {
               totalSpent = Number(ledgerData?.grandTotal ?? ledgerData?.total ?? 0);
             }

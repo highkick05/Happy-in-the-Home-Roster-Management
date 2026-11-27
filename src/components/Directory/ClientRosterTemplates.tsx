@@ -4,7 +4,13 @@ import { Plus, Trash2, Calendar, AlertCircle, X, History, Download, Edit2, Layer
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
-import { getCurrentFinancialYearAndQuarter, getFinancialYearQuarters } from './HomeCareBudgetView';
+import {
+  getCurrentFinancialYearAndQuarter,
+  getFinancialYearQuarters,
+  detectAtOrHmStreamType,
+  calculateAtHmDrawdownWithCaps,
+  getAtHmFeeConfigForClient
+} from './HomeCareBudgetView';
 
 interface ClientRosterTemplatesProps {
   client: any;
@@ -110,6 +116,9 @@ const parseFundingStreamCodes = (raw?: string | null): string[] => {
 
 const getPrimaryFundingStreamCode = (raw?: string | null): string => {
   const codes = parseFundingStreamCodes(raw);
+  // Strict rule: AT and HM services NEVER draw from ON
+  if (codes.includes('HM')) return 'HM';
+  if (codes.includes('AT')) return 'AT';
   if (codes.length === 0 || codes.includes('ON')) return 'ON';
   return codes.find(c => c !== 'HC') || codes[0] || 'ON';
 };
@@ -120,6 +129,11 @@ const resolveShiftServiceFundingStream = (
 ): string => {
   const srvStream = String(serviceDefaultStream || 'ON,HC').toUpperCase();
   const savedStream = String(shiftSavedStream || '').trim().toUpperCase();
+  // If the service in Home Care Pricing is linked to AT or HM, ensure a legacy saved 'ON' or 'ON,HC' doesn't override AT/HM into ON
+  const srvAtHm = detectAtOrHmStreamType(srvStream);
+  if (srvAtHm && (!savedStream || savedStream === 'ON' || savedStream === 'ON,HC')) {
+    return srvStream;
+  }
   if (!savedStream) return srvStream;
   if (savedStream === 'ON' && parseFundingStreamCodes(srvStream).includes('ON')) {
     return srvStream;
@@ -481,6 +495,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     if (isClientHomeCare) {
       const hcServices = servicesList.filter(s =>
         s.type === 'HOME_CARE' || s.type === 'Home Care' || s.type === 'HCP' ||
+        Boolean(detectAtOrHmStreamType(s.funding_stream)) ||
         (s.rates_json && (typeof s.rates_json === 'string' ? s.rates_json.includes('Weekday') : (s.rates_json?.['Weekday'] !== undefined || s.rates_json?.['Weekday (Non-Standard)'] !== undefined)))
       );
 
@@ -488,6 +503,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         const assignedHc = hcServices.filter(s =>
           clientServiceIds.includes(s.id) ||
           selectedServiceIds.includes(s.id) ||
+          Boolean(detectAtOrHmStreamType(s.funding_stream)) ||
           clientServiceIds.some((csId: any) => {
             const rawSrv = servicesList.find(x => x.id === csId);
             return rawSrv && (
@@ -623,8 +639,26 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       : defaultMgmt;
   }, [isClientHomeCare, activeClient, fundingRates]);
 
-  const applyShiftDrawdownFees = (baseAmount: number) => {
+  const clientParsedAdditionalStreams = useMemo(() => {
+    let raw: any[] = [];
+    try {
+      if (activeClient?.additional_funding_streams) {
+        raw = typeof activeClient.additional_funding_streams === 'string'
+          ? JSON.parse(activeClient.additional_funding_streams)
+          : activeClient.additional_funding_streams;
+      }
+    } catch {
+      raw = [];
+    }
+    return Array.isArray(raw) ? raw : [];
+  }, [activeClient]);
+
+  const applyShiftDrawdownFees = (baseAmount: number, streamStr?: string | null) => {
     if (!isClientHomeCare) return baseAmount;
+    const atHmType = detectAtOrHmStreamType(streamStr);
+    if (atHmType) {
+      return calculateAtHmDrawdownWithCaps(baseAmount, atHmType, clientParsedAdditionalStreams).total;
+    }
     const cc = baseAmount * (careCoordPercent / 100);
     const sub = baseAmount + cc;
     const loading = sub * (serviceLoadingPercent / 100);
@@ -868,7 +902,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         const effectiveStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, sDetails.fundingStream);
         const streamCode = getPrimaryFundingStreamCode(effectiveStreamStr);
         const srvBase = effectiveRate * effectiveQty;
-        const srvDrawdown = applyShiftDrawdownFees(srvBase);
+        const srvDrawdown = applyShiftDrawdownFees(srvBase, effectiveStreamStr);
         baseTotal += srvBase;
         drawdownTotal += srvDrawdown;
         if (!byStream[streamCode]) byStream[streamCode] = { base: 0, drawdown: 0 };
@@ -879,7 +913,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const sDetails = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
       const streamCode = getPrimaryFundingStreamCode(sDetails.fundingStream);
       const srvBase = sDetails.rate * tShiftHours;
-      const srvDrawdown = applyShiftDrawdownFees(srvBase);
+      const srvDrawdown = applyShiftDrawdownFees(srvBase, sDetails.fundingStream);
       baseTotal += srvBase;
       drawdownTotal += srvDrawdown;
       byStream[streamCode] = { base: srvBase, drawdown: srvDrawdown };
@@ -1034,23 +1068,33 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
     // 4. Process live ledger items for the current quarter
     const processedLedger = quarterLedgerItems.map((item: any) => {
-      const itemStream = getPrimaryFundingStreamCode(item.funding_stream || 'ON');
+      const rawItemStream = String(item.funding_stream || 'ON').toUpperCase();
+      const itemStream = getPrimaryFundingStreamCode(rawItemStream);
+      const atHmType = detectAtOrHmStreamType(rawItemStream);
       const dateYmd = normalizeLedgerDateYmd(item.date);
+      const baseAmt = Number(item.base_amount ?? item.amount) || 0;
+
+      if (atHmType) {
+        const capped = calculateAtHmDrawdownWithCaps(baseAmt, atHmType, activeQuarterStreams);
+        return { ...item, dateYmd, baseAmt, funding_stream: itemStream, amount: capped.total };
+      }
+
       if (item.source_type === 'external' || item.grand_total !== undefined) {
-        const baseAmt = Number(item.base_amount ?? item.amount) || 0;
         const ccFee = item.care_coord_fee !== undefined ? Number(item.care_coord_fee) : baseAmt * (careCoordPercent / 100);
         const sub = baseAmt + ccFee;
         const mgmt = item.management_fee !== undefined ? Number(item.management_fee) : sub * (serviceLoadingPercent / 100);
         const gTotal = item.grand_total !== undefined ? Number(item.grand_total) : sub + mgmt;
         return { ...item, dateYmd, baseAmt, funding_stream: itemStream, amount: gTotal };
       }
-      const baseAmt = Number(item.base_amount ?? item.amount) || 0;
-      return { ...item, dateYmd, baseAmt, funding_stream: itemStream, amount: applyShiftDrawdownFees(baseAmt) };
+      return { ...item, dateYmd, baseAmt, funding_stream: itemStream, amount: applyShiftDrawdownFees(baseAmt, rawItemStream) };
     });
+
+    const isExcludedFromOn = (code: string) =>
+      code === 'AT' || code === 'HM' || separateStreamCodes.has(code);
 
     const actualOnSpentToDate = round2(
       processedLedger
-        .filter((item: any) => !separateStreamCodes.has(getPrimaryFundingStreamCode(item.funding_stream)))
+        .filter((item: any) => !isExcludedFromOn(getPrimaryFundingStreamCode(item.funding_stream)))
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
 
@@ -1122,7 +1166,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         }
         plannedDrawdownByStream[streamCode].fullQuarter += itemDrawdown;
 
-        if (!separateStreamCodes.has(streamCode)) {
+        if (!isExcludedFromOn(streamCode)) {
           lockedPriorOnDrawdown += itemDrawdown;
           lockedPriorOnBase += itemBase;
         }
@@ -1169,7 +1213,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
         }
         plannedDrawdownByStream[streamCode].remainingQuarter += remStreamDrawdown;
-        if (!separateStreamCodes.has(streamCode)) {
+        if (!isExcludedFromOn(streamCode)) {
           remainingQuarterPlannedOnDrawdown += remStreamDrawdown;
         }
       });
@@ -1197,6 +1241,21 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 : sDetails.rate;
             const effectiveStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, sDetails.fundingStream);
             const streamCode = getPrimaryFundingStreamCode(effectiveStreamStr);
+            if (streamCode === 'AT' || streamCode === 'HM') {
+              const fullOccurrences = countShiftOccurrencesInRange(
+                { ...t, start_date: effectiveShiftStart },
+                effectiveShiftStart,
+                effectiveShiftEnd,
+                shiftFreq
+              );
+              const srvBase = effectiveRate * effectiveQty;
+              const srvDrawdown = applyShiftDrawdownFees(srvBase, effectiveStreamStr);
+              if (!plannedDrawdownByStream[streamCode]) {
+                plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
+              }
+              plannedDrawdownByStream[streamCode].fullQuarter += srvDrawdown * fullOccurrences;
+              return;
+            }
             const srvWeeklyBase = effectiveRate * effectiveQty * freqMult;
             const groupKey = `${sd.serviceId}|${streamCode}|${effectiveShiftStart}|${effectiveShiftEnd}`;
             if (!ongoingWeeklyBaseByGroup[groupKey]) {
@@ -1212,17 +1271,32 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         } else if (t.service_id) {
           const sDetails = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
           const streamCode = getPrimaryFundingStreamCode(sDetails.fundingStream);
-          const srvWeeklyBase = sDetails.rate * tShiftHours * freqMult;
-          const groupKey = `${t.service_id}|${streamCode}|${effectiveShiftStart}|${effectiveShiftEnd}`;
-          if (!ongoingWeeklyBaseByGroup[groupKey]) {
-            ongoingWeeklyBaseByGroup[groupKey] = {
-              weeklyBase: 0,
-              streamCode,
-              startStr: effectiveShiftStart,
-              endStr: effectiveShiftEnd
-            };
+          if (streamCode === 'AT' || streamCode === 'HM') {
+            const fullOccurrences = countShiftOccurrencesInRange(
+              { ...t, start_date: effectiveShiftStart },
+              effectiveShiftStart,
+              effectiveShiftEnd,
+              shiftFreq
+            );
+            const srvBase = sDetails.rate * tShiftHours;
+            const srvDrawdown = applyShiftDrawdownFees(srvBase, sDetails.fundingStream);
+            if (!plannedDrawdownByStream[streamCode]) {
+              plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
+            }
+            plannedDrawdownByStream[streamCode].fullQuarter += srvDrawdown * fullOccurrences;
+          } else {
+            const srvWeeklyBase = sDetails.rate * tShiftHours * freqMult;
+            const groupKey = `${t.service_id}|${streamCode}|${effectiveShiftStart}|${effectiveShiftEnd}`;
+            if (!ongoingWeeklyBaseByGroup[groupKey]) {
+              ongoingWeeklyBaseByGroup[groupKey] = {
+                weeklyBase: 0,
+                streamCode,
+                startStr: effectiveShiftStart,
+                endStr: effectiveShiftEnd
+              };
+            }
+            ongoingWeeklyBaseByGroup[groupKey].weeklyBase += srvWeeklyBase;
           }
-          ongoingWeeklyBaseByGroup[groupKey].weeklyBase += srvWeeklyBase;
         }
       } else {
         const fullOccurrences = countShiftOccurrencesInRange(
@@ -1231,14 +1305,14 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           effectiveShiftEnd,
           shiftFreq
         );
-        templatePlannedBase += baseTotal * fullOccurrences;
         Object.entries(byStream).forEach(([streamCode, amounts]) => {
           const fullStreamDrawdown = amounts.drawdown * fullOccurrences;
           if (!plannedDrawdownByStream[streamCode]) {
             plannedDrawdownByStream[streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
           }
           plannedDrawdownByStream[streamCode].fullQuarter += fullStreamDrawdown;
-          if (!separateStreamCodes.has(streamCode)) {
+          if (!isExcludedFromOn(streamCode)) {
+            templatePlannedBase += amounts.base * fullOccurrences;
             templatePlannedOnDrawdown += fullStreamDrawdown;
           }
         });
@@ -1257,12 +1331,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const loadingFee = round2((periodBase + ccFee) * (serviceLoadingPercent / 100));
       const periodDrawdown = round2(periodBase + ccFee + loadingFee);
 
-      templatePlannedBase += periodBase;
       if (!plannedDrawdownByStream[grp.streamCode]) {
         plannedDrawdownByStream[grp.streamCode] = { fullQuarter: 0, remainingQuarter: 0 };
       }
       plannedDrawdownByStream[grp.streamCode].fullQuarter += periodDrawdown;
-      if (!separateStreamCodes.has(grp.streamCode)) {
+      if (!isExcludedFromOn(grp.streamCode)) {
+        templatePlannedBase += periodBase;
         templatePlannedOnDrawdown += periodDrawdown;
       }
     });
@@ -1295,18 +1369,73 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     // Burn-Rate Forecast based on actual spending pace
     const burnRateProjectedOnSpend = round2((actualOnSpentToDate / daysElapsed) * totalDays);
 
-    // 7. Linked HC (Home Care Account) Reserve & ON -> HC Overflow Cascade
+    // 7. Linked HC (Home Care Account) Reserve:
+    //    RULE: HC ALWAYS gets drawn down FIRST for AT and HM products/services BEFORE actual AT and HM funding streams (and AT/HM never draw from ON).
     const hcStreams = separateStreams.filter((s: any) => String(s.code || '').toUpperCase() === 'HC');
     const hcAllocated = round2(hcStreams.reduce((sum: number, s: any) => sum + getEffectiveStreamAmount(s), 0));
     const hcManualSpent = round2(hcStreams.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0));
-    const hcLedgerSpent = round2(
+    const hcPureLedgerSpent = round2(
       processedLedger
         .filter((item: any) => String(item.funding_stream || '').toUpperCase() === 'HC')
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
-    const hcPlannedRemaining = round2(plannedDrawdownByStream['HC']?.remainingQuarter || 0);
-    const hcPlannedFullQuarter = round2(plannedDrawdownByStream['HC']?.fullQuarter || 0);
-    const hcDirectSpent = round2(hcManualSpent + hcLedgerSpent);
+    const hcPurePlannedRemaining = round2(plannedDrawdownByStream['HC']?.remainingQuarter || 0);
+    const hcPurePlannedFullQuarter = round2(plannedDrawdownByStream['HC']?.fullQuarter || 0);
+
+    // Raw AT and HM ledger & planned amounts before HC-first drawdown
+    const rawAtLedgerSpent = round2(
+      processedLedger
+        .filter((item: any) => String(item.funding_stream || '').toUpperCase() === 'AT')
+        .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+    );
+    const rawAtPlannedRemaining = round2(plannedDrawdownByStream['AT']?.remainingQuarter || 0);
+    const rawAtPlannedFullQuarter = round2(plannedDrawdownByStream['AT']?.fullQuarter || 0);
+
+    const rawHmLedgerSpent = round2(
+      processedLedger
+        .filter((item: any) => String(item.funding_stream || '').toUpperCase() === 'HM')
+        .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+    );
+    const rawHmPlannedRemaining = round2(plannedDrawdownByStream['HM']?.remainingQuarter || 0);
+    const rawHmPlannedFullQuarter = round2(plannedDrawdownByStream['HM']?.fullQuarter || 0);
+
+    // Step 7a: Draw down HC first for AT & HM Actual Spent
+    let hcPoolAfterPureActual = Math.max(0, round2(hcAllocated - hcManualSpent - hcPureLedgerSpent));
+    const hcUsedForAtActual = hcAllocated > 0 ? Math.min(hcPoolAfterPureActual, rawAtLedgerSpent) : 0;
+    hcPoolAfterPureActual = Math.max(0, round2(hcPoolAfterPureActual - hcUsedForAtActual));
+    const hcUsedForHmActual = hcAllocated > 0 ? Math.min(hcPoolAfterPureActual, rawHmLedgerSpent) : 0;
+    hcPoolAfterPureActual = Math.max(0, round2(hcPoolAfterPureActual - hcUsedForHmActual));
+
+    const atLedgerAfterHc = round2(rawAtLedgerSpent - hcUsedForAtActual);
+    const hmLedgerAfterHc = round2(rawHmLedgerSpent - hcUsedForHmActual);
+
+    // Step 7b: Draw down remaining HC for pure HC planned shifts, then AT & HM Planned Remaining shifts
+    let hcPoolAfterPurePlannedRem = Math.max(0, round2(hcPoolAfterPureActual - hcPurePlannedRemaining));
+    const hcUsedForAtPlannedRem = hcAllocated > 0 ? Math.min(hcPoolAfterPurePlannedRem, rawAtPlannedRemaining) : 0;
+    hcPoolAfterPurePlannedRem = Math.max(0, round2(hcPoolAfterPurePlannedRem - hcUsedForAtPlannedRem));
+    const hcUsedForHmPlannedRem = hcAllocated > 0 ? Math.min(hcPoolAfterPurePlannedRem, rawHmPlannedRemaining) : 0;
+    hcPoolAfterPurePlannedRem = Math.max(0, round2(hcPoolAfterPurePlannedRem - hcUsedForHmPlannedRem));
+
+    const atPlannedRemainingAfterHc = round2(rawAtPlannedRemaining - hcUsedForAtPlannedRem);
+    const hmPlannedRemainingAfterHc = round2(rawHmPlannedRemaining - hcUsedForHmPlannedRem);
+
+    // Step 7c: Full-Quarter Planned view for AT & HM after HC-first drawdown
+    let hcPoolForFullPlanned = Math.max(0, round2(hcAllocated - hcManualSpent - hcPureLedgerSpent - hcPurePlannedFullQuarter));
+    const hcUsedForAtFullPlanned = hcAllocated > 0 ? Math.min(hcPoolForFullPlanned, rawAtPlannedFullQuarter) : 0;
+    hcPoolForFullPlanned = Math.max(0, round2(hcPoolForFullPlanned - hcUsedForAtFullPlanned));
+    const hcUsedForHmFullPlanned = hcAllocated > 0 ? Math.min(hcPoolForFullPlanned, rawHmPlannedFullQuarter) : 0;
+    hcPoolForFullPlanned = Math.max(0, round2(hcPoolForFullPlanned - hcUsedForHmFullPlanned));
+
+    const atPlannedFullAfterHc = round2(rawAtPlannedFullQuarter - hcUsedForAtFullPlanned);
+    const hmPlannedFullAfterHc = round2(rawHmPlannedFullQuarter - hcUsedForHmFullPlanned);
+
+    const hcAtHmActualDraw = round2(hcUsedForAtActual + hcUsedForHmActual);
+    const hcAtHmPlannedRemDraw = round2(hcUsedForAtPlannedRem + hcUsedForHmPlannedRem);
+    const hcAtHmPlannedFullDraw = round2(hcUsedForAtFullPlanned + hcUsedForHmFullPlanned);
+
+    const hcDirectSpent = round2(hcManualSpent + hcPureLedgerSpent + hcAtHmActualDraw);
+    const hcPlannedRemaining = round2(hcPurePlannedRemaining + hcAtHmPlannedRemDraw);
+    const hcPlannedFullQuarter = round2(hcPurePlannedFullQuarter + hcAtHmPlannedFullDraw);
     const hcDirectProjected = round2(hcDirectSpent + hcPlannedRemaining);
     const hcAvailableBeforeOverflow = Math.max(0, round2(hcAllocated - hcDirectProjected));
 
@@ -1325,11 +1454,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     const plannedHcOverflowUsed = hcAllocated > 0 ? Math.min(hcAvailableForPlanned, plannedOnOverrun) : 0;
     const plannedUnfundedDeficit = Math.max(0, round2(plannedOnOverrun - plannedHcOverflowUsed));
 
-    // 8. Build Additional Funding Streams Summary List (HC first, followed by any other configured/used separate streams)
+    // 8. Build Additional Funding Streams Summary List (HC first, followed by any configured/used separate streams; only show AT/HM card if configured on client or if overflow remains after HC)
     const allAdditionalCodes = Array.from(
       new Set([
         ...separateStreams.map((s: any) => String(s.code).toUpperCase()),
-        ...Object.keys(plannedDrawdownByStream).filter(code => code !== 'ON')
+        ...Object.keys(plannedDrawdownByStream).filter(code => {
+          if (code === 'ON') return false;
+          if (code === 'AT') {
+            return separateStreamCodes.has('AT') || atLedgerAfterHc > 0 || atPlannedRemainingAfterHc > 0 || atPlannedFullAfterHc > 0;
+          }
+          if (code === 'HM') {
+            return separateStreamCodes.has('HM') || hmLedgerAfterHc > 0 || hmPlannedRemainingAfterHc > 0 || hmPlannedFullAfterHc > 0;
+          }
+          return true;
+        })
       ])
     ).sort((a, b) => {
       if (a === 'HC') return -1;
@@ -1341,17 +1479,46 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const matchingStreams = separateStreams.filter((s: any) => String(s.code).toUpperCase() === code);
       const allocated = round2(matchingStreams.reduce((sum: number, s: any) => sum + getEffectiveStreamAmount(s), 0));
       const manualSpent = round2(matchingStreams.reduce((sum: number, s: any) => sum + (Number(s.spentAmount) || 0), 0));
-      const ledgerSpent = round2(
-        processedLedger
-          .filter((item: any) => String(item.funding_stream || '').toUpperCase() === code)
-          .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
-      );
+
+      let ledgerSpent = 0;
+      let plannedFullQuarter = 0;
+      let plannedRemaining = 0;
+
+      if (code === 'HC') {
+        ledgerSpent = round2(hcPureLedgerSpent + hcAtHmActualDraw);
+        plannedFullQuarter = hcPlannedFullQuarter;
+        plannedRemaining = hcPlannedRemaining;
+      } else if (code === 'AT') {
+        ledgerSpent = atLedgerAfterHc;
+        plannedFullQuarter = atPlannedFullAfterHc;
+        plannedRemaining = atPlannedRemainingAfterHc;
+      } else if (code === 'HM') {
+        ledgerSpent = hmLedgerAfterHc;
+        plannedFullQuarter = hmPlannedFullAfterHc;
+        plannedRemaining = hmPlannedRemainingAfterHc;
+      } else {
+        ledgerSpent = round2(
+          processedLedger
+            .filter((item: any) => String(item.funding_stream || '').toUpperCase() === code)
+            .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+        );
+        plannedFullQuarter = round2(plannedDrawdownByStream[code]?.fullQuarter || 0);
+        plannedRemaining = round2(plannedDrawdownByStream[code]?.remainingQuarter || 0);
+      }
+
       const actualSpent = round2(manualSpent + ledgerSpent);
-      const plannedFullQuarter = round2(plannedDrawdownByStream[code]?.fullQuarter || 0);
-      const plannedRemaining = round2(plannedDrawdownByStream[code]?.remainingQuarter || 0);
       const onOverflowDraw = code === 'HC' ? projectedHcOverflowUsed : 0;
       const projectedRemaining = round2(allocated - actualSpent - plannedRemaining - onOverflowDraw);
       const streamName = matchingStreams[0]?.name || STANDARD_FUNDING_STREAM_LABELS[code] || `${code} Funding Stream`;
+      const atHmFeeConfig = code === 'AT' || code === 'HM' ? getAtHmFeeConfigForClient(activeQuarterStreams, code) : null;
+      const hcCoveredAmount =
+        code === 'AT'
+          ? round2(hcUsedForAtActual + hcUsedForAtPlannedRem)
+          : code === 'HM'
+          ? round2(hcUsedForHmActual + hcUsedForHmPlannedRem)
+          : code === 'HC'
+          ? round2(hcAtHmActualDraw + hcAtHmPlannedRemDraw)
+          : 0;
 
       return {
         code,
@@ -1362,7 +1529,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         plannedFullQuarter,
         plannedRemaining,
         onOverflowDraw,
-        projectedRemaining
+        projectedRemaining,
+        atHmFeeConfig,
+        hcCoveredAmount
       };
     });
 
@@ -1519,7 +1688,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         const effectiveStreamStr = resolveShiftServiceFundingStream(s.fundingStream, sDetails.fundingStream);
         const streamCode = getPrimaryFundingStreamCode(effectiveStreamStr);
         const srvBase = effectiveRate * effectiveQty;
-        const srvDrawdown = applyShiftDrawdownFees(srvBase);
+        const srvDrawdown = applyShiftDrawdownFees(srvBase, effectiveStreamStr);
         dayBase += srvBase;
         dayDrawdown += srvDrawdown;
 
@@ -3209,13 +3378,29 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         {isHc && (
                           <span
                             className={`text-[9.5px] font-medium px-1 py-0.2 rounded border shrink-0 ${
-                              s.onOverflowDraw > 0
+                              s.onOverflowDraw > 0 || (s as any).hcCoveredAmount > 0
                                 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                                 : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                             }`}
-                            title="Linked to ON Ongoing Funds for automatic overflow"
+                            title={
+                              (s as any).hcCoveredAmount > 0
+                                ? `Drawing ${formatCurrency((s as any).hcCoveredAmount)} first for AT/HM items before AT/HM streams`
+                                : 'Linked to ON Ongoing Funds & AT/HM for priority drawdown'
+                            }
                           >
-                            {s.onOverflowDraw > 0 ? '⚡ Overflow' : '🔗 Linked ON'}
+                            {s.onOverflowDraw > 0
+                              ? '⚡ Overflow'
+                              : (s as any).hcCoveredAmount > 0
+                              ? '⚡ AT/HM Draw'
+                              : '🔗 Linked ON'}
+                          </span>
+                        )}
+                        {(s.code === 'AT' || s.code === 'HM') && (s as any).atHmFeeConfig && (
+                          <span
+                            className="text-[8.5px] font-mono font-medium px-1 py-0.2 rounded border bg-indigo-500/15 text-indigo-300 border-indigo-500/30 shrink-0"
+                            title={`Trilogy Care ${s.code} Caps: Care Coord lower of ${(s as any).atHmFeeConfig.careCoordPercent}% or $${(s as any).atHmFeeConfig.careCoordCap} • Service Loading lower of ${(s as any).atHmFeeConfig.serviceLoadingPercent}% or $${(s as any).atHmFeeConfig.serviceLoadingCap} (HC drawn down first)`}
+                          >
+                            CC ≤${(s as any).atHmFeeConfig.careCoordCap} • Load ≤${(s as any).atHmFeeConfig.serviceLoadingCap}
                           </span>
                         )}
                       </div>

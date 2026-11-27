@@ -96,6 +96,92 @@ export const getCurrentFinancialYearAndQuarter = (timezone: string = 'Australia/
   return { currentFyStartYear, currentQuarterId, todayStr };
 };
 
+export interface AtHmFeeCapConfig {
+  careCoordPercent: number;
+  careCoordCap: number;
+  serviceLoadingPercent: number;
+  serviceLoadingCap: number;
+}
+
+export const DEFAULT_AT_FEE_CAPS: AtHmFeeCapConfig = {
+  careCoordPercent: 5,
+  careCoordCap: 250,
+  serviceLoadingPercent: 10,
+  serviceLoadingCap: 500
+};
+
+export const DEFAULT_HM_FEE_CAPS: AtHmFeeCapConfig = {
+  careCoordPercent: 5,
+  careCoordCap: 500,
+  serviceLoadingPercent: 15,
+  serviceLoadingCap: 1500
+};
+
+export const detectAtOrHmStreamType = (rawStream?: string | null): 'AT' | 'HM' | null => {
+  if (!rawStream) return null;
+  const codes = String(rawStream)
+    .toUpperCase()
+    .split(',')
+    .map(c => c.trim())
+    .filter(Boolean);
+  if (codes.includes('HM')) return 'HM';
+  if (codes.includes('AT')) return 'AT';
+  return null;
+};
+
+export const getAtHmFeeConfigForClient = (
+  streams: any[] | undefined | null,
+  type: 'AT' | 'HM'
+): AtHmFeeCapConfig => {
+  const defaults = type === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
+  if (!Array.isArray(streams)) return defaults;
+  const match = streams.find((s: any) => String(s?.code || '').toUpperCase() === type);
+  if (!match) return defaults;
+  return {
+    careCoordPercent:
+      match.careCoordPercent !== undefined && match.careCoordPercent !== null && match.careCoordPercent !== '' && !isNaN(Number(match.careCoordPercent))
+        ? Number(match.careCoordPercent)
+        : defaults.careCoordPercent,
+    careCoordCap:
+      match.careCoordCap !== undefined && match.careCoordCap !== null && match.careCoordCap !== '' && !isNaN(Number(match.careCoordCap))
+        ? Number(match.careCoordCap)
+        : defaults.careCoordCap,
+    serviceLoadingPercent:
+      match.serviceLoadingPercent !== undefined && match.serviceLoadingPercent !== null && match.serviceLoadingPercent !== '' && !isNaN(Number(match.serviceLoadingPercent))
+        ? Number(match.serviceLoadingPercent)
+        : defaults.serviceLoadingPercent,
+    serviceLoadingCap:
+      match.serviceLoadingCap !== undefined && match.serviceLoadingCap !== null && match.serviceLoadingCap !== '' && !isNaN(Number(match.serviceLoadingCap))
+        ? Number(match.serviceLoadingCap)
+        : defaults.serviceLoadingCap
+  };
+};
+
+export const calculateAtHmDrawdownWithCaps = (
+  baseAmount: number,
+  type: 'AT' | 'HM',
+  streams?: any[] | null
+) => {
+  const r2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+  const base = Math.max(0, Number(baseAmount) || 0);
+  const cfg = getAtHmFeeConfigForClient(streams, type);
+  const rawCoord = base * (cfg.careCoordPercent / 100);
+  const coordinationFee = r2(cfg.careCoordCap > 0 ? Math.min(rawCoord, cfg.careCoordCap) : rawCoord);
+  const subtotal = r2(base + coordinationFee);
+  // Under Trilogy Care Support at Home AT/HM rules, Service Loading cap is lower of % of supplier price or $ cap
+  const rawLoading = base * (cfg.serviceLoadingPercent / 100);
+  const managementFee = r2(cfg.serviceLoadingCap > 0 ? Math.min(rawLoading, cfg.serviceLoadingCap) : rawLoading);
+  const total = r2(base + coordinationFee + managementFee);
+  return {
+    baseAmount: r2(base),
+    coordinationFee,
+    subtotal,
+    managementFee,
+    total,
+    cfg
+  };
+};
+
 export default function HomeCareBudgetView() {
   // Support at Home & Home Care custom additional funding & ringfenced AT/HM schemes
   const { id } = useParams<{ id: string }>();
@@ -144,6 +230,10 @@ export default function HomeCareBudgetView() {
     spentAmount?: number;
     addToOngoing?: boolean;
     notes?: string;
+    careCoordPercent?: number;
+    careCoordCap?: number;
+    serviceLoadingPercent?: number;
+    serviceLoadingCap?: number;
   }>>([]);
   const [isAdditionalModalOpen, setIsAdditionalModalOpen] = useState(false);
   const [isManageAdditionalModalOpen, setIsManageAdditionalModalOpen] = useState(false);
@@ -157,6 +247,10 @@ export default function HomeCareBudgetView() {
   const [streamSpentAmount, setStreamSpentAmount] = useState('0');
   const [streamAddToOngoing, setStreamAddToOngoing] = useState<boolean>(false);
   const [streamNotes, setStreamNotes] = useState('');
+  const [streamCareCoordPercent, setStreamCareCoordPercent] = useState<string>('5');
+  const [streamCareCoordCap, setStreamCareCoordCap] = useState<string>('250');
+  const [streamServiceLoadingPercent, setStreamServiceLoadingPercent] = useState<string>('10');
+  const [streamServiceLoadingCap, setStreamServiceLoadingCap] = useState<string>('500');
 
   // Legacy AT/HM array kept empty on save after migration into additionalFundingStreams
   const [atHmFundingStreams, setAtHmFundingStreams] = useState<any[]>([]);
@@ -295,15 +389,23 @@ export default function HomeCareBudgetView() {
           const pct = Number(s.percentageOfOngoing ?? s.percentage_of_ongoing) > 0
             ? Number(s.percentageOfOngoing ?? s.percentage_of_ongoing)
             : (isDementiaStream && (Number(s.amount) === 1896.17 || Number(s.amount) === 1899.88 || !s.amount) ? 11.5 : undefined);
+          const resolvedCode = isDementiaStream && (!s.code || s.code === 'CUSTOM') ? 'DC' : (s.code || (DEFAULT_ADDITIONAL_STREAM_OPTIONS.find(o => o.name.toLowerCase() === String(s.name || '').toLowerCase())?.code || 'CUSTOM'));
+          const upperCode = String(resolvedCode || '').toUpperCase();
+          const isAtOrHm = upperCode === 'AT' || upperCode === 'HM';
+          const defaultCaps = upperCode === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
           return {
             id: s.id || `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            code: isDementiaStream && (!s.code || s.code === 'CUSTOM') ? 'DC' : (s.code || (DEFAULT_ADDITIONAL_STREAM_OPTIONS.find(o => o.name.toLowerCase() === String(s.name || '').toLowerCase())?.code || 'CUSTOM')),
+            code: resolvedCode,
             name: s.name || 'Additional Stream',
             amount: Number(s.amount ?? s.allocatedAmount) || 0,
             percentageOfOngoing: pct,
             spentAmount: Number(s.spentAmount) || 0,
-            addToOngoing: s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code,
-            notes: s.notes || ''
+            addToOngoing: isAtOrHm ? false : (s.addToOngoing !== undefined ? Boolean(s.addToOngoing) : !s.code),
+            notes: s.notes || '',
+            careCoordPercent: isAtOrHm ? (s.careCoordPercent !== undefined && !isNaN(Number(s.careCoordPercent)) ? Number(s.careCoordPercent) : defaultCaps.careCoordPercent) : s.careCoordPercent,
+            careCoordCap: isAtOrHm ? (s.careCoordCap !== undefined && !isNaN(Number(s.careCoordCap)) ? Number(s.careCoordCap) : defaultCaps.careCoordCap) : s.careCoordCap,
+            serviceLoadingPercent: isAtOrHm ? (s.serviceLoadingPercent !== undefined && !isNaN(Number(s.serviceLoadingPercent)) ? Number(s.serviceLoadingPercent) : defaultCaps.serviceLoadingPercent) : s.serviceLoadingPercent,
+            serviceLoadingCap: isAtOrHm ? (s.serviceLoadingCap !== undefined && !isNaN(Number(s.serviceLoadingCap)) ? Number(s.serviceLoadingCap) : defaultCaps.serviceLoadingCap) : s.serviceLoadingCap
           };
         });
 
@@ -406,6 +508,11 @@ export default function HomeCareBudgetView() {
     }
     setStreamSpentAmount('0');
     setStreamNotes('');
+    const initCaps = defaultOpt.code === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
+    setStreamCareCoordPercent(String(initCaps.careCoordPercent));
+    setStreamCareCoordCap(String(initCaps.careCoordCap));
+    setStreamServiceLoadingPercent(String(initCaps.serviceLoadingPercent));
+    setStreamServiceLoadingCap(String(initCaps.serviceLoadingCap));
     setIsAdditionalModalOpen(true);
   };
 
@@ -425,6 +532,30 @@ export default function HomeCareBudgetView() {
       setCustomStreamCode(stream.code && stream.code !== 'CUSTOM' ? stream.code : '');
       setStreamName(stream.name || '');
     }
+    const upperCode = String(matchedOpt?.code || stream.code || '').toUpperCase();
+    const isAtOrHm = upperCode === 'AT' || upperCode === 'HM';
+    const defaultCaps = upperCode === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
+    setStreamCareCoordPercent(
+      stream.careCoordPercent !== undefined && stream.careCoordPercent !== null && stream.careCoordPercent !== ''
+        ? String(stream.careCoordPercent)
+        : String(defaultCaps.careCoordPercent)
+    );
+    setStreamCareCoordCap(
+      stream.careCoordCap !== undefined && stream.careCoordCap !== null && stream.careCoordCap !== ''
+        ? String(stream.careCoordCap)
+        : String(defaultCaps.careCoordCap)
+    );
+    setStreamServiceLoadingPercent(
+      stream.serviceLoadingPercent !== undefined && stream.serviceLoadingPercent !== null && stream.serviceLoadingPercent !== ''
+        ? String(stream.serviceLoadingPercent)
+        : String(defaultCaps.serviceLoadingPercent)
+    );
+    setStreamServiceLoadingCap(
+      stream.serviceLoadingCap !== undefined && stream.serviceLoadingCap !== null && stream.serviceLoadingCap !== ''
+        ? String(stream.serviceLoadingCap)
+        : String(defaultCaps.serviceLoadingCap)
+    );
+
     const pct = Number(stream.percentageOfOngoing) > 0 ? Number(stream.percentageOfOngoing) : 0;
     setStreamPercentageOfOngoing(pct > 0 ? String(pct) : '');
     const effectiveAmt = pct > 0
@@ -432,7 +563,7 @@ export default function HomeCareBudgetView() {
       : (stream.amount !== undefined ? String(stream.amount) : '');
     setStreamAmount(effectiveAmt);
     setStreamSpentAmount(stream.spentAmount !== undefined ? String(stream.spentAmount) : '0');
-    setStreamAddToOngoing(Boolean(stream.addToOngoing));
+    setStreamAddToOngoing(isAtOrHm ? false : Boolean(stream.addToOngoing));
     setStreamNotes(stream.notes || '');
     setIsAdditionalModalOpen(true);
   };
@@ -495,6 +626,14 @@ export default function HomeCareBudgetView() {
       return;
     }
 
+    const upperFinalCode = String(finalCode || '').toUpperCase();
+    const isAtOrHm = upperFinalCode === 'AT' || upperFinalCode === 'HM';
+    const defaultCaps = upperFinalCode === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
+    const parsedCcPct = streamCareCoordPercent !== '' && !isNaN(parseFloat(streamCareCoordPercent)) ? parseFloat(streamCareCoordPercent) : defaultCaps.careCoordPercent;
+    const parsedCcCap = streamCareCoordCap !== '' && !isNaN(parseFloat(streamCareCoordCap)) ? parseFloat(streamCareCoordCap) : defaultCaps.careCoordCap;
+    const parsedLoadPct = streamServiceLoadingPercent !== '' && !isNaN(parseFloat(streamServiceLoadingPercent)) ? parseFloat(streamServiceLoadingPercent) : defaultCaps.serviceLoadingPercent;
+    const parsedLoadCap = streamServiceLoadingCap !== '' && !isNaN(parseFloat(streamServiceLoadingCap)) ? parseFloat(streamServiceLoadingCap) : defaultCaps.serviceLoadingCap;
+
     let updated: typeof additionalFundingStreams;
     if (editingAdditionalStreamId) {
       updated = additionalFundingStreams.map(s =>
@@ -506,8 +645,16 @@ export default function HomeCareBudgetView() {
               amount: amt,
               percentageOfOngoing: hasPercentage ? pctVal : undefined,
               spentAmount: spent,
-              addToOngoing: streamAddToOngoing,
-              notes: streamNotes.trim()
+              addToOngoing: isAtOrHm ? false : streamAddToOngoing,
+              notes: streamNotes.trim(),
+              ...(isAtOrHm
+                ? {
+                    careCoordPercent: parsedCcPct,
+                    careCoordCap: parsedCcCap,
+                    serviceLoadingPercent: parsedLoadPct,
+                    serviceLoadingCap: parsedLoadCap
+                  }
+                : {})
             }
           : s
       );
@@ -519,8 +666,16 @@ export default function HomeCareBudgetView() {
         amount: amt,
         percentageOfOngoing: hasPercentage ? pctVal : undefined,
         spentAmount: spent,
-        addToOngoing: streamAddToOngoing,
-        notes: streamNotes.trim()
+        addToOngoing: isAtOrHm ? false : streamAddToOngoing,
+        notes: streamNotes.trim(),
+        ...(isAtOrHm
+          ? {
+              careCoordPercent: parsedCcPct,
+              careCoordCap: parsedCcCap,
+              serviceLoadingPercent: parsedLoadPct,
+              serviceLoadingCap: parsedLoadCap
+            }
+          : {})
       };
       updated = [...additionalFundingStreams, newStream];
     }
@@ -743,8 +898,23 @@ export default function HomeCareBudgetView() {
 
   const processedLedgerItems = ledger.items.map((item: any) => {
     const itemFundingStream = String(item.funding_stream || 'ON').toUpperCase();
+    const atHmType = detectAtOrHmStreamType(itemFundingStream);
+    const baseAmt = Number(item.base_amount ?? item.amount) || 0;
+
+    if (isHomeCare && atHmType) {
+      const atHmFees = calculateAtHmDrawdownWithCaps(baseAmt, atHmType, additionalFundingStreams);
+      return {
+        ...item,
+        funding_stream: itemFundingStream,
+        baseAmount: atHmFees.baseAmount,
+        coordinationFee: atHmFees.coordinationFee,
+        subtotal: atHmFees.subtotal,
+        managementFee: atHmFees.managementFee,
+        amount: atHmFees.total
+      };
+    }
+
     if (item.source_type === 'external' || item.grand_total !== undefined) {
-      const baseAmt = item.base_amount ?? item.amount;
       const ccFee = item.care_coord_fee ?? (isHomeCare ? baseAmt * (careCoordPercent / 100) : 0);
       const sub = baseAmt + ccFee;
       const mgmt = item.management_fee ?? (isHomeCare ? sub * (managementFeePercent / 100) : 0);
@@ -759,7 +929,7 @@ export default function HomeCareBudgetView() {
         amount: gTotal
       };
     }
-    const fees = calculateServiceConsumptionWithFees(item.base_amount ?? item.amount, careCoordPercent, managementFeePercent);
+    const fees = calculateServiceConsumptionWithFees(baseAmt, careCoordPercent, managementFeePercent);
     return {
       ...item,
       funding_stream: itemFundingStream,
@@ -777,28 +947,57 @@ export default function HomeCareBudgetView() {
       .split(',')
       .map(c => c.trim())
       .filter(Boolean);
+    // Strict rule: AT and HM services NEVER draw from ON
+    if (codes.includes('HM')) return 'HM';
+    if (codes.includes('AT')) return 'AT';
     if (codes.length === 0 || codes.includes('ON')) return 'ON';
     return codes.find(c => c !== 'HC') || codes[0] || 'ON';
   };
 
-  // Ongoing Funds (ON) drawdown: all items with primary funding_stream === 'ON' or not drawn from a separate active additional stream card
+  // Ongoing Funds (ON) drawdown: all items with primary funding_stream === 'ON' (strictly excluding AT, HM, and any separate active additional stream card)
   const liveSystemConsumptions = processedLedgerItems
-    .filter((item: any) => !separateStreamCodes.has(getPrimaryStreamCode(item.funding_stream)))
+    .filter((item: any) => {
+      const primary = getPrimaryStreamCode(item.funding_stream);
+      if (primary === 'AT' || primary === 'HM') return false;
+      return !separateStreamCodes.has(primary);
+    })
     .reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
   const totalCombinedSpent = liveSystemConsumptions;
 
-  // Linked ON -> HC (Home Care Account) Cascade Calculation
+  // Linked HC (Home Care Account) First for AT & HM -> Then AT/HM Stream Cards, plus ON -> HC Cascade
   const hcStreams = additionalFundingStreams.filter(
     (s) => !s.addToOngoing && String(s.code || '').toUpperCase() === 'HC'
   );
   const hcTotalAllocated = hcStreams.reduce((sum, s) => sum + getEffectiveStreamAmount(s), 0);
   const hcDirectManualSpent = hcStreams.reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
-  const hcDirectLedgerSpent = hcStreams.length > 0
+  const hcPureLedgerSpent = hcStreams.length > 0
     ? processedLedgerItems
         .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === 'HC')
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     : 0;
-  const hcDirectSpent = round2(hcDirectManualSpent + hcDirectLedgerSpent);
+
+  // AT & HM ledger spend (HC always gets drawn down first for AT and HM before actual AT and HM funding streams)
+  const rawAtLedgerSpent = round2(
+    processedLedgerItems
+      .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === 'AT')
+      .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+  );
+  const rawHmLedgerSpent = round2(
+    processedLedgerItems
+      .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === 'HM')
+      .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+  );
+
+  const hcAvailForAt = Math.max(0, round2(hcTotalAllocated - hcDirectManualSpent - hcPureLedgerSpent));
+  const hcUsedForAt = hcStreams.length > 0 ? Math.min(hcAvailForAt, rawAtLedgerSpent) : 0;
+  const atRemainingLedgerAfterHc = round2(rawAtLedgerSpent - hcUsedForAt);
+
+  const hcAvailForHm = Math.max(0, round2(hcAvailForAt - hcUsedForAt));
+  const hcUsedForHm = hcStreams.length > 0 ? Math.min(hcAvailForHm, rawHmLedgerSpent) : 0;
+  const hmRemainingLedgerAfterHc = round2(rawHmLedgerSpent - hcUsedForHm);
+
+  const hcAtHmDrawnTotal = round2(hcUsedForAt + hcUsedForHm);
+  const hcDirectSpent = round2(hcDirectManualSpent + hcPureLedgerSpent + hcAtHmDrawnTotal);
   const hcAvailableBeforeOverflow = Math.max(0, round2(hcTotalAllocated - hcDirectSpent));
   const onOverrun = Math.max(0, round2(totalCombinedSpent - totalAllocation));
   const hcOverflowUsed = hcStreams.length > 0 ? Math.min(hcAvailableBeforeOverflow, onOverrun) : 0;
@@ -1229,9 +1428,15 @@ export default function HomeCareBudgetView() {
             const allocated = getEffectiveStreamAmount(stream);
             const manualSpent = Number(stream.spentAmount) || 0;
             const ledgerSpentForStream = !stream.addToOngoing
-              ? processedLedgerItems
-                  .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === streamCode)
-                  .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
+              ? streamCode === 'HC'
+                ? round2(hcPureLedgerSpent + hcAtHmDrawnTotal)
+                : streamCode === 'AT'
+                ? atRemainingLedgerAfterHc
+                : streamCode === 'HM'
+                ? hmRemainingLedgerAfterHc
+                : processedLedgerItems
+                    .filter((item: any) => getPrimaryStreamCode(item.funding_stream) === streamCode)
+                    .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
               : 0;
             const directStreamSpent = round2(manualSpent + ledgerSpentForStream);
             const streamOverflowShare = isHcStream && hcTotalAllocated > 0
@@ -1769,6 +1974,14 @@ export default function HomeCareBudgetView() {
                           setStreamPercentageOfOngoing(String(defaultPct));
                           setStreamAmount(round2(grossAllocation * (defaultPct / 100)).toFixed(2));
                           setStreamAddToOngoing(true);
+                        } else if (code === 'AT' || code === 'HM') {
+                          setStreamPercentageOfOngoing('');
+                          setStreamAddToOngoing(false);
+                          const caps = code === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
+                          setStreamCareCoordPercent(String(caps.careCoordPercent));
+                          setStreamCareCoordCap(String(caps.careCoordCap));
+                          setStreamServiceLoadingPercent(String(caps.serviceLoadingPercent));
+                          setStreamServiceLoadingCap(String(caps.serviceLoadingCap));
                         }
                       }
                     }}
@@ -1783,97 +1996,191 @@ export default function HomeCareBudgetView() {
                 )}
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-medium text-zinc-400">
-                    Percentage of Annual / Gross ON Subsidy (%) <span className="text-zinc-500 font-normal">(Optional)</span>
-                  </label>
-                  {streamPercentageOfOngoing && parseFloat(streamPercentageOfOngoing) > 0 && (
-                    <span className="text-[10px] font-mono text-emerald-400">
-                      {formatCurrency(grossAllocation)} × {streamPercentageOfOngoing}% = {formatCurrency(round2(grossAllocation * (parseFloat(streamPercentageOfOngoing) / 100)))}
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    placeholder="e.g., 11.5 for Dementia & Cognition Supplement (leave blank for fixed $ amount)"
-                    value={streamPercentageOfOngoing}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setStreamPercentageOfOngoing(val);
-                      const pct = parseFloat(val);
-                      if (!isNaN(pct) && pct > 0) {
-                        setStreamAmount(round2(grossAllocation * (pct / 100)).toFixed(2));
-                      }
-                    }}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 pr-7 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-mono">%</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 mt-1">
-                  Calculates dynamically from the client&apos;s unrounded Gross ON subsidy ({formatCurrency(grossAllocation)} for {totalDays} days) to match Trilogy Care to $0.00.
-                </p>
-              </div>
+              {(() => {
+                const activeCode = (isCustomStreamMode ? customStreamCode : selectedStreamCode).toUpperCase();
+                const isAtOrHmModal = activeCode === 'AT' || activeCode === 'HM';
+                return (
+                  <>
+                    {!isAtOrHmModal && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-medium text-zinc-400">
+                            Percentage of Annual / Gross ON Subsidy (%) <span className="text-zinc-500 font-normal">(Optional)</span>
+                          </label>
+                          {streamPercentageOfOngoing && parseFloat(streamPercentageOfOngoing) > 0 && (
+                            <span className="text-[10px] font-mono text-emerald-400">
+                              {formatCurrency(grossAllocation)} × {streamPercentageOfOngoing}% = {formatCurrency(round2(grossAllocation * (parseFloat(streamPercentageOfOngoing) / 100)))}
+                            </span>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            placeholder="e.g., 11.5 for Dementia & Cognition Supplement (leave blank for fixed $ amount)"
+                            value={streamPercentageOfOngoing}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setStreamPercentageOfOngoing(val);
+                              const pct = parseFloat(val);
+                              if (!isNaN(pct) && pct > 0) {
+                                setStreamAmount(round2(grossAllocation * (pct / 100)).toFixed(2));
+                              }
+                            }}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 pr-7 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-mono">%</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 mt-1">
+                          Calculates dynamically from the client&apos;s unrounded Gross ON subsidy ({formatCurrency(grossAllocation)} for {totalDays} days) to match Trilogy Care to $0.00.
+                        </p>
+                      </div>
+                    )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                    Allocated Amount ($) * {streamPercentageOfOngoing && parseFloat(streamPercentageOfOngoing) > 0 ? <span className="text-brand-teal font-normal">(Auto-calculated)</span> : null}
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    min="0.01"
-                    placeholder="e.g., 1899.88"
-                    value={streamAmount}
-                    onChange={(e) => {
-                      setStreamAmount(e.target.value);
-                      if (streamPercentageOfOngoing) {
-                        setStreamPercentageOfOngoing('');
-                      }
-                    }}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Initial / Manual Spent ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.00"
-                    placeholder="0.00"
-                    value={streamSpentAmount}
-                    onChange={(e) => setStreamSpentAmount(e.target.value)}
-                    disabled={streamAddToOngoing}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors disabled:opacity-50"
-                  />
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                          Allocated Amount ($) * {streamPercentageOfOngoing && parseFloat(streamPercentageOfOngoing) > 0 ? <span className="text-brand-teal font-normal">(Auto-calculated)</span> : null}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          min="0.01"
+                          placeholder="e.g., 1899.88"
+                          value={streamAmount}
+                          onChange={(e) => {
+                            setStreamAmount(e.target.value);
+                            if (streamPercentageOfOngoing) {
+                              setStreamPercentageOfOngoing('');
+                            }
+                          }}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-zinc-400 mb-1">Initial / Manual Spent ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.00"
+                          placeholder="0.00"
+                          value={streamSpentAmount}
+                          onChange={(e) => setStreamSpentAmount(e.target.value)}
+                          disabled={!isAtOrHmModal && streamAddToOngoing}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-brand-teal transition-colors disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
 
-              <div className="p-2.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    id="add-to-ongoing-toggle"
-                    checked={streamAddToOngoing}
-                    onChange={(e) => setStreamAddToOngoing(e.target.checked)}
-                    className="mt-0.5 text-brand-teal bg-zinc-950 border-zinc-700 rounded focus:ring-0 cursor-pointer"
-                  />
-                  <div className="leading-tight">
-                    <label htmlFor="add-to-ongoing-toggle" className="text-xs font-semibold text-zinc-200 cursor-pointer select-none">
-                      Add to current ONGOING FUNDS (ON)
-                    </label>
-                    <p className="text-[10px] text-zinc-400 mt-1 leading-normal">
-                      Enable this option if this funding stream should be added directly to the client&apos;s total quarterly Ongoing Funds (ON = Ongoing Funds) allocation. Leave unchecked to track it as its own separate funding stream balance.
-                    </p>
-                  </div>
-                </div>
-              </div>
+                    {isAtOrHmModal ? (
+                      <div className="p-3 rounded-lg bg-indigo-950/25 border border-indigo-500/30 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-indigo-300">
+                            {activeCode === 'HM' ? 'HM — Home Modifications' : 'AT — Assistive Technology'} Fee & Loading Caps
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const defaults = activeCode === 'HM' ? DEFAULT_HM_FEE_CAPS : DEFAULT_AT_FEE_CAPS;
+                              setStreamCareCoordPercent(String(defaults.careCoordPercent));
+                              setStreamCareCoordCap(String(defaults.careCoordCap));
+                              setStreamServiceLoadingPercent(String(defaults.serviceLoadingPercent));
+                              setStreamServiceLoadingCap(String(defaults.serviceLoadingCap));
+                            }}
+                            className="text-[10px] text-brand-teal hover:underline font-medium cursor-pointer"
+                          >
+                            Reset Trilogy Defaults
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-medium text-zinc-300 mb-1">
+                              Care Coord Loading (%)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={streamCareCoordPercent}
+                              onChange={(e) => setStreamCareCoordPercent(e.target.value)}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono outline-none focus:border-brand-teal"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-medium text-zinc-300 mb-1">
+                              Care Coord Dollar Cap ($)
+                            </label>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={streamCareCoordCap}
+                              onChange={(e) => setStreamCareCoordCap(e.target.value)}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono outline-none focus:border-brand-teal"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-medium text-zinc-300 mb-1">
+                              Service Loading Fee (%)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={streamServiceLoadingPercent}
+                              onChange={(e) => setStreamServiceLoadingPercent(e.target.value)}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono outline-none focus:border-brand-teal"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-medium text-zinc-300 mb-1">
+                              Service Loading Dollar Cap ($)
+                            </label>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={streamServiceLoadingCap}
+                              onChange={(e) => setStreamServiceLoadingCap(e.target.value)}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono outline-none focus:border-brand-teal"
+                            />
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-zinc-400 leading-normal">
+                          Applies the lower of the percentage or dollar cap to {activeCode} items (drawn from <strong>HC Home Care Account first</strong>, then <strong>{activeCode}</strong>; never drawn from ON Ongoing Funds).
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            id="add-to-ongoing-toggle"
+                            checked={streamAddToOngoing}
+                            onChange={(e) => setStreamAddToOngoing(e.target.checked)}
+                            className="mt-0.5 text-brand-teal bg-zinc-950 border-zinc-700 rounded focus:ring-0 cursor-pointer"
+                          />
+                          <div className="leading-tight">
+                            <label htmlFor="add-to-ongoing-toggle" className="text-xs font-semibold text-zinc-200 cursor-pointer select-none">
+                              Add to current ONGOING FUNDS (ON)
+                            </label>
+                            <p className="text-[10px] text-zinc-400 mt-1 leading-normal">
+                              Enable this option if this funding stream should be added directly to the client&apos;s total quarterly Ongoing Funds (ON = Ongoing Funds) allocation. Leave unchecked to track it as its own separate funding stream balance.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               <div>
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1">Notes / Authority Approval</label>
