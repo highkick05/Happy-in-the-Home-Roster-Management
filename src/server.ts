@@ -27196,7 +27196,7 @@ app.get("/api/health", (req, res) => {
 
         const rawServices = db
           .prepare(
-            "SELECT id, name, rate, unit, code, type, rates_json, status, service_category FROM services WHERE (status IS NULL OR status != 'ARCHIVED') ORDER BY id ASC",
+            "SELECT id, name, rate, unit, code, type, rates_json, status, service_category, service_group, funding_stream FROM services WHERE (status IS NULL OR status != 'ARCHIVED') ORDER BY id ASC",
           )
           .all();
         const services = deduplicateToLatestServices(rawServices);

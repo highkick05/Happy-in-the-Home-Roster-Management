@@ -42,10 +42,45 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
   }, [formData.clientId, options.clients]);
 
   const clientPersonalisedServices = React.useMemo(() => {
+    const isHomeCareClient =
+      selectedClient?.funding_type === 'HOME_CARE' ||
+      selectedClient?.funding_type === 'Home Care' ||
+      selectedClient?.funding_type === 'HCP';
+
+    const isAtOrHmService = (s: any) => {
+      const streamCodes = String(s?.funding_stream || '')
+        .toUpperCase()
+        .split(',')
+        .map((c: string) => c.trim())
+        .filter(Boolean);
+      if (streamCodes.includes('AT') || streamCodes.includes('HM') || streamCodes.includes('AS')) return true;
+      const grp = String(s?.service_group || '').trim().toLowerCase();
+      return grp === 'equipment and products' || grp === 'home adjustments';
+    };
+
+    const selectedServiceIds = selectedServices.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
+
+    if (isHomeCareClient) {
+      const hcServices = options.services.filter((s: any) =>
+        s.type === 'HOME_CARE' ||
+        s.type === 'Home Care' ||
+        s.type === 'HCP' ||
+        isAtOrHmService(s) ||
+        selectedServiceIds.includes(s.id)
+      );
+      if (!selectedClient?.service_ids || selectedClient.service_ids.length === 0) {
+        return hcServices.length > 0 ? hcServices : options.services;
+      }
+      return hcServices.filter((s: any) =>
+        selectedClient.service_ids.includes(s.id) ||
+        selectedServiceIds.includes(s.id) ||
+        isAtOrHmService(s)
+      );
+    }
+
     if (!selectedClient || !selectedClient.service_ids || selectedClient.service_ids.length === 0) {
       return options.services;
     }
-    const selectedServiceIds = selectedServices.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
     return options.services.filter(s => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
   }, [selectedClient, options.services, selectedServices]);
 

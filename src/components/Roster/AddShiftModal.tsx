@@ -184,11 +184,46 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
   }, [clientId, clientList]);
 
   const clientPersonalisedServices = useMemo(() => {
+    const isHomeCareClient =
+      selectedClient?.funding_type === 'HOME_CARE' ||
+      selectedClient?.funding_type === 'Home Care' ||
+      selectedClient?.funding_type === 'HCP';
+
+    const isAtOrHmService = (s: any) => {
+      const streamCodes = String(s?.funding_stream || '')
+        .toUpperCase()
+        .split(',')
+        .map((c: string) => c.trim())
+        .filter(Boolean);
+      if (streamCodes.includes('AT') || streamCodes.includes('HM') || streamCodes.includes('AS')) return true;
+      const grp = String(s?.service_group || '').trim().toLowerCase();
+      return grp === 'equipment and products' || grp === 'home adjustments';
+    };
+
+    const selectedServiceIds = servicesData.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
+
+    if (isHomeCareClient) {
+      const hcServices = servicesList.filter((s: any) =>
+        s.type === 'HOME_CARE' ||
+        s.type === 'Home Care' ||
+        s.type === 'HCP' ||
+        isAtOrHmService(s) ||
+        selectedServiceIds.includes(s.id)
+      );
+      if (!selectedClient?.service_ids || selectedClient.service_ids.length === 0) {
+        return hcServices.length > 0 ? hcServices : servicesList;
+      }
+      return hcServices.filter((s: any) =>
+        selectedClient.service_ids.includes(s.id) ||
+        selectedServiceIds.includes(s.id) ||
+        isAtOrHmService(s)
+      );
+    }
+
     if (!selectedClient || !selectedClient.service_ids || selectedClient.service_ids.length === 0) {
       return servicesList; // fallback to all if no client selected or format missing or empty
     }
     // Also make sure to always include currently selected services in the modal so they aren't hidden
-    const selectedServiceIds = servicesData.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
     return servicesList.filter(s => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
   }, [selectedClient, servicesList, servicesData]);
 
