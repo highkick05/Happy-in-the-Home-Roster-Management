@@ -889,10 +889,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     if (t.servicesData && t.servicesData.length > 0) {
       t.servicesData.forEach((sd: any) => {
         const sDetails = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+        const resolvedUnit = sd.customUnit || sDetails.unit || 'Hour';
         const effectiveQty =
           sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
             ? Number(sd.qtyOverride)
-            : sDetails.unit === 'Hour'
+            : resolvedUnit === 'Hour'
             ? tShiftHours
             : 1;
         const effectiveRate =
@@ -1098,9 +1099,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         .reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0)
     );
 
-    // Latest performed (COMPLETED / IN_PROGRESS / CANCELLED) shift date in the active quarter
+    // Latest performed (COMPLETED / IN_PROGRESS / CANCELLED) rostered shift date in the active quarter (excluding standalone one-off manual invoices so they don't skip unperformed recurring shifts)
     const ledgerLatestShiftDateStr = processedLedger
-      .filter((item: any) => item.source_type === 'shift' && item.dateYmd)
+      .filter((item: any) => item.source_type === 'shift' && !item.is_manual_invoice && item.dateYmd)
       .reduce((maxD: string, item: any) => (item.dateYmd > maxD ? item.dateYmd : maxD), '');
     const summaryLatestLockedDateStr = shiftStatusSummary.lastLockedShiftDateInQuarter || '';
     const latestPerformedShiftDateStr =
@@ -1198,12 +1199,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           ? String(t.end_date).split('T')[0]
           : templateEffectiveEndStr;
 
-      const remOccurrences = countShiftOccurrencesInRange(
-        { ...t, start_date: effectiveShiftStart },
-        remainingStartStr,
-        effectiveShiftEnd,
-        shiftFreq
-      );
+      const linkedStatusUpper =
+        sType === 'ONE_OFF' && t.linked_shift_status ? String(t.linked_shift_status).toUpperCase() : '';
+      const isAlreadyCompletedOneOff =
+        sType === 'ONE_OFF' &&
+        (linkedStatusUpper === 'COMPLETED' || linkedStatusUpper === 'IN_PROGRESS' || Boolean(t.is_manual_invoice));
+
+      const remOccurrences = isAlreadyCompletedOneOff
+        ? 0
+        : countShiftOccurrencesInRange(
+            { ...t, start_date: effectiveShiftStart },
+            remainingStartStr,
+            effectiveShiftEnd,
+            shiftFreq
+          );
       const { baseTotal, byStream } = getTemplateShiftOccurrenceBreakdown(t);
 
       // Remaining quarter projection (from day after last performed shift forward)
@@ -2875,7 +2884,18 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   >
                     {displayDaysOrder.map(dayIdx => {
                       const dayTemplates = slideTemplateList
-                        .filter(t => t.day_of_week === dayIdx)
+                        .filter(t => {
+                          if (t.day_of_week !== dayIdx) return false;
+                          const sTypeCheck: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
+                          if (sTypeCheck === 'ONE_OFF' && t.one_off_date) {
+                            const oneOffYmd = String(t.one_off_date).split('T')[0];
+                            const windowStart = slideIsHistorical ? slideQStart : slideBaseStart;
+                            const windowEnd = slideQEnd;
+                            if (windowStart && oneOffYmd < windowStart) return false;
+                            if (windowEnd && oneOffYmd > windowEnd) return false;
+                          }
+                          return true;
+                        })
                         .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
                       return (
@@ -2920,6 +2940,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                               const isOneOffLocked =
                                 sType === 'ONE_OFF' &&
                                 (linkedStatus === 'COMPLETED' || linkedStatus === 'IN_PROGRESS');
+                              const isTimelessManualInvoice =
+                                Boolean(t.is_manual_invoice) && t.start_time === '00:00' && t.end_time === '00:00';
+                              const staffDisplayName =
+                                `${t.staff_first_name || ''} ${t.staff_last_name || ''}`.trim() ||
+                                t.custom_staff_name ||
+                                (t.is_manual_invoice ? 'Manual Invoice' : 'Unassigned');
 
                               return (
                                 <div
@@ -2927,6 +2953,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   className={`flex flex-col justify-between px-[9px] py-[7px] bg-[#09090b] border rounded-lg transition-colors group ${
                                     hasCardClash
                                       ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.12)]'
+                                      : sType === 'ONE_OFF'
+                                      ? 'border-amber-500/30 hover:border-amber-400/50'
                                       : 'border-white/[0.08] hover:border-white/[0.14]'
                                   }`}
                                 >
@@ -2934,13 +2962,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   <div className="flex items-center justify-between gap-1 mb-1">
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                       <span className="text-[12.5px] font-bold font-mono text-zinc-100 shrink-0">
-                                        {t.start_time}–{t.end_time}
+                                        {isTimelessManualInvoice ? 'ONCE-OFF' : `${t.start_time}–${t.end_time}`}
                                       </span>
                                       <span
                                         className="inline-flex items-center px-1.5 py-[2.5px] rounded bg-zinc-800/70 border border-white/[0.1] text-[10.5px] text-zinc-300 truncate"
-                                        title={`Staff: ${t.staff_first_name || ''} ${t.staff_last_name || ''}`}
+                                        title={`Staff / Provider: ${staffDisplayName}`}
                                       >
-                                        {t.staff_first_name} {t.staff_last_name}
+                                        {staffDisplayName}
                                       </span>
                                     </div>
                                     {!slideIsHistorical && user?.role === 'ADMIN' && (
@@ -2982,8 +3010,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     {sType === 'ONE_OFF' ? (
                                       <>
                                         <span className="text-[9.5px] font-semibold uppercase px-1.5 py-[3px] rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 leading-none">
-                                          ONE OFF {t.one_off_date ? `• ${formatShortDate(t.one_off_date)}` : ''}
+                                          ONCE OFF {t.one_off_date ? `• ${formatShortDate(t.one_off_date)}` : ''}
                                         </span>
+                                        {t.is_manual_invoice && (
+                                          <span
+                                            className="text-[9.5px] font-mono font-semibold uppercase px-1.5 py-[3px] rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 leading-none"
+                                            title={t.invoice_number ? `Manual Invoice ${t.invoice_number}` : 'Manual Invoice'}
+                                          >
+                                            {t.invoice_number ? `INV ${t.invoice_number}` : 'INVOICE'}
+                                          </span>
+                                        )}
                                         {linkedStatus && (
                                           <span
                                             className={`text-[9.5px] font-mono font-semibold uppercase px-1.5 py-[3px] rounded border leading-none ${
@@ -3054,6 +3090,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     {t.servicesData && t.servicesData.length > 0 ? (
                                       t.servicesData.map((sd: any, idx: number) => {
                                         const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+                                        const resolvedName = sd.customName || name || 'Service';
+                                        const resolvedUnit = sd.customUnit || unit || 'Hour';
                                         const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
                                         const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
 
@@ -3065,22 +3103,22 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                         const effectiveQty =
                                           sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
                                             ? Number(sd.qtyOverride)
-                                            : unit === 'Hour'
+                                            : resolvedUnit === 'Hour'
                                             ? tShiftHours
                                             : 1;
                                         const effectiveRate =
                                           sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
                                             ? Number(sd.rateOverride)
                                             : rate;
-                                        const unitLabel = unit === 'Hour' ? (effectiveQty === 1 ? 'hr' : 'hrs') : unit.toLowerCase();
+                                        const unitLabel = resolvedUnit === 'Hour' ? (effectiveQty === 1 ? 'hr' : 'hrs') : resolvedUnit.toLowerCase();
                                         const totalAmount = effectiveRate * effectiveQty;
 
                                         return (
                                           <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded px-2 py-[7px]">
                                             <div className="flex items-center justify-between gap-1 mb-1">
-                                              <div className="flex items-center min-w-0 flex-1" title={name || 'Service'}>
+                                              <div className="flex items-center min-w-0 flex-1" title={resolvedName}>
                                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-1.5"></div>
-                                                <div className="text-zinc-200 text-[11.5px] font-medium truncate">{name || 'Service'}</div>
+                                                <div className="text-zinc-200 text-[11.5px] font-medium truncate">{resolvedName}</div>
                                               </div>
                                               {isClientHomeCare && (
                                                 <div className="flex items-center gap-0.5 shrink-0">
@@ -3092,6 +3130,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                                           ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
                                                           : code === 'HC'
                                                           ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                          : code === 'AT' || code === 'AS'
+                                                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                                          : code === 'HM'
+                                                          ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                                                           : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
                                                       }`}
                                                       title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}

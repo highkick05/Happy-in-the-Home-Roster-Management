@@ -903,14 +903,25 @@ export default function HomeCareBudgetView() {
 
     if (isHomeCare && atHmType) {
       const atHmFees = calculateAtHmDrawdownWithCaps(baseAmt, atHmType, additionalFundingStreams);
+      const rawCoord = round2(baseAmt * (atHmFees.cfg.careCoordPercent / 100));
+      const rawLoading = round2(baseAmt * (atHmFees.cfg.serviceLoadingPercent / 100));
+      const isCareCoordCapped = atHmFees.cfg.careCoordCap > 0 && rawCoord > atHmFees.cfg.careCoordCap;
+      const isManagementFeeCapped = atHmFees.cfg.serviceLoadingCap > 0 && rawLoading > atHmFees.cfg.serviceLoadingCap;
       return {
         ...item,
         funding_stream: itemFundingStream,
+        atHmType,
         baseAmount: atHmFees.baseAmount,
         coordinationFee: atHmFees.coordinationFee,
         subtotal: atHmFees.subtotal,
         managementFee: atHmFees.managementFee,
-        amount: atHmFees.total
+        amount: atHmFees.total,
+        appliedCareCoordPercent: atHmFees.cfg.careCoordPercent,
+        appliedManagementFeePercent: atHmFees.cfg.serviceLoadingPercent,
+        isCareCoordCapped,
+        careCoordCapAmount: atHmFees.cfg.careCoordCap,
+        isManagementFeeCapped,
+        managementFeeCapAmount: atHmFees.cfg.serviceLoadingCap
       };
     }
 
@@ -919,25 +930,40 @@ export default function HomeCareBudgetView() {
       const sub = baseAmt + ccFee;
       const mgmt = item.management_fee ?? (isHomeCare ? sub * (managementFeePercent / 100) : 0);
       const gTotal = item.grand_total ?? (sub + mgmt);
+      const hasZeroLoadings = isHomeCare && Number(ccFee) === 0 && Number(mgmt) === 0 && baseAmt > 0;
       return {
         ...item,
         funding_stream: itemFundingStream,
+        atHmType: null,
         baseAmount: baseAmt,
         coordinationFee: ccFee,
         subtotal: sub,
         managementFee: mgmt,
-        amount: gTotal
+        amount: gTotal,
+        appliedCareCoordPercent: hasZeroLoadings ? 0 : careCoordPercent,
+        appliedManagementFeePercent: hasZeroLoadings ? 0 : managementFeePercent,
+        isCareCoordCapped: false,
+        careCoordCapAmount: 0,
+        isManagementFeeCapped: false,
+        managementFeeCapAmount: 0
       };
     }
     const fees = calculateServiceConsumptionWithFees(baseAmt, careCoordPercent, managementFeePercent);
     return {
       ...item,
       funding_stream: itemFundingStream,
+      atHmType: null,
       baseAmount: fees.baseAmount,
       coordinationFee: fees.coordinationFee,
       subtotal: fees.subtotal,
       managementFee: fees.managementFee,
-      amount: fees.total
+      amount: fees.total,
+      appliedCareCoordPercent: careCoordPercent,
+      appliedManagementFeePercent: managementFeePercent,
+      isCareCoordCapped: false,
+      careCoordCapAmount: 0,
+      isManagementFeeCapped: false,
+      managementFeeCapAmount: 0
     };
   });
 
@@ -1056,9 +1082,9 @@ export default function HomeCareBudgetView() {
   const handleExportLedgerXlsx = () => {
     if (filteredLedgerItems.length === 0) return;
 
-    const ccHeader = `Care Coord (${careCoordPercent}%)`;
-    const totalCcHeader = `Total w/ CC (${careCoordPercent}%)`;
-    const loadingHeader = `Service Loading Fee (${managementFeePercent}%)`;
+    const ccHeader = 'Care Coord';
+    const totalCcHeader = 'Total w/ CC';
+    const loadingHeader = 'Service Loading Fee';
 
     let sumBase = 0;
     let sumCc = 0;
@@ -1669,9 +1695,9 @@ export default function HomeCareBudgetView() {
                     <th className="px-3 py-2 border-b border-border-subtle w-[10%]">Date</th>
                     <th className="px-3 py-2 border-b border-border-subtle w-[30%]">Service Item</th>
                     <th className="px-3 py-2 border-b border-border-subtle text-right">Service Amt</th>
-                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Care Coord ({careCoordPercent}%)</th>}
-                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Total w/ CC ({careCoordPercent}%)</th>}
-                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Service Loading Fee ({managementFeePercent}%)</th>}
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Care Coord</th>}
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Total w/ CC</th>}
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Service Loading Fee</th>}
                     <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Grand Total</th>
                   </tr>
                 </thead>
@@ -1721,9 +1747,45 @@ export default function HomeCareBudgetView() {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrency(item.baseAmount)}</td>
-                        {isHomeCare && <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs">{formatCurrency(item.coordinationFee)}</td>}
+                        {isHomeCare && (
+                          <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs whitespace-nowrap">
+                            <span>{formatCurrency(item.coordinationFee)}</span>
+                            <span
+                              className={`ml-1.5 text-[10px] px-1 py-0.2 rounded border ${
+                                item.atHmType
+                                  ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25'
+                                  : 'bg-white/[0.03] text-zinc-400 border-white/[0.06]'
+                              }`}
+                              title={
+                                item.isCareCoordCapped
+                                  ? `${item.atHmType} Care Coordination capped at $${item.careCoordCapAmount}`
+                                  : `Care Coordination (${item.appliedCareCoordPercent}%)`
+                              }
+                            >
+                              {item.appliedCareCoordPercent}%{item.isCareCoordCapped ? ` • $${item.careCoordCapAmount} Cap` : ''}
+                            </span>
+                          </td>
+                        )}
                         {isHomeCare && <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs">{formatCurrency(item.subtotal)}</td>}
-                        {isHomeCare && <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs">{formatCurrency(item.managementFee)}</td>}
+                        {isHomeCare && (
+                          <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs whitespace-nowrap">
+                            <span>{formatCurrency(item.managementFee)}</span>
+                            <span
+                              className={`ml-1.5 text-[10px] px-1 py-0.2 rounded border ${
+                                item.atHmType
+                                  ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25'
+                                  : 'bg-white/[0.03] text-zinc-400 border-white/[0.06]'
+                              }`}
+                              title={
+                                item.isManagementFeeCapped
+                                  ? `${item.atHmType} Service Loading capped at $${item.managementFeeCapAmount}`
+                                  : `Service Loading (${item.appliedManagementFeePercent}%)`
+                              }
+                            >
+                              {item.appliedManagementFeePercent}%{item.isManagementFeeCapped ? ` • $${item.managementFeeCapAmount} Cap` : ''}
+                            </span>
+                          </td>
+                        )}
                         <td className="px-3 py-2 text-right font-semibold text-brand-blue font-mono text-xs">{formatCurrency(item.amount)}</td>
                       </tr>
                     ))
@@ -1851,27 +1913,34 @@ export default function HomeCareBudgetView() {
                 />
               </div>
 
-              {isHomeCare && (
-                <div className="pt-1.5 pb-0.5">
-                  <div className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      id="apply-loadings-toggle"
-                      checked={externalLoadings}
-                      onChange={(e) => setExternalLoadings(e.target.checked)}
-                      className="mt-0.5 text-indigo-500 bg-zinc-950 border-zinc-800 rounded focus:ring-0 cursor-pointer"
-                    />
-                    <div className="leading-none">
-                      <label htmlFor="apply-loadings-toggle" className="text-xs font-medium text-zinc-300 cursor-pointer select-none">
-                        Apply Platform Loadings
-                      </label>
-                      <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
-                        Apply Care Coordination ({careCoordPercent}%) and Service Loading ({managementFeePercent}%) fees to this invoice amount.
-                      </p>
+              {isHomeCare && (() => {
+                const selectedSrvObj = masterServices.find(s => s.name === externalService);
+                const selectedAtHm = detectAtOrHmStreamType(selectedSrvObj?.funding_stream);
+                const extAtHmCfg = selectedAtHm ? getAtHmFeeConfigForClient(additionalFundingStreams, selectedAtHm) : null;
+                return (
+                  <div className="pt-1.5 pb-0.5">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        id="apply-loadings-toggle"
+                        checked={externalLoadings}
+                        onChange={(e) => setExternalLoadings(e.target.checked)}
+                        className="mt-0.5 text-indigo-500 bg-zinc-950 border-zinc-800 rounded focus:ring-0 cursor-pointer"
+                      />
+                      <div className="leading-none">
+                        <label htmlFor="apply-loadings-toggle" className="text-xs font-medium text-zinc-300 cursor-pointer select-none">
+                          Apply Platform Loadings
+                        </label>
+                        <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
+                          {selectedAtHm && extAtHmCfg
+                            ? `Apply ${selectedAtHm} Care Coordination (${extAtHmCfg.careCoordPercent}% up to $${extAtHmCfg.careCoordCap}) and Service Loading (${extAtHmCfg.serviceLoadingPercent}% up to $${extAtHmCfg.serviceLoadingCap}) fees to this invoice amount.`
+                            : `Apply Care Coordination (${careCoordPercent}%) and Service Loading (${managementFeePercent}%) fees to this invoice amount.`}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div className="pt-2 border-t border-zinc-800 flex justify-end gap-2">
                 <button

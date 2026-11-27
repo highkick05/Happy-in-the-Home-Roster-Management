@@ -15645,7 +15645,7 @@ app.get("/api/health", (req, res) => {
     const allShifts = db
       .prepare(
         `
-      SELECT s.id, s.start_time, s.status 
+      SELECT s.id, s.start_time, s.status, s.notes 
       FROM shifts s
       WHERE s.client_id = ? 
         AND (
@@ -15730,6 +15730,7 @@ app.get("/api/health", (req, res) => {
               management_fee: mgmtFee,
               grand_total: lineGrandTotal,
               source_type: "shift",
+              is_manual_invoice: shiftRow.notes === "Manually generated invoice",
               client_share: splits.clientShare,
               package_drawdown: splits.packageDrawdown,
               service_category: sCat,
@@ -19219,6 +19220,21 @@ app.get("/api/health", (req, res) => {
               }
               t.source_shift_id = linkedShift.id;
               t.linked_shift_status = linkedShift.status || "DRAFT";
+              t.is_manual_invoice = linkedShift.notes === "Manually generated invoice";
+              if (!t.staff_first_name && !t.staff_last_name && linkedShift.custom_staff_name) {
+                t.custom_staff_name = linkedShift.custom_staff_name;
+              }
+              if (t.is_manual_invoice) {
+                try {
+                  const invRow = db
+                    .prepare("SELECT id, invoice_number FROM invoices WHERE shift_id = ? LIMIT 1")
+                    .get(linkedShift.id) as any;
+                  if (invRow) {
+                    t.invoice_id = invRow.id;
+                    t.invoice_number = invRow.invoice_number || null;
+                  }
+                } catch {}
+              }
             } else {
               t.linked_shift_status = null;
             }
@@ -19914,6 +19930,7 @@ app.get("/api/health", (req, res) => {
             `SELECT start_time, status FROM shifts
              WHERE client_id = ?
                AND UPPER(status) IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')
+               AND COALESCE(notes, '') != 'Manually generated invoice'
              ORDER BY start_time DESC`,
           )
           .all(clientId) as any[];
@@ -22291,10 +22308,18 @@ app.get("/api/health", (req, res) => {
 
     const cleaned: any[] = [];
     for (const s of parsed) {
-      if (!s || !s.serviceId || s.serviceId === "orientation" || s.serviceId === "custom") continue;
-      const srv = db
-        .prepare("SELECT id, name, unit, rate, funding_stream FROM services WHERE id = ?")
-        .get(s.serviceId) as any;
+      if (!s || !s.serviceId || s.serviceId === "orientation") continue;
+      const isCustomItem = Boolean(s.isCustom || s.serviceId === "custom" || String(s.serviceId).startsWith("custom-"));
+      let srv: any = null;
+      if (!isCustomItem) {
+        srv = db
+          .prepare("SELECT id, name, unit, rate, funding_stream FROM services WHERE id = ?")
+          .get(s.serviceId) as any;
+      } else if (s.customName) {
+        srv = db
+          .prepare("SELECT id, name, unit, rate, funding_stream FROM services WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1")
+          .get(s.customName) as any;
+      }
       const resolvedName = String(srv?.name || s.serviceName || s.customName || s.name || "").toLowerCase();
       if (
         resolvedName.includes("provider travel") ||
@@ -22304,26 +22329,36 @@ app.get("/api/health", (req, res) => {
       ) {
         continue;
       }
-      const effectiveRate =
-        s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== "" && !isNaN(Number(s.rateOverride))
-          ? Number(Number(s.rateOverride).toFixed(2))
-          : srv?.rate
-          ? Number(Number(srv.rate).toFixed(2))
-          : 0;
+      const hasExplicitRate =
+        (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== "" && !isNaN(Number(s.rateOverride)) && Number(s.rateOverride) > 0) ||
+        (s.customRate !== undefined && s.customRate !== null && s.customRate !== "" && !isNaN(Number(s.customRate)) && Number(s.customRate) > 0);
+      const effectiveRate = hasExplicitRate
+        ? Number(Number(s.rateOverride !== undefined && s.rateOverride !== "" ? s.rateOverride : s.customRate).toFixed(2))
+        : srv?.rate && Number(srv.rate) > 0
+        ? Number(Number(srv.rate).toFixed(2))
+        : undefined;
       const effectiveQty =
         s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== "" && !isNaN(Number(s.qtyOverride))
           ? Number(s.qtyOverride)
-          : (srv?.unit || "Hour") === "Hour"
-          ? Number(shiftHours.toFixed(2))
+          : (srv?.unit || s.customUnit || "Hour") === "Hour"
+          ? Math.max(1, Number(shiftHours.toFixed(2)))
           : 1;
       const fundingStream = String(s.fundingStream || srv?.funding_stream || "ON,HC").trim().toUpperCase();
 
-      cleaned.push({
-        serviceId: String(s.serviceId),
-        rateOverride: effectiveRate,
+      const entry: any = {
+        serviceId: srv?.id ? String(srv.id) : String(s.serviceId),
         qtyOverride: effectiveQty,
         fundingStream,
-      });
+      };
+      if (effectiveRate !== undefined) {
+        entry.rateOverride = effectiveRate;
+      }
+      if (isCustomItem && !srv?.id) {
+        entry.isCustom = true;
+        entry.customName = s.customName || s.serviceName || s.name || "Custom Service";
+        entry.customUnit = s.customUnit || "Each";
+      }
+      cleaned.push(entry);
     }
     return JSON.stringify(cleaned);
   };
@@ -22360,19 +22395,20 @@ app.get("/api/health", (req, res) => {
           targetTemplateName = existingTmpl?.template_name || "Default Template";
         }
 
-        // Check if an identical ONE_OFF card already exists on this date and time in the active template
+        // Check if a ONE_OFF card already exists for this exact shiftId (or an unlinked card at the exact same date/time)
         const existingOneOff = db
           .prepare(
             `SELECT id FROM client_roster_templates
              WHERE client_id = ?
                AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
                AND UPPER(COALESCE(schedule_type, 'ONGOING')) = 'ONE_OFF'
-               AND one_off_date = ?
-               AND start_time = ?
-               AND end_time = ?
+               AND (
+                 source_shift_id = ?
+                 OR (source_shift_id IS NULL AND one_off_date = ? AND start_time = ? AND end_time = ?)
+               )
              LIMIT 1`,
           )
-          .get(clientId, targetTemplateName, shiftDateStr, localStartTime, localEndTime) as any;
+          .get(clientId, targetTemplateName, shiftId, shiftDateStr, localStartTime, localEndTime) as any;
 
         const cleanServicesJson = buildCleanTemplateServicesJsonFromShift(servicesJson || "[]", shiftHours);
 
@@ -22491,6 +22527,36 @@ app.get("/api/health", (req, res) => {
       console.warn("Warning syncing manual calendar shift to roster template:", syncErr);
     }
   };
+
+  // Backfill any existing Manual Invoices ('Manually generated invoice') into ONE_OFF template cards
+  try {
+    const manualInvoiceShifts = db
+      .prepare(
+        `SELECT s.id, s.client_id, s.staff_id, s.start_time, s.end_time, s.services_json
+         FROM shifts s
+         WHERE s.notes = 'Manually generated invoice'
+           AND UPPER(COALESCE(s.status, '')) != 'CANCELLED'
+           AND NOT EXISTS (
+             SELECT 1 FROM client_roster_templates t
+             WHERE t.source_shift_id = s.id
+               AND UPPER(COALESCE(t.schedule_type, '')) = 'ONE_OFF'
+           )`,
+      )
+      .all() as any[];
+    for (const ms of manualInvoiceShifts) {
+      syncManualCalendarShiftToRosterTemplate({
+        action: "create",
+        shiftId: ms.id,
+        clientId: ms.client_id,
+        staffId: ms.staff_id,
+        startTime: ms.start_time,
+        endTime: ms.end_time,
+        servicesJson: ms.services_json,
+      });
+    }
+  } catch (e) {
+    console.warn("Warning backfilling manual invoice shifts to roster templates:", e);
+  }
 
   app.post("/api/shifts", authenticateToken, requireAdmin, async (req, res) => {
     let {
@@ -27726,6 +27792,17 @@ app.get("/api/health", (req, res) => {
 
         const shiftId = shiftResult.lastInsertRowid as number;
 
+        // Sync manual invoice shift as a compact ONE_OFF card on the client's Roster Builder template
+        syncManualCalendarShiftToRosterTemplate({
+          action: "create",
+          shiftId,
+          clientId,
+          staffId: finalStaffId,
+          startTime: finalStartDateTime,
+          endTime: finalEndDateTime,
+          servicesJson: services,
+        });
+
         // 2. Generate the invoice
         generateInvoiceForShift(shiftId);
 
@@ -29043,11 +29120,28 @@ app.post(
     (req: any, res: any) => {
       try {
         db.transaction(() => {
+          const inv = db
+            .prepare("SELECT id, shift_id FROM invoices WHERE id = ?")
+            .get(req.params.id) as any;
           // Restore any child invoices that were merged into this invoice which is now being deleted
           db.prepare(
             `UPDATE invoices SET status = 'GENERATED', merged_into_invoice_id = NULL WHERE merged_into_invoice_id = ?`,
           ).run(req.params.id);
           db.prepare("DELETE FROM invoices WHERE id = ?").run(req.params.id);
+
+          if (inv?.shift_id) {
+            const linkedShift = db
+              .prepare("SELECT * FROM shifts WHERE id = ?")
+              .get(inv.shift_id) as any;
+            if (linkedShift && linkedShift.notes === "Manually generated invoice") {
+              syncManualCalendarShiftToRosterTemplate({
+                action: "delete",
+                shiftId: linkedShift.id,
+                oldShift: linkedShift,
+              });
+              db.prepare("DELETE FROM shifts WHERE id = ?").run(linkedShift.id);
+            }
+          }
         })();
         res.json({ success: true });
       } catch (e: any) {
@@ -29073,6 +29167,9 @@ app.post(
       try {
         const placeholders = invoiceIds.map(() => "?").join(",");
         db.transaction(() => {
+          const invRows = db
+            .prepare(`SELECT id, shift_id FROM invoices WHERE id IN (${placeholders})`)
+            .all(...invoiceIds) as any[];
           // Restore any child invoices that were merged into these invoices which are now being deleted
           for (const id of invoiceIds) {
             db.prepare(
@@ -29082,6 +29179,21 @@ app.post(
           db.prepare(`DELETE FROM invoices WHERE id IN (${placeholders})`).run(
             ...invoiceIds,
           );
+          for (const inv of invRows) {
+            if (inv?.shift_id) {
+              const linkedShift = db
+                .prepare("SELECT * FROM shifts WHERE id = ?")
+                .get(inv.shift_id) as any;
+              if (linkedShift && linkedShift.notes === "Manually generated invoice") {
+                syncManualCalendarShiftToRosterTemplate({
+                  action: "delete",
+                  shiftId: linkedShift.id,
+                  oldShift: linkedShift,
+                });
+                db.prepare("DELETE FROM shifts WHERE id = ?").run(linkedShift.id);
+              }
+            }
+          }
         })();
         res.json({ success: true });
       } catch (e: any) {
