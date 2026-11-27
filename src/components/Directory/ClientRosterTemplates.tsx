@@ -2702,7 +2702,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 return (
                   <div
                     key={slideTemplateName}
-                    className="w-full shrink-0 overflow-x-auto p-2 flex gap-2 custom-scrollbar items-stretch h-full"
+                    className="w-full shrink-0 overflow-x-auto p-2.5 flex gap-2.5 custom-scrollbar items-stretch h-full"
                   >
                     {displayDaysOrder.map(dayIdx => {
                       const dayTemplates = slideTemplateList
@@ -2710,11 +2710,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
                       return (
-                        <div key={dayIdx} className="flex-1 min-w-[162px] flex flex-col gap-2 h-full overflow-hidden">
-                          <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-xs text-white flex items-center justify-between gap-1 shrink-0">
-                            <span className="text-xs font-semibold text-zinc-200 truncate">{DAYS_OF_WEEK[dayIdx]}</span>
+                        <div key={dayIdx} className="flex-1 min-w-[166px] flex flex-col gap-[9px] h-full overflow-hidden">
+                          <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-[7px] text-[12.5px] text-white flex items-center justify-between gap-1 shrink-0">
+                            <span className="text-[12.5px] font-semibold text-zinc-200 truncate">{DAYS_OF_WEEK[dayIdx]}</span>
                             <div className="flex items-center gap-1 shrink-0">
-                              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
+                              <span className="text-[9.5px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
                                 {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
                               </span>
                               {!slideIsHistorical && user?.role === 'ADMIN' && (
@@ -2722,15 +2722,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   type="button"
                                   onClick={() => handleQuickAddForDay(dayIdx)}
                                   title={`Add shift on ${DAYS_OF_WEEK[dayIdx]}`}
-                                  className="w-4 h-4 rounded bg-indigo-500/20 hover:bg-indigo-500/40 text-brand-teal border border-brand-teal/30 flex items-center justify-center transition-colors cursor-pointer"
+                                  className="w-[18px] h-[18px] rounded bg-indigo-500/20 hover:bg-indigo-500/40 text-brand-teal border border-brand-teal/30 flex items-center justify-center transition-colors cursor-pointer"
                                 >
-                                  <Plus className="w-2.5 h-2.5" />
+                                  <Plus className="w-[11px] h-[11px]" />
                                 </button>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex flex-col gap-2 flex-1 overflow-y-auto custom-scrollbar pr-0.5 pb-2">
+                          <div className="flex flex-col gap-[9px] flex-1 overflow-y-auto custom-scrollbar pr-0.5 pb-2">
                             {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
                               const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
                               const shiftFreq = getShiftFrequency(t);
@@ -2755,7 +2755,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                               return (
                                 <div
                                   key={t.id}
-                                  className={`flex flex-col justify-between px-2 py-1.5 bg-[#09090b] border rounded-lg transition-colors group ${
+                                  className={`flex flex-col justify-between px-[9px] py-[7px] bg-[#09090b] border rounded-lg transition-colors group ${
                                     hasCardClash
                                       ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.12)]'
                                       : 'border-white/[0.08] hover:border-white/[0.14]'
@@ -2764,11 +2764,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   {/* Row 1: Time + Staff Pill + Action Icons */}
                                   <div className="flex items-center justify-between gap-1 mb-1">
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                      <span className="text-xs font-bold font-mono text-zinc-100 shrink-0">
+                                      <span className="text-[12.5px] font-bold font-mono text-zinc-100 shrink-0">
                                         {t.start_time}–{t.end_time}
                                       </span>
                                       <span
-                                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800/70 border border-white/[0.1] text-[10px] text-zinc-300 truncate"
+                                        className="inline-flex items-center px-1.5 py-[2.5px] rounded bg-zinc-800/70 border border-white/[0.1] text-[10.5px] text-zinc-300 truncate"
                                         title={`Staff: ${t.staff_first_name || ''} ${t.staff_last_name || ''}`}
                                       >
                                         {t.staff_first_name} {t.staff_last_name}
@@ -2782,7 +2782,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                           title="Duplicate shift to other day(s) or time"
                                           className="p-1 text-zinc-400 hover:text-indigo-300 transition-colors rounded hover:bg-white/[0.06] cursor-pointer"
                                         >
-                                          <Copy className="w-3 h-3" />
+                                          <Copy className="w-[13px] h-[13px]" />
                                         </button>
                                         {!isOneOffLocked && (
                                           <>
@@ -2792,7 +2792,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                               title="Edit shift"
                                               className="p-1 text-zinc-400 hover:text-brand-teal transition-colors rounded hover:bg-white/[0.06] cursor-pointer"
                                             >
-                                              <Edit2 className="w-3 h-3" />
+                                              <Edit2 className="w-[13px] h-[13px]" />
                                             </button>
                                             <button
                                               type="button"
@@ -2800,7 +2800,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                               title="Delete shift"
                                               className="p-1 text-zinc-400 hover:text-red-400 transition-colors rounded hover:bg-white/[0.06] cursor-pointer"
                                             >
-                                              <Trash2 className="w-3 h-3" />
+                                              <Trash2 className="w-[13px] h-[13px]" />
                                             </button>
                                           </>
                                         )}
@@ -2812,12 +2812,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   <div className="flex items-center flex-wrap gap-1 mb-1.5">
                                     {sType === 'ONE_OFF' ? (
                                       <>
-                                        <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 leading-none">
+                                        <span className="text-[9.5px] font-semibold uppercase px-1.5 py-[3px] rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 leading-none">
                                           ONE OFF {t.one_off_date ? `• ${formatShortDate(t.one_off_date)}` : ''}
                                         </span>
                                         {linkedStatus && (
                                           <span
-                                            className={`text-[9px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border leading-none ${
+                                            className={`text-[9.5px] font-mono font-semibold uppercase px-1.5 py-[3px] rounded border leading-none ${
                                               linkedStatus === 'COMPLETED' || linkedStatus === 'IN_PROGRESS'
                                                 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                                                 : linkedStatus === 'PUBLISHED'
@@ -2835,15 +2835,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                       </>
                                     ) : sType === 'FIXED' ? (
                                       <>
-                                        <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border leading-none ${getFrequencyBadgeStyle(shiftFreq)}`}>
+                                        <span className={`text-[9.5px] font-semibold uppercase px-1.5 py-[3px] rounded border leading-none ${getFrequencyBadgeStyle(shiftFreq)}`}>
                                           {shiftFreq}
                                         </span>
-                                        <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none">
+                                        <span className="text-[9.5px] font-semibold uppercase px-1.5 py-[3px] rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none">
                                           FIXED {t.start_date && t.end_date ? `• ${formatShortDate(t.start_date)}–${formatShortDate(t.end_date)}` : ''}
                                         </span>
                                       </>
                                     ) : (
-                                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 leading-none">
+                                      <span className="text-[9.5px] font-semibold uppercase px-1.5 py-[3px] rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 leading-none">
                                         {shiftFreq}
                                         {effectiveCardStart
                                           ? slideIsHistorical && slideTmpl.effective_end_date
@@ -2866,7 +2866,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                         return (
                                           <div
                                             key={cIdx}
-                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/40 text-[9px] font-mono font-semibold text-red-300 leading-tight"
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/40 text-[9.5px] font-mono font-semibold text-red-300 leading-tight"
                                             title={`Overlaps with ${other.start_time} - ${other.end_time} on ${clashItem.overlappingDates.map(d => formatDisplayDate(d)).join(', ')}`}
                                           >
                                             <AlertCircle className="w-2.5 h-2.5 text-red-400 shrink-0" />
@@ -2907,18 +2907,18 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                         const totalAmount = effectiveRate * effectiveQty;
 
                                         return (
-                                          <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded px-2 py-1.5">
+                                          <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded px-2 py-[7px]">
                                             <div className="flex items-center justify-between gap-1 mb-1">
                                               <div className="flex items-center min-w-0 flex-1" title={name || 'Service'}>
                                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-1.5"></div>
-                                                <div className="text-zinc-200 text-[11px] font-medium truncate">{name || 'Service'}</div>
+                                                <div className="text-zinc-200 text-[11.5px] font-medium truncate">{name || 'Service'}</div>
                                               </div>
                                               {isClientHomeCare && (
                                                 <div className="flex items-center gap-0.5 shrink-0">
                                                   {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
                                                     <span
                                                       key={code}
-                                                      className={`text-[8px] font-mono font-semibold px-1 py-0.2 rounded shrink-0 border ${
+                                                      className={`text-[8.5px] font-mono font-semibold px-1 py-0.2 rounded shrink-0 border ${
                                                         code === 'ON'
                                                           ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
                                                           : code === 'HC'
@@ -2933,7 +2933,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                                 </div>
                                               )}
                                             </div>
-                                            <div className="flex items-center justify-between text-[10px] font-mono bg-black/35 rounded px-1.5 py-0.5">
+                                            <div className="flex items-center justify-between text-[10.5px] font-mono bg-black/35 rounded px-1.5 py-[3px]">
                                               <span className="text-zinc-400">
                                                 {effectiveQty} {unitLabel} × ${effectiveRate.toFixed(2)}
                                               </span>
@@ -2952,7 +2952,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     )}
 
                                     {isClientHomeCare && (
-                                      <div className="pt-1 border-t border-white/[0.06] flex items-center justify-between text-[9px] font-mono text-zinc-400 leading-none">
+                                      <div className="pt-1 border-t border-white/[0.06] flex items-center justify-between text-[9.5px] font-mono text-zinc-400 leading-none">
                                         <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
                                         <span className="text-zinc-200 font-semibold">
                                           Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
@@ -2997,7 +2997,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
         {/* Home Care Low-Profile Horizontal Bar-Graph Funding Stream Cards (ON Card -> HC Card -> Other Additional Stream Cards) */}
         {isClientHomeCare && homeCareQuarterlySummary && (
-          <div className="px-3 py-1.5 bg-[#0d1117] border-t border-white/[0.08] shrink-0">
+          <div className="px-3 py-[7px] bg-[#0d1117] border-t border-white/[0.08] shrink-0">
             <div className="flex items-stretch gap-2.5 overflow-x-auto custom-scrollbar">
               {/* Card 1: ON — Ongoing Funds Summary Card */}
               {(() => {
@@ -3021,7 +3021,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                 return (
                   <div
-                    className={`w-[345px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-1.5 flex flex-col justify-between ${
+                    className={`w-[360px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-[7px] flex flex-col justify-between ${
                       homeCareQuarterlySummary.projectedUnfundedDeficit > 0
                         ? 'border-red-500/40'
                         : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
@@ -3032,25 +3032,25 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     {/* Top Row: Stream Title on Left, Total Allocated on Top-Right */}
                     <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-white/[0.06]">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="px-1.5 py-0.2 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-[9px] font-mono font-bold shrink-0">
+                        <span className="px-1.5 py-0.2 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-[9.5px] font-mono font-bold shrink-0">
                           ON
                         </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
+                        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
                           Ongoing Funds ({activeQuarter.shortLabel})
                         </span>
                         {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
-                          <span className="text-[9px] font-semibold px-1 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+                          <span className="text-[9.5px] font-semibold px-1 py-0.2 rounded bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
                             Over
                           </span>
                         ) : homeCareQuarterlySummary.projectedHcOverflowUsed > 0 ? (
-                          <span className="text-[9px] font-semibold px-1 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                          <span className="text-[9.5px] font-semibold px-1 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
                             ⚡ HC Draw
                           </span>
                         ) : null}
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-[9px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
-                        <span className="text-[11px] font-bold font-mono text-white">
+                        <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
+                        <span className="text-[11.5px] font-bold font-mono text-white">
                           {formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}
                         </span>
                       </div>
@@ -3059,9 +3059,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     {/* 4 Horizontal Bar Graph Lines: Planned, Spent, Remaining, Projected */}
                     <div className="space-y-0.5">
                       {/* Line 1: Planned */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Planned</span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className="h-full bg-indigo-400 rounded-full transition-all"
                             style={{ width: `${plannedPct}%` }}
@@ -3073,9 +3073,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 2: Spent */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Spent</span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className="h-full bg-sky-400 rounded-full transition-all"
                             style={{ width: `${spentPct}%` }}
@@ -3087,9 +3087,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 3: Remaining (under Spent) */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${remVal < 0 ? 'bg-red-400' : 'bg-brand-teal'}`}
                             style={{ width: `${remPct}%` }}
@@ -3105,9 +3105,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 4: Projected */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Projected</span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${projBarColor}`}
                             style={{ width: `${projPct}%` }}
@@ -3148,7 +3148,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                         return (
                           <div
-                            className="pt-0.5 mt-0.5 border-t border-white/[0.06] flex items-center justify-between text-[9px] font-mono leading-tight"
+                            className="pt-0.5 mt-0.5 border-t border-white/[0.06] flex items-center justify-between text-[9.5px] font-mono leading-tight"
                             title={`Estimated additional weekday hours available in ${activeQuarter.shortLabel} at $${refWeekdayBaseRate.toFixed(2)}/hr base (${formatCurrency(hourlyDrawdown)}/hr incl. fees)`}
                           >
                             <span className="text-zinc-400">Spare Capacity (@ ${refWeekdayBaseRate.toFixed(0)}/hr):</span>
@@ -3181,7 +3181,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 return (
                   <div
                     key={s.code}
-                    className={`w-[325px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-1.5 flex flex-col justify-between ${
+                    className={`w-[340px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-[7px] flex flex-col justify-between ${
                       s.projectedRemaining < 0
                         ? 'border-red-500/40'
                         : s.onOverflowDraw > 0
@@ -3195,7 +3195,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-white/[0.06]">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
-                          className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold shrink-0 border ${
+                          className={`px-1.5 py-0.2 rounded text-[9.5px] font-mono font-bold shrink-0 border ${
                             isHc
                               ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                               : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
@@ -3203,12 +3203,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         >
                           {s.code}
                         </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-200 truncate" title={cleanTitle}>
+                        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-zinc-200 truncate" title={cleanTitle}>
                           {cleanTitle}
                         </span>
                         {isHc && (
                           <span
-                            className={`text-[9px] font-medium px-1 py-0.2 rounded border shrink-0 ${
+                            className={`text-[9.5px] font-medium px-1 py-0.2 rounded border shrink-0 ${
                               s.onOverflowDraw > 0
                                 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                                 : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
@@ -3220,8 +3220,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-[9px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
-                        <span className="text-[11px] font-bold font-mono text-white">
+                        <span className="text-[9.5px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
+                        <span className="text-[11.5px] font-bold font-mono text-white">
                           {formatCurrency(s.allocated)}
                         </span>
                       </div>
@@ -3230,11 +3230,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     {/* 3 Horizontal Bar Graph Lines: Planned, Spent, Remaining */}
                     <div className="space-y-1 my-auto">
                       {/* Line 1: Planned (includes any ON overflow draw for HC) */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">
                           {isHc && s.onOverflowDraw > 0 ? 'Overflow' : 'Planned'}
                         </span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${
                               s.onOverflowDraw > 0 ? 'bg-amber-400' : 'bg-indigo-400'
@@ -3252,9 +3252,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 2: Spent */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Spent</span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className="h-full bg-sky-400 rounded-full transition-all"
                             style={{ width: `${spentPct}%` }}
@@ -3266,9 +3266,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 3: Remaining */}
-                      <div className="flex items-center gap-2 text-[10px] leading-tight">
+                      <div className="flex items-center gap-2 text-[10.5px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
-                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-[7px] bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${
                               remVal < 0 ? 'bg-red-400' : isHc ? 'bg-sky-300' : 'bg-brand-teal'
