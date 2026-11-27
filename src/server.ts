@@ -1307,6 +1307,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     "end_date TEXT",
     "one_off_date TEXT",
     "frequency TEXT DEFAULT 'Weekly'",
+    "source_shift_id INTEGER",
   ]) {
     try {
       db.exec(`ALTER TABLE client_roster_templates ADD COLUMN ${colDef}`);
@@ -20518,6 +20519,12 @@ app.get("/api/health", (req, res) => {
                 isAbtApproved ? 1 : 0,
               );
               shiftsCreated.push(shiftInfo.lastInsertRowid);
+              if (String(tmpl.schedule_type || "").toUpperCase() === "ONE_OFF" && tmpl.id) {
+                db.prepare("UPDATE client_roster_templates SET source_shift_id = ? WHERE id = ?").run(
+                  Number(shiftInfo.lastInsertRowid),
+                  tmpl.id
+                );
+              }
               if (assignedStaffId) {
                 affectedStaffDates.add(`${assignedStaffId}|${shiftDateStr}`);
               }
@@ -21773,6 +21780,243 @@ app.get("/api/health", (req, res) => {
     res.json(shifts);
   });
 
+  const resolveShiftLocalDateAndTimeForTemplate = (isoStart: string, isoEnd: string) => {
+    let timezone = "Australia/Perth";
+    try {
+      const tzRow = db.prepare("SELECT value FROM settings WHERE key = 'timezone' LIMIT 1").get() as any;
+      if (tzRow?.value) {
+        try {
+          timezone = JSON.parse(tzRow.value);
+        } catch {
+          timezone = String(tzRow.value).replace(/['"]+/g, "");
+        }
+      }
+    } catch {}
+
+    const startDt = new Date(isoStart);
+    const endDt = new Date(isoEnd);
+    const shiftDateStr = formatInTimeZone(startDt, timezone, "yyyy-MM-dd");
+    const localStartTime = formatInTimeZone(startDt, timezone, "HH:mm");
+    const localEndTime = formatInTimeZone(endDt, timezone, "HH:mm");
+    const dayOfWeek = new Date(`${shiftDateStr}T12:00:00Z`).getUTCDay();
+    const shiftHours = Math.max(0, (endDt.getTime() - startDt.getTime()) / (1000 * 60 * 60));
+    return { shiftDateStr, localStartTime, localEndTime, dayOfWeek, shiftHours };
+  };
+
+  const buildCleanTemplateServicesJsonFromShift = (rawServicesJson: string | any[], shiftHours: number) => {
+    let parsed: any[] = [];
+    if (Array.isArray(rawServicesJson)) {
+      parsed = rawServicesJson;
+    } else if (typeof rawServicesJson === "string" && rawServicesJson.trim()) {
+      try {
+        const p = JSON.parse(rawServicesJson);
+        if (Array.isArray(p)) parsed = p;
+      } catch {}
+    }
+
+    const cleaned: any[] = [];
+    for (const s of parsed) {
+      if (!s || !s.serviceId || s.serviceId === "orientation" || s.serviceId === "custom") continue;
+      const srv = db
+        .prepare("SELECT id, name, unit, rate, funding_stream FROM services WHERE id = ?")
+        .get(s.serviceId) as any;
+      const resolvedName = String(srv?.name || s.serviceName || s.customName || s.name || "").toLowerCase();
+      if (
+        resolvedName.includes("provider travel") ||
+        resolvedName.includes("travel - provider") ||
+        resolvedName.includes("activity based transport") ||
+        resolvedName.includes("activity-based transport")
+      ) {
+        continue;
+      }
+      const effectiveRate =
+        s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== "" && !isNaN(Number(s.rateOverride))
+          ? Number(Number(s.rateOverride).toFixed(2))
+          : srv?.rate
+          ? Number(Number(srv.rate).toFixed(2))
+          : 0;
+      const effectiveQty =
+        s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== "" && !isNaN(Number(s.qtyOverride))
+          ? Number(s.qtyOverride)
+          : (srv?.unit || "Hour") === "Hour"
+          ? Number(shiftHours.toFixed(2))
+          : 1;
+      const fundingStream = String(s.fundingStream || srv?.funding_stream || "ON,HC").trim().toUpperCase();
+
+      cleaned.push({
+        serviceId: String(s.serviceId),
+        rateOverride: effectiveRate,
+        qtyOverride: effectiveQty,
+        fundingStream,
+      });
+    }
+    return JSON.stringify(cleaned);
+  };
+
+  const syncManualCalendarShiftToRosterTemplate = (params: {
+    action: "create" | "update" | "delete";
+    shiftId: number;
+    clientId?: number | string | null;
+    staffId?: number | string | null;
+    startTime?: string;
+    endTime?: string;
+    servicesJson?: string | any[];
+    isHistorical?: boolean;
+    oldShift?: any;
+  }) => {
+    try {
+      const { action, shiftId, clientId, staffId, startTime, endTime, servicesJson, isHistorical, oldShift } = params;
+      if (action === "create") {
+        if (!clientId || isHistorical || !startTime || !endTime) return;
+        const { shiftDateStr, localStartTime, localEndTime, dayOfWeek, shiftHours } =
+          resolveShiftLocalDateAndTimeForTemplate(startTime, endTime);
+
+        const settingsRowsDB = db
+          .prepare("SELECT * FROM client_template_settings WHERE client_id = ? ORDER BY sort_order ASC, rowid ASC")
+          .all(clientId) as any[];
+        const activeSetting =
+          settingsRowsDB.find((s: any) => Number(s.is_active) === 1) ||
+          settingsRowsDB[settingsRowsDB.length - 1];
+        let targetTemplateName = activeSetting?.template_name || "";
+        if (!targetTemplateName) {
+          const existingTmpl = db
+            .prepare("SELECT template_name FROM client_roster_templates WHERE client_id = ? ORDER BY id DESC LIMIT 1")
+            .get(clientId) as any;
+          targetTemplateName = existingTmpl?.template_name || "Default Template";
+        }
+
+        // Check if an identical ONE_OFF card already exists on this date and time in the active template
+        const existingOneOff = db
+          .prepare(
+            `SELECT id FROM client_roster_templates
+             WHERE client_id = ?
+               AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
+               AND UPPER(COALESCE(schedule_type, 'ONGOING')) = 'ONE_OFF'
+               AND one_off_date = ?
+               AND start_time = ?
+               AND end_time = ?
+             LIMIT 1`,
+          )
+          .get(clientId, targetTemplateName, shiftDateStr, localStartTime, localEndTime) as any;
+
+        const cleanServicesJson = buildCleanTemplateServicesJsonFromShift(servicesJson || "[]", shiftHours);
+
+        if (existingOneOff?.id) {
+          db.prepare(
+            `UPDATE client_roster_templates
+             SET staff_id = ?, services_json = ?, source_shift_id = ?
+             WHERE id = ?`,
+          ).run(staffId || null, cleanServicesJson, shiftId, existingOneOff.id);
+        } else {
+          db.prepare(
+            `INSERT INTO client_roster_templates
+             (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name, schedule_type, start_date, end_date, one_off_date, frequency, source_shift_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'ONE_OFF', ?, ?, ?, 'One-Off', ?)`,
+          ).run(
+            clientId,
+            dayOfWeek,
+            localStartTime,
+            localEndTime,
+            staffId || null,
+            cleanServicesJson,
+            targetTemplateName,
+            shiftDateStr,
+            shiftDateStr,
+            shiftDateStr,
+            shiftId,
+          );
+        }
+      } else if (action === "update") {
+        let linkedTemplate = db
+          .prepare(
+            `SELECT id FROM client_roster_templates
+             WHERE source_shift_id = ? AND UPPER(COALESCE(schedule_type, '')) = 'ONE_OFF'
+             LIMIT 1`,
+          )
+          .get(shiftId) as any;
+
+        if (!linkedTemplate && oldShift && !oldShift.batch_id && oldShift.client_id && oldShift.start_time && oldShift.end_time) {
+          const oldLocal = resolveShiftLocalDateAndTimeForTemplate(oldShift.start_time, oldShift.end_time);
+          linkedTemplate = db
+            .prepare(
+              `SELECT id FROM client_roster_templates
+               WHERE client_id = ?
+                 AND UPPER(COALESCE(schedule_type, '')) = 'ONE_OFF'
+                 AND one_off_date = ?
+                 AND start_time = ?
+                 AND end_time = ?
+               LIMIT 1`,
+            )
+            .get(oldShift.client_id, oldLocal.shiftDateStr, oldLocal.localStartTime, oldLocal.localEndTime) as any;
+        }
+
+        if (linkedTemplate?.id && startTime && endTime && clientId) {
+          const { shiftDateStr, localStartTime, localEndTime, dayOfWeek, shiftHours } =
+            resolveShiftLocalDateAndTimeForTemplate(startTime, endTime);
+          const cleanServicesJson = buildCleanTemplateServicesJsonFromShift(servicesJson || "[]", shiftHours);
+          db.prepare(
+            `UPDATE client_roster_templates
+             SET client_id = ?,
+                 day_of_week = ?,
+                 start_time = ?,
+                 end_time = ?,
+                 staff_id = ?,
+                 services_json = ?,
+                 start_date = ?,
+                 end_date = ?,
+                 one_off_date = ?,
+                 source_shift_id = ?
+             WHERE id = ?`,
+          ).run(
+            clientId,
+            dayOfWeek,
+            localStartTime,
+            localEndTime,
+            staffId || null,
+            cleanServicesJson,
+            shiftDateStr,
+            shiftDateStr,
+            shiftDateStr,
+            shiftId,
+            linkedTemplate.id,
+          );
+        }
+      } else if (action === "delete") {
+        const delById = db
+          .prepare(
+            `DELETE FROM client_roster_templates
+             WHERE source_shift_id = ? AND UPPER(COALESCE(schedule_type, '')) = 'ONE_OFF'`,
+          )
+          .run(shiftId);
+
+        if (
+          delById.changes === 0 &&
+          oldShift &&
+          !oldShift.batch_id &&
+          oldShift.client_id &&
+          oldShift.start_time &&
+          oldShift.end_time
+        ) {
+          const oldLocal = resolveShiftLocalDateAndTimeForTemplate(oldShift.start_time, oldShift.end_time);
+          db.prepare(
+            `DELETE FROM client_roster_templates
+             WHERE id = (
+               SELECT id FROM client_roster_templates
+               WHERE client_id = ?
+                 AND UPPER(COALESCE(schedule_type, '')) = 'ONE_OFF'
+                 AND one_off_date = ?
+                 AND start_time = ?
+                 AND end_time = ?
+               LIMIT 1
+             )`,
+          ).run(oldShift.client_id, oldLocal.shiftDateStr, oldLocal.localStartTime, oldLocal.localEndTime);
+        }
+      }
+    } catch (syncErr) {
+      console.warn("Warning syncing manual calendar shift to roster template:", syncErr);
+    }
+  };
+
   app.post("/api/shifts", authenticateToken, requireAdmin, async (req, res) => {
     let {
       staffId,
@@ -21977,7 +22221,7 @@ app.get("/api/health", (req, res) => {
 
 
       if (idsToProcess.length > 1) {
-        let shiftIds = [];
+        let shiftIds: number[] = [];
         db.transaction((shiftsArray) => {
           shiftIds = shiftsArray.map((shift) => {
             
@@ -21997,8 +22241,19 @@ app.get("/api/health", (req, res) => {
               isHist ? 1 : 0,
               vehicleIdToAssign
             );
-            insertHistoricalData(info.lastInsertRowid, shift);
-            return info.lastInsertRowid;
+            const insertedId = Number(info.lastInsertRowid);
+            insertHistoricalData(insertedId, shift);
+            syncManualCalendarShiftToRosterTemplate({
+              action: "create",
+              shiftId: insertedId,
+              clientId,
+              staffId: shift.staffId,
+              startTime,
+              endTime,
+              servicesJson: shift.servicesJson,
+              isHistorical: isHist,
+            });
+            return insertedId;
           });
         })(processedStaffShifts);
 
@@ -22034,6 +22289,16 @@ app.get("/api/health", (req, res) => {
           );
           sid = Number(info.lastInsertRowid);
           insertHistoricalData(sid, single);
+          syncManualCalendarShiftToRosterTemplate({
+            action: "create",
+            shiftId: sid,
+            clientId,
+            staffId: single.staffId,
+            startTime,
+            endTime,
+            servicesJson: single.servicesJson,
+            isHistorical: isHist,
+          });
         })();
 
         if (!isHist) {
@@ -22094,11 +22359,16 @@ app.get("/api/health", (req, res) => {
           if (action === "delete") {
             const shiftsToDelete = db
               .prepare(
-                `SELECT staff_id, start_time FROM shifts WHERE id IN (${placeholders})`,
+                `SELECT id, client_id, staff_id, start_time, end_time, batch_id FROM shifts WHERE id IN (${placeholders})`,
               )
               .all(...pureShiftIds);
             shiftsToDelete.forEach((s: any) => {
               uniqueStaffDates.add(`${s.staff_id}|${s.start_time}`);
+              syncManualCalendarShiftToRosterTemplate({
+                action: "delete",
+                shiftId: Number(s.id),
+                oldShift: s,
+              });
             });
           }
 
@@ -22606,6 +22876,17 @@ app.get("/api/health", (req, res) => {
 
         const stmt = db.prepare(updateQuery);
         stmt.run(...params);
+
+        syncManualCalendarShiftToRosterTemplate({
+          action: "update",
+          shiftId: Number(id),
+          clientId: clientId !== undefined ? clientId : existing.client_id,
+          staffId: staffId !== undefined ? staffId : existing.staff_id,
+          startTime: startTime !== undefined ? startTime : existing.start_time,
+          endTime: endTime !== undefined ? endTime : existing.end_time,
+          servicesJson,
+          oldShift: existing,
+        });
 
         // If uncancelling a previously cancelled shift, remove any invoice generated for it and clear cancelled_pay_hours
         if (existing.status === "CANCELLED" && finalStatus !== "CANCELLED") {
@@ -24402,7 +24683,9 @@ app.get("/api/health", (req, res) => {
         let shiftToUpdate: any;
         db.transaction(() => {
           shiftToUpdate = db
-            .prepare("SELECT staff_id, start_time FROM shifts WHERE id = ?")
+            .prepare(
+              "SELECT id, client_id, staff_id, start_time, end_time, batch_id FROM shifts WHERE id = ?",
+            )
             .get(id);
           const invoices = db
             .prepare("SELECT file_path FROM invoices WHERE shift_id = ?")
@@ -24427,6 +24710,11 @@ app.get("/api/health", (req, res) => {
           });
           db.prepare("DELETE FROM invoices WHERE shift_id = ?").run(id);
           db.prepare("DELETE FROM shifts WHERE id = ?").run(id);
+          syncManualCalendarShiftToRosterTemplate({
+            action: "delete",
+            shiftId: Number(id),
+            oldShift: shiftToUpdate,
+          });
 
           // Restore any invoices that were merged into this shift which is now being deleted
           db.prepare(
