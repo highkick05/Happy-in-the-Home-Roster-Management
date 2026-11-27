@@ -86,6 +86,16 @@ const formatDisplayDate = (dateStr?: string | null) => {
   return clean;
 };
 
+const formatShortDate = (dateStr?: string | null) => {
+  if (!dateStr) return '';
+  const clean = String(dateStr).split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+  }
+  return clean;
+};
+
 const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val);
 };
@@ -2438,9 +2448,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-1 flex flex-col bg-[#09090b] overflow-hidden">
         {/* Header Bar */}
-        <div className="px-4 py-2.5 border-b border-white/[0.08] bg-[#121214] flex flex-wrap justify-between items-center gap-3 shrink-0">
-          <div className="flex items-center flex-wrap gap-2.5">
-            <h3 className="text-lg font-medium text-white leading-none">
+        <div className="px-3 py-1.5 border-b border-white/[0.08] bg-[#121214] flex flex-wrap justify-between items-center gap-2 shrink-0">
+          <div className="flex items-center flex-wrap gap-2">
+            <h3 className="text-base font-semibold text-white leading-none">
               {isViewingHistorical ? 'Historical Roster Template' : 'Current Roster Templates'}
             </h3>
             {isClientHomeCare && (
@@ -2692,7 +2702,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 return (
                   <div
                     key={slideTemplateName}
-                    className="w-full shrink-0 overflow-x-auto p-3 flex gap-3.5 custom-scrollbar items-stretch h-full"
+                    className="w-full shrink-0 overflow-x-auto p-2 flex gap-2 custom-scrollbar items-stretch h-full"
                   >
                     {displayDaysOrder.map(dayIdx => {
                       const dayTemplates = slideTemplateList
@@ -2700,11 +2710,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
                       return (
-                        <div key={dayIdx} className="flex-1 min-w-[165px] flex flex-col gap-3 h-full overflow-hidden">
-                          <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2.5 py-2 text-[13px] text-white flex items-center justify-between gap-1.5">
-                            <span className="text-sm font-medium text-zinc-300 truncate">{DAYS_OF_WEEK[dayIdx]}</span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
+                        <div key={dayIdx} className="flex-1 min-w-[162px] flex flex-col gap-2 h-full overflow-hidden">
+                          <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-xs text-white flex items-center justify-between gap-1 shrink-0">
+                            <span className="text-xs font-semibold text-zinc-200 truncate">{DAYS_OF_WEEK[dayIdx]}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-brand-teal">
                                 {dayTemplates.length} SHIFT{dayTemplates.length === 1 ? '' : 'S'}
                               </span>
                               {!slideIsHistorical && user?.role === 'ADMIN' && (
@@ -2712,15 +2722,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   type="button"
                                   onClick={() => handleQuickAddForDay(dayIdx)}
                                   title={`Add shift on ${DAYS_OF_WEEK[dayIdx]}`}
-                                  className="w-5 h-5 rounded bg-indigo-500/20 hover:bg-indigo-500/40 text-brand-teal border border-brand-teal/30 flex items-center justify-center transition-colors cursor-pointer"
+                                  className="w-4 h-4 rounded bg-indigo-500/20 hover:bg-indigo-500/40 text-brand-teal border border-brand-teal/30 flex items-center justify-center transition-colors cursor-pointer"
                                 >
-                                  <Plus className="w-3 h-3" />
+                                  <Plus className="w-2.5 h-2.5" />
                                 </button>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
+                          <div className="flex flex-col gap-2 flex-1 overflow-y-auto custom-scrollbar pr-0.5 pb-2">
                             {dayTemplates.length === 0 ? null : dayTemplates.map(t => {
                               const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
                               const shiftFreq = getShiftFrequency(t);
@@ -2745,89 +2755,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                               return (
                                 <div
                                   key={t.id}
-                                  className={`flex flex-col justify-between p-3 bg-[#09090b] border rounded-lg transition-colors group ${
+                                  className={`flex flex-col justify-between px-2 py-1.5 bg-[#09090b] border rounded-lg transition-colors group ${
                                     hasCardClash
-                                      ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_12px_rgba(239,68,68,0.12)]'
-                                      : 'border-white/[0.08] hover:border-white/[0.12]'
+                                      ? 'border-red-500/70 bg-red-950/10 hover:border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.12)]'
+                                      : 'border-white/[0.08] hover:border-white/[0.14]'
                                   }`}
                                 >
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1 pr-1.5">
-                                      <div className="flex items-center flex-wrap gap-1.5 mb-1">
-                                        <div className="text-sm font-medium text-zinc-100">{t.start_time} - {t.end_time}</div>
-                                        {sType !== 'ONE_OFF' && (
-                                          <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${getFrequencyBadgeStyle(shiftFreq)}`}>
-                                            {shiftFreq}
-                                          </span>
-                                        )}
-                                        {sType === 'ONE_OFF' ? (
-                                          <>
-                                            <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                              ONE OFF {t.one_off_date ? `• ${formatDisplayDate(t.one_off_date)}` : ''}
-                                            </span>
-                                            {linkedStatus && (
-                                              <span
-                                                className={`text-[9px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border ${
-                                                  linkedStatus === 'COMPLETED' || linkedStatus === 'IN_PROGRESS'
-                                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                                    : linkedStatus === 'PUBLISHED'
-                                                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                                    : linkedStatus === 'CANCELLED'
-                                                    ? 'bg-red-500/15 text-red-300 border-red-500/30'
-                                                    : 'bg-zinc-700/40 text-zinc-300 border-white/[0.12]'
-                                                }`}
-                                                title={`Calendar Shift Status: ${linkedStatus}`}
-                                              >
-                                                {linkedStatus === 'IN_PROGRESS' ? 'IN PROGRESS' : linkedStatus}
-                                                {isOneOffLocked ? ' 🔒' : ''}
-                                              </span>
-                                            )}
-                                          </>
-                                        ) : sType === 'FIXED' ? (
-                                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                                            FIXED {t.start_date && t.end_date ? `• ${formatDisplayDate(t.start_date)}–${formatDisplayDate(t.end_date)}` : ''}
-                                          </span>
-                                        ) : (
-                                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                            ONGOING
-                                            {effectiveCardStart
-                                              ? slideIsHistorical && slideTmpl.effective_end_date
-                                                ? ` • ${formatDisplayDate(effectiveCardStart)}–${formatDisplayDate(slideTmpl.effective_end_date)}`
-                                                : ` • From ${formatDisplayDate(effectiveCardStart)}`
-                                              : ''}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {hasCardClash && (
-                                        <div className="mb-1.5 flex flex-col gap-1">
-                                          {cardClashes.map((clashItem, cIdx) => {
-                                            const other = clashItem.otherShift;
-                                            const sampleDates = clashItem.overlappingDates
-                                              .slice(0, 2)
-                                              .map(d => formatDisplayDate(d))
-                                              .join(', ');
-                                            const extraCount = clashItem.overlappingDates.length - 2;
-                                            return (
-                                              <div
-                                                key={cIdx}
-                                                className="inline-flex items-center gap-1 px-1.5 py-1 rounded bg-red-500/15 border border-red-500/40 text-[10px] font-mono font-semibold text-red-300 leading-tight"
-                                                title={`Overlaps with ${other.start_time} - ${other.end_time} on ${clashItem.overlappingDates.map(d => formatDisplayDate(d)).join(', ')}`}
-                                              >
-                                                <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
-                                                <span>
-                                                  TIME CLASH • {other.start_time}–{other.end_time} ({sampleDates}
-                                                  {extraCount > 0 ? ` +${extraCount} more` : ''})
-                                                </span>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                      <div className="mb-1.5">
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-zinc-800/50 border border-white/[0.12]/50 text-[11px] text-zinc-300">
-                                          Staff: {t.staff_first_name} {t.staff_last_name}
-                                        </span>
-                                      </div>
+                                  {/* Row 1: Time + Staff Pill + Action Icons */}
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      <span className="text-xs font-bold font-mono text-zinc-100 shrink-0">
+                                        {t.start_time}–{t.end_time}
+                                      </span>
+                                      <span
+                                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800/70 border border-white/[0.1] text-[10px] text-zinc-300 truncate"
+                                        title={`Staff: ${t.staff_first_name || ''} ${t.staff_last_name || ''}`}
+                                      >
+                                        {t.staff_first_name} {t.staff_last_name}
+                                      </span>
                                     </div>
                                     {!slideIsHistorical && user?.role === 'ADMIN' && (
                                       <div className="flex items-center gap-0.5 shrink-0">
@@ -2835,9 +2780,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                           type="button"
                                           onClick={() => handleDuplicateTemplate(t)}
                                           title="Duplicate shift to other day(s) or time"
-                                          className="p-1.5 text-zinc-400 hover:text-indigo-300 transition-colors rounded-md hover:bg-white/[0.04] cursor-pointer"
+                                          className="p-1 text-zinc-400 hover:text-indigo-300 transition-colors rounded hover:bg-white/[0.06] cursor-pointer"
                                         >
-                                          <Copy className="w-3.5 h-3.5" />
+                                          <Copy className="w-3 h-3" />
                                         </button>
                                         {!isOneOffLocked && (
                                           <>
@@ -2845,17 +2790,17 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                               type="button"
                                               onClick={() => handleEditTemplate(t)}
                                               title="Edit shift"
-                                              className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04] cursor-pointer"
+                                              className="p-1 text-zinc-400 hover:text-brand-teal transition-colors rounded hover:bg-white/[0.06] cursor-pointer"
                                             >
-                                              <Edit2 className="w-3.5 h-3.5" />
+                                              <Edit2 className="w-3 h-3" />
                                             </button>
                                             <button
                                               type="button"
                                               onClick={() => handleDeleteTemplate(t.id)}
                                               title="Delete shift"
-                                              className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04] cursor-pointer"
+                                              className="p-1 text-zinc-400 hover:text-red-400 transition-colors rounded hover:bg-white/[0.06] cursor-pointer"
                                             >
-                                              <Trash2 className="w-3.5 h-3.5" />
+                                              <Trash2 className="w-3 h-3" />
                                             </button>
                                           </>
                                         )}
@@ -2863,107 +2808,165 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     )}
                                   </div>
 
-                                    <div className="space-y-1.5 mt-auto">
-                                      {t.servicesData && t.servicesData.length > 0 ? (
-                                        t.servicesData.map((sd: any, idx: number) => {
-                                          const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
-                                          const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
-                                          const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
-
-                                          const tStart = new Date(`1970-01-01T${t.start_time}:00`);
-                                          let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
-                                          if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
-                                          const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
-
-                                          const effectiveQty =
-                                            sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
-                                              ? Number(sd.qtyOverride)
-                                              : unit === 'Hour'
-                                              ? tShiftHours
-                                              : 1;
-                                          const effectiveRate =
-                                            sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
-                                              ? Number(sd.rateOverride)
-                                              : rate;
-                                          const qtyText =
-                                            sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
-                                              ? Number(sd.qtyOverride)
-                                              : unit === 'Hour'
-                                              ? `Auto Hrs (${tShiftHours.toFixed(2)})`
-                                              : 1;
-                                          const totalAmount = effectiveRate * effectiveQty;
-
-                                          return (
-                                            <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded-md p-2">
-                                              <div className="flex items-start justify-between gap-1.5 mb-2">
-                                                <div className="flex items-start">
-                                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0 mr-2"></div>
-                                                  <div className="text-zinc-200 text-xs font-medium leading-tight">{name || 'Service'}</div>
-                                                </div>
-                                                {isClientHomeCare && (
-                                                  <div className="flex items-center gap-1 shrink-0">
-                                                    {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
-                                                      <span
-                                                        key={code}
-                                                        className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 border ${
-                                                          code === 'ON'
-                                                            ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
-                                                            : code === 'HC'
-                                                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                                            : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
-                                                        }`}
-                                                        title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
-                                                      >
-                                                        {code}
-                                                      </span>
-                                                    ))}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <div className="grid grid-cols-4 gap-2 text-center bg-black/30 rounded-md p-2">
-                                                <div>
-                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Unit</span>
-                                                  <span className="text-xs font-medium text-zinc-300">{unit}</span>
-                                                </div>
-                                                <div>
-                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Qty</span>
-                                                  <span className="text-xs font-medium text-zinc-300">{qtyText}</span>
-                                                </div>
-                                                <div>
-                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Rate</span>
-                                                  <span className="text-xs font-medium text-zinc-300">${effectiveRate.toFixed(2)}</span>
-                                                </div>
-                                                <div>
-                                                  <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
-                                                  <span className="text-xs font-medium text-brand-teal">${totalAmount.toFixed(2)}</span>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })
-                                      ) : (
-                                        <div className="bg-[#121214] border border-white/[0.08] rounded-md p-2 flex items-center">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-2"></div>
-                                          <span className="text-zinc-300 text-sm font-medium">{t.service_name || 'Legacy Service'}</span>
-                                        </div>
-                                      )}
-
-                                      {isClientHomeCare && (
-                                        <div className="pt-1.5 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-400">
-                                          <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
-                                          <span className="text-zinc-200 font-semibold">
-                                            Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
+                                  {/* Row 2: Compact Schedule Type / Frequency / Status Badges */}
+                                  <div className="flex items-center flex-wrap gap-1 mb-1.5">
+                                    {sType === 'ONE_OFF' ? (
+                                      <>
+                                        <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 leading-none">
+                                          ONE OFF {t.one_off_date ? `• ${formatShortDate(t.one_off_date)}` : ''}
+                                        </span>
+                                        {linkedStatus && (
+                                          <span
+                                            className={`text-[9px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border leading-none ${
+                                              linkedStatus === 'COMPLETED' || linkedStatus === 'IN_PROGRESS'
+                                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                                : linkedStatus === 'PUBLISHED'
+                                                ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                : linkedStatus === 'CANCELLED'
+                                                ? 'bg-red-500/15 text-red-300 border-red-500/30'
+                                                : 'bg-zinc-700/40 text-zinc-300 border-white/[0.12]'
+                                            }`}
+                                            title={`Calendar Shift Status: ${linkedStatus}`}
+                                          >
+                                            {linkedStatus === 'IN_PROGRESS' ? 'IN PROG' : linkedStatus}
+                                            {isOneOffLocked ? ' 🔒' : ''}
                                           </span>
-                                        </div>
-                                      )}
-                                    </div>
+                                        )}
+                                      </>
+                                    ) : sType === 'FIXED' ? (
+                                      <>
+                                        <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border leading-none ${getFrequencyBadgeStyle(shiftFreq)}`}>
+                                          {shiftFreq}
+                                        </span>
+                                        <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none">
+                                          FIXED {t.start_date && t.end_date ? `• ${formatShortDate(t.start_date)}–${formatShortDate(t.end_date)}` : ''}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 leading-none">
+                                        {shiftFreq}
+                                        {effectiveCardStart
+                                          ? slideIsHistorical && slideTmpl.effective_end_date
+                                            ? ` • ${formatShortDate(effectiveCardStart)}–${formatShortDate(slideTmpl.effective_end_date)}`
+                                            : ` • From ${formatShortDate(effectiveCardStart)}`
+                                          : ''}
+                                      </span>
+                                    )}
                                   </div>
-                                );
-                              })}
-                            </div>
+
+                                  {hasCardClash && (
+                                    <div className="mb-1 flex flex-col gap-1">
+                                      {cardClashes.map((clashItem, cIdx) => {
+                                        const other = clashItem.otherShift;
+                                        const sampleDates = clashItem.overlappingDates
+                                          .slice(0, 2)
+                                          .map(d => formatShortDate(d))
+                                          .join(', ');
+                                        const extraCount = clashItem.overlappingDates.length - 2;
+                                        return (
+                                          <div
+                                            key={cIdx}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/40 text-[9px] font-mono font-semibold text-red-300 leading-tight"
+                                            title={`Overlaps with ${other.start_time} - ${other.end_time} on ${clashItem.overlappingDates.map(d => formatDisplayDate(d)).join(', ')}`}
+                                          >
+                                            <AlertCircle className="w-2.5 h-2.5 text-red-400 shrink-0" />
+                                            <span className="truncate">
+                                              CLASH • {other.start_time}–{other.end_time} ({sampleDates}
+                                              {extraCount > 0 ? ` +${extraCount}` : ''})
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                  {/* Row 3: Condensed Service Line(s) & Inline Rate Bar */}
+                                  <div className="space-y-1 mt-auto">
+                                    {t.servicesData && t.servicesData.length > 0 ? (
+                                      t.servicesData.map((sd: any, idx: number) => {
+                                        const { rate, unit, name, fundingStream } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
+                                        const resolvedStreamStr = resolveShiftServiceFundingStream(sd.fundingStream, fundingStream);
+                                        const streamCodesList = parseFundingStreamCodes(resolvedStreamStr);
+
+                                        const tStart = new Date(`1970-01-01T${t.start_time}:00`);
+                                        let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
+                                        if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
+                                        const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
+
+                                        const effectiveQty =
+                                          sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== ''
+                                            ? Number(sd.qtyOverride)
+                                            : unit === 'Hour'
+                                            ? tShiftHours
+                                            : 1;
+                                        const effectiveRate =
+                                          sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== ''
+                                            ? Number(sd.rateOverride)
+                                            : rate;
+                                        const unitLabel = unit === 'Hour' ? (effectiveQty === 1 ? 'hr' : 'hrs') : unit.toLowerCase();
+                                        const totalAmount = effectiveRate * effectiveQty;
+
+                                        return (
+                                          <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded px-2 py-1.5">
+                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                              <div className="flex items-center min-w-0 flex-1" title={name || 'Service'}>
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-1.5"></div>
+                                                <div className="text-zinc-200 text-[11px] font-medium truncate">{name || 'Service'}</div>
+                                              </div>
+                                              {isClientHomeCare && (
+                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                  {(streamCodesList.length > 0 ? streamCodesList : ['ON']).map(code => (
+                                                    <span
+                                                      key={code}
+                                                      className={`text-[8px] font-mono font-semibold px-1 py-0.2 rounded shrink-0 border ${
+                                                        code === 'ON'
+                                                          ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/30'
+                                                          : code === 'HC'
+                                                          ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                          : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                                      }`}
+                                                      title={`Funding Stream: ${STANDARD_FUNDING_STREAM_LABELS[code] || code}`}
+                                                    >
+                                                      {code}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px] font-mono bg-black/35 rounded px-1.5 py-0.5">
+                                              <span className="text-zinc-400">
+                                                {effectiveQty} {unitLabel} × ${effectiveRate.toFixed(2)}
+                                              </span>
+                                              <span className="font-semibold text-brand-teal">
+                                                ${totalAmount.toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })
+                                    ) : (
+                                      <div className="bg-[#121214] border border-white/[0.08] rounded px-2 py-1 flex items-center">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mr-1.5"></div>
+                                        <span className="text-zinc-300 text-xs font-medium truncate">{t.service_name || 'Legacy Service'}</span>
+                                      </div>
+                                    )}
+
+                                    {isClientHomeCare && (
+                                      <div className="pt-1 border-t border-white/[0.06] flex items-center justify-between text-[9px] font-mono text-zinc-400 leading-none">
+                                        <span>{qOccurrences} shift{qOccurrences === 1 ? '' : 's'} in {activeQuarter.shortLabel}</span>
+                                        <span className="text-zinc-200 font-semibold">
+                                          Qtr Est: {formatCurrency(drawdownTotal * qOccurrences)}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -2994,8 +2997,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
         {/* Home Care Low-Profile Horizontal Bar-Graph Funding Stream Cards (ON Card -> HC Card -> Other Additional Stream Cards) */}
         {isClientHomeCare && homeCareQuarterlySummary && (
-          <div className="px-4 py-2 bg-[#0d1117] border-t border-white/[0.08] shrink-0">
-            <div className="flex items-stretch gap-3 overflow-x-auto custom-scrollbar">
+          <div className="px-3 py-1.5 bg-[#0d1117] border-t border-white/[0.08] shrink-0">
+            <div className="flex items-stretch gap-2.5 overflow-x-auto custom-scrollbar">
               {/* Card 1: ON — Ongoing Funds Summary Card */}
               {(() => {
                 const alloc = Math.max(0.01, homeCareQuarterlySummary.totalOnAllocation);
@@ -3018,7 +3021,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                 return (
                   <div
-                    className={`w-[355px] shrink-0 bg-[#121214] border rounded-lg px-3 py-2 flex flex-col justify-between ${
+                    className={`w-[345px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-1.5 flex flex-col justify-between ${
                       homeCareQuarterlySummary.projectedUnfundedDeficit > 0
                         ? 'border-red-500/40'
                         : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
@@ -3027,12 +3030,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     }`}
                   >
                     {/* Top Row: Stream Title on Left, Total Allocated on Top-Right */}
-                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-white/[0.06]">
+                    <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-white/[0.06]">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="px-1.5 py-0.5 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-[9px] font-mono font-bold shrink-0">
+                        <span className="px-1.5 py-0.2 rounded bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-[9px] font-mono font-bold shrink-0">
                           ON
                         </span>
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-200 truncate">
                           Ongoing Funds ({activeQuarter.shortLabel})
                         </span>
                         {homeCareQuarterlySummary.projectedUnfundedDeficit > 0 ? (
@@ -3047,53 +3050,53 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-[9px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
-                        <span className="text-xs font-bold font-mono text-white">
+                        <span className="text-[11px] font-bold font-mono text-white">
                           {formatCurrency(homeCareQuarterlySummary.totalOnAllocation)}
                         </span>
                       </div>
                     </div>
 
                     {/* 4 Horizontal Bar Graph Lines: Planned, Spent, Remaining, Projected */}
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {/* Line 1: Planned */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Planned</span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className="h-full bg-indigo-400 rounded-full transition-all"
                             style={{ width: `${plannedPct}%` }}
                           />
                         </div>
-                        <span className="w-24 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                        <span className="w-20 text-right font-mono font-semibold text-zinc-200 shrink-0">
                           {formatCurrency(plannedVal)}
                         </span>
                       </div>
 
                       {/* Line 2: Spent */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Spent</span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className="h-full bg-sky-400 rounded-full transition-all"
                             style={{ width: `${spentPct}%` }}
                           />
                         </div>
-                        <span className="w-24 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                        <span className="w-20 text-right font-mono font-semibold text-zinc-200 shrink-0">
                           {formatCurrency(spentVal)}
                         </span>
                       </div>
 
                       {/* Line 3: Remaining (under Spent) */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${remVal < 0 ? 'bg-red-400' : 'bg-brand-teal'}`}
                             style={{ width: `${remPct}%` }}
                           />
                         </div>
                         <span
-                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                          className={`w-20 text-right font-mono font-semibold shrink-0 ${
                             remVal < 0 ? 'text-red-400' : 'text-brand-teal'
                           }`}
                         >
@@ -3102,16 +3105,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 4: Projected */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Projected</span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${projBarColor}`}
                             style={{ width: `${projPct}%` }}
                           />
                         </div>
                         <span
-                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                          className={`w-20 text-right font-mono font-semibold shrink-0 ${
                             homeCareQuarterlySummary.projectedUnfundedDeficit > 0
                               ? 'text-red-400'
                               : homeCareQuarterlySummary.projectedHcOverflowUsed > 0
@@ -3145,7 +3148,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
                         return (
                           <div
-                            className="pt-1 mt-1 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono"
+                            className="pt-0.5 mt-0.5 border-t border-white/[0.06] flex items-center justify-between text-[9px] font-mono leading-tight"
                             title={`Estimated additional weekday hours available in ${activeQuarter.shortLabel} at $${refWeekdayBaseRate.toFixed(2)}/hr base (${formatCurrency(hourlyDrawdown)}/hr incl. fees)`}
                           >
                             <span className="text-zinc-400">Spare Capacity (@ ${refWeekdayBaseRate.toFixed(0)}/hr):</span>
@@ -3178,7 +3181,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 return (
                   <div
                     key={s.code}
-                    className={`w-[340px] shrink-0 bg-[#121214] border rounded-lg px-3 py-2 flex flex-col justify-between ${
+                    className={`w-[325px] shrink-0 bg-[#121214] border rounded-lg px-2.5 py-1.5 flex flex-col justify-between ${
                       s.projectedRemaining < 0
                         ? 'border-red-500/40'
                         : s.onOverflowDraw > 0
@@ -3189,10 +3192,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     }`}
                   >
                     {/* Top Row: Stream Title on Left, Total Allocated on Top-Right */}
-                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-white/[0.06]">
+                    <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-white/[0.06]">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
-                          className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 border ${
+                          className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold shrink-0 border ${
                             isHc
                               ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
                               : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
@@ -3200,7 +3203,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         >
                           {s.code}
                         </span>
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-200 truncate" title={cleanTitle}>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-200 truncate" title={cleanTitle}>
                           {cleanTitle}
                         </span>
                         {isHc && (
@@ -3218,20 +3221,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-[9px] uppercase tracking-wider text-zinc-500 mr-1">Alloc:</span>
-                        <span className="text-xs font-bold font-mono text-white">
+                        <span className="text-[11px] font-bold font-mono text-white">
                           {formatCurrency(s.allocated)}
                         </span>
                       </div>
                     </div>
 
                     {/* 3 Horizontal Bar Graph Lines: Planned, Spent, Remaining */}
-                    <div className="space-y-1.5 my-auto">
+                    <div className="space-y-1 my-auto">
                       {/* Line 1: Planned (includes any ON overflow draw for HC) */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">
                           {isHc && s.onOverflowDraw > 0 ? 'Overflow' : 'Planned'}
                         </span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${
                               s.onOverflowDraw > 0 ? 'bg-amber-400' : 'bg-indigo-400'
@@ -3240,7 +3243,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           />
                         </div>
                         <span
-                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                          className={`w-20 text-right font-mono font-semibold shrink-0 ${
                             s.onOverflowDraw > 0 ? 'text-amber-300' : 'text-zinc-200'
                           }`}
                         >
@@ -3249,23 +3252,23 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       </div>
 
                       {/* Line 2: Spent */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Spent</span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className="h-full bg-sky-400 rounded-full transition-all"
                             style={{ width: `${spentPct}%` }}
                           />
                         </div>
-                        <span className="w-24 text-right font-mono font-semibold text-zinc-200 shrink-0">
+                        <span className="w-20 text-right font-mono font-semibold text-zinc-200 shrink-0">
                           {formatCurrency(spentVal)}
                         </span>
                       </div>
 
                       {/* Line 3: Remaining */}
-                      <div className="flex items-center gap-2 text-[10px]">
+                      <div className="flex items-center gap-2 text-[10px] leading-tight">
                         <span className="w-14 text-zinc-400 font-medium shrink-0">Remaining</span>
-                        <div className="flex-1 h-2 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
+                        <div className="flex-1 h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/[0.05]">
                           <div
                             className={`h-full rounded-full transition-all ${
                               remVal < 0 ? 'bg-red-400' : isHc ? 'bg-sky-300' : 'bg-brand-teal'
@@ -3274,7 +3277,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           />
                         </div>
                         <span
-                          className={`w-24 text-right font-mono font-semibold shrink-0 ${
+                          className={`w-20 text-right font-mono font-semibold shrink-0 ${
                             remVal < 0 ? 'text-red-400' : isHc ? 'text-sky-300' : 'text-brand-teal'
                           }`}
                         >
@@ -3290,27 +3293,27 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         )}
 
         {/* Weekly & Quarterly Total Footer */}
-        <div className="p-4 border-t border-white/[0.08] bg-[#09090b] flex flex-wrap justify-between items-center gap-3 shrink-0">
-          <div className="flex items-center flex-wrap gap-5">
+        <div className="px-3 py-2 border-t border-white/[0.08] bg-[#09090b] flex flex-wrap justify-between items-center gap-2 shrink-0">
+          <div className="flex items-center flex-wrap gap-4">
             <div>
-              <span className="text-[12px] font-medium text-zinc-400 mr-2">Total Weekly Value</span>
-              <span className="text-base font-semibold text-brand-green">{formatCurrency(weeklyTotalAmount)}</span>
+              <span className="text-xs font-medium text-zinc-400 mr-1.5">Total Weekly Value</span>
+              <span className="text-sm font-semibold text-brand-green">{formatCurrency(weeklyTotalAmount)}</span>
             </div>
             {isClientHomeCare && homeCareQuarterlySummary && (
               <>
-                <div className="h-4 w-[1px] bg-white/[0.1] hidden sm:block" />
+                <div className="h-3.5 w-[1px] bg-white/[0.1] hidden sm:block" />
                 <div>
-                  <span className="text-[12px] font-medium text-zinc-400 mr-2">
+                  <span className="text-xs font-medium text-zinc-400 mr-1.5">
                     Planned {activeQuarter.shortLabel} Total (incl. fees)
                   </span>
-                  <span className="text-base font-semibold text-brand-teal">
+                  <span className="text-sm font-semibold text-brand-teal">
                     {formatCurrency(homeCareQuarterlySummary.fullQuarterPlannedOnDrawdown)}
                   </span>
                 </div>
               </>
             )}
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             {user?.role === 'ADMIN' && (
               <>
                 {!isViewingHistorical && (
@@ -3331,9 +3334,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         setServicesData([{ serviceId: '', fundingStream: 'ON' }]);
                         setShowAddTemplateModal(true);
                       }}
-                      className="px-3.5 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                      className="px-3 py-1 bg-indigo-500 hover:bg-brand-blue text-white rounded-md text-xs font-medium transition-colors flex items-center cursor-pointer"
                     >
-                      <Plus className="w-4 h-4 mr-1.5" />
+                      <Plus className="w-3.5 h-3.5 mr-1" />
                       Add Shift
                     </button>
 
@@ -3358,9 +3361,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                         }
                         setShowRunBuilderModal(true);
                       }}
-                      className="px-3.5 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                      className="px-3 py-1 bg-brand-green/80 hover:bg-brand-green text-white rounded-md text-xs font-medium transition-colors flex items-center cursor-pointer"
                     >
-                      <Calendar className="w-4 h-4 mr-1.5" />
+                      <Calendar className="w-3.5 h-3.5 mr-1" />
                       Run Builder
                     </button>
                   </>
@@ -3370,24 +3373,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 <button
                   type="button"
                   onClick={() => setShowRevertBuildModal(true)}
-                  className="px-3.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                  className="px-3 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-md text-xs font-medium transition-colors flex items-center cursor-pointer"
                   title="Backup safety measure: Clear all calendar shifts for this client except Completed, In-Progress, and Cancelled shifts"
                 >
-                  <RotateCcw className="w-4 h-4 mr-1.5 text-amber-400" />
+                  <RotateCcw className="w-3.5 h-3.5 mr-1 text-amber-400" />
                   Revert Build
                 </button>
 
-                <div className="h-5 w-[1px] bg-white/[0.1] mx-0.5 hidden sm:block" />
+                <div className="h-4 w-[1px] bg-white/[0.1] mx-0.5 hidden sm:block" />
 
                 {/* 4. Export Client-Facing PDF Schedule */}
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={downloadingPdf}
-                  className="px-3.5 py-1.5 bg-[#121214] hover:bg-zinc-800 disabled:opacity-50 text-white border border-white/[0.12] rounded-lg text-sm font-medium transition-colors flex items-center cursor-pointer"
+                  className="px-3 py-1 bg-[#121214] hover:bg-zinc-800 disabled:opacity-50 text-white border border-white/[0.12] rounded-md text-xs font-medium transition-colors flex items-center cursor-pointer"
                   title="Download Client-Readable Service Schedule & Quarterly Budget PDF"
                 >
-                  <Download className="w-4 h-4 mr-1.5 text-brand-teal" />
+                  <Download className="w-3.5 h-3.5 mr-1 text-brand-teal" />
                   {downloadingPdf ? 'Generating...' : 'Export PDF'}
                 </button>
               </>
