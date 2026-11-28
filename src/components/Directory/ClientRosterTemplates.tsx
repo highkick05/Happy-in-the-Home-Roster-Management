@@ -1131,10 +1131,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       ? String(targetBudgetTemplateObj.effective_start_date).split('T')[0]
       : '';
 
+    // By default, a template starts at the Quarter Start Date (actualStartDateStr, e.g. 01/10/2026)
+    // unless an explicit mid-quarter effective_start_date was set on the template (or via + New Template).
     const templateEffectiveStartStr =
       rawTemplateStartStr && rawTemplateStartStr >= actualStartDateStr && rawTemplateStartStr <= activeQuarter.endDateStr
         ? rawTemplateStartStr
-        : calculatedEffectiveStartStr;
+        : actualStartDateStr;
 
     const rawTemplateEndStr = targetBudgetTemplateObj?.effective_end_date
       ? String(targetBudgetTemplateObj.effective_end_date).split('T')[0]
@@ -1190,9 +1192,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     targetBudgetShifts.forEach(t => {
       const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
       const shiftFreq = getShiftFrequency(t);
+      const rawShiftStartYmd = t.start_date ? String(t.start_date).split('T')[0] : '';
+      // If the template has no explicit mid-quarter effective_start_date (e.g. Default Template anchored to Quarter Start),
+      // ignore any legacy auto-stamped rolling start_date that matches calculatedEffectiveStartStr
+      const normalizedShiftStartYmd =
+        !rawTemplateStartStr && sType === 'ONGOING' && rawShiftStartYmd === calculatedEffectiveStartStr
+          ? templateEffectiveStartStr
+          : rawShiftStartYmd;
       const effectiveShiftStart =
-        t.start_date && String(t.start_date).split('T')[0] > templateEffectiveStartStr
-          ? String(t.start_date).split('T')[0]
+        normalizedShiftStartYmd && normalizedShiftStartYmd > templateEffectiveStartStr
+          ? normalizedShiftStartYmd
           : templateEffectiveStartStr;
       const effectiveShiftEnd =
         sType === 'FIXED' && t.end_date && String(t.end_date).split('T')[0] < templateEffectiveEndStr
@@ -1624,21 +1633,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     servicesList
   ]);
 
-  // Authoritative effective start date for the currently viewed/active template (works for both Home Care and NDIS)
+  // Authoritative effective start date for the currently viewed/active template (defaults to Quarter Start Date unless explicitly set on the template)
   const resolvedEffectiveStartDateStr = useMemo(() => {
     if (homeCareQuarterlySummary?.templateEffectiveStartStr) {
       return homeCareQuarterlySummary.templateEffectiveStartStr;
     }
     if (viewedTemplateObj?.effective_start_date) {
-      return String(viewedTemplateObj.effective_start_date).split('T')[0];
+      const cleanStart = String(viewedTemplateObj.effective_start_date).split('T')[0];
+      if (cleanStart >= activeQuarter.startDateStr && cleanStart <= activeQuarter.endDateStr) {
+        return cleanStart;
+      }
     }
-    if (shiftStatusSummary.lastLockedShiftDateInQuarter) {
-      const [ly, lm, ld] = shiftStatusSummary.lastLockedShiftDateInQuarter.split('-').map(Number);
-      const nextD = new Date(ly, lm - 1, ld + 1, 12, 0, 0);
-      return `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}-${String(nextD.getDate()).padStart(2, '0')}`;
-    }
-    return activeQuarter.startDateStr;
-  }, [homeCareQuarterlySummary, viewedTemplateObj, shiftStatusSummary, activeQuarter]);
+    return homeCareQuarterlySummary?.actualStartDateStr || activeQuarter.startDateStr;
+  }, [homeCareQuarterlySummary, viewedTemplateObj, activeQuarter]);
 
   // Calculated fresh-slate start date (day after last COMPLETED / IN_PROGRESS / CANCELLED shift in quarter, or Quarter Start Date)
   const calculatedFreshSlateStartDateStr = useMemo(() => {
@@ -2948,10 +2955,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                               const sType: ScheduleType = (t.schedule_type as ScheduleType) || 'ONGOING';
                               const shiftFreq = getShiftFrequency(t);
                               const rawShiftStart = t.start_date ? String(t.start_date).split('T')[0] : '';
+                              const normalizedCardStart =
+                                !rawSlideStart &&
+                                sType === 'ONGOING' &&
+                                rawShiftStart === homeCareQuarterlySummary?.calculatedEffectiveStartStr
+                                  ? slideQStart
+                                  : rawShiftStart;
                               const effectiveCardStart =
                                 sType === 'ONGOING'
-                                  ? (rawShiftStart && rawShiftStart > slideQStart ? rawShiftStart : slideQStart)
-                                  : (rawShiftStart || slideQStart);
+                                  ? (normalizedCardStart && normalizedCardStart > slideQStart ? normalizedCardStart : slideQStart)
+                                  : (normalizedCardStart || slideQStart);
                               const shiftForCount =
                                 sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
                               const qOccurrences = countShiftOccurrencesInRange(shiftForCount, slideQStart, slideQEnd, shiftFreq);

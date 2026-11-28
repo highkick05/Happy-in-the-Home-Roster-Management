@@ -19863,19 +19863,16 @@ app.get("/api/health", (req, res) => {
           );
         }
 
-        // If effectiveStartDate was updated on this template, also sync ONGOING shifts in this template
-        // (preserving any ONGOING shift that has a specifically scheduled future start_date after effectiveStartDate)
+        // If effectiveStartDate was updated on this template, sync ONGOING shifts in this template
         if (effectiveStartDate !== undefined) {
-          const prevStart = existing?.effective_start_date || "";
           if (effectiveStartDate) {
             db.prepare(
               `UPDATE client_roster_templates
                SET start_date = ?
                WHERE client_id = ?
                  AND COALESCE(NULLIF(template_name, ''), 'Default Template') = ?
-                 AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'
-                 AND (start_date IS NULL OR start_date = '' OR start_date <= ? OR start_date = ?)`,
-            ).run(effectiveStartDate, req.params.id, templateName, effectiveStartDate, prevStart);
+                 AND COALESCE(schedule_type, 'ONGOING') = 'ONGOING'`,
+            ).run(effectiveStartDate, req.params.id, templateName);
           } else {
             db.prepare(
               `UPDATE client_roster_templates
