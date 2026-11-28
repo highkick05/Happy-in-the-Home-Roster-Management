@@ -167,10 +167,62 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     () => getCurrentFinancialYearAndQuarter(timezone),
     [timezone]
   );
+
+  const [selectedFyYear, setSelectedFyYear] = useState<number>(() => getCurrentFinancialYearAndQuarter(timezone).currentFyStartYear);
+  const [selectedQuarterId, setSelectedQuarterId] = useState<number>(() => getCurrentFinancialYearAndQuarter(timezone).currentQuarterId);
+  const [showQuarterDropdown, setShowQuarterDropdown] = useState(false);
+
+  const availableFyYears = useMemo(
+    () => [
+      { year: currentFyStartYear - 2, label: `FY ${currentFyStartYear - 2}–${currentFyStartYear - 1}` },
+      { year: currentFyStartYear - 1, label: `FY ${currentFyStartYear - 1}–${currentFyStartYear}` },
+      { year: currentFyStartYear, label: `FY ${currentFyStartYear}–${currentFyStartYear + 1}` },
+      { year: currentFyStartYear + 1, label: `FY ${currentFyStartYear + 1}–${currentFyStartYear + 2}` }
+    ],
+    [currentFyStartYear]
+  );
+
+  const selectedFyQuarters = useMemo(
+    () => getFinancialYearQuarters(selectedFyYear),
+    [selectedFyYear]
+  );
+
   const activeQuarter = useMemo(() => {
-    const quarters = getFinancialYearQuarters(currentFyStartYear);
-    return quarters.find(q => q.id === currentQuarterId) || quarters[0];
-  }, [currentFyStartYear, currentQuarterId]);
+    return selectedFyQuarters.find(q => q.id === selectedQuarterId) || selectedFyQuarters[0];
+  }, [selectedFyQuarters, selectedQuarterId]);
+
+  const isCurrentRealTimeQuarter =
+    selectedFyYear === currentFyStartYear && selectedQuarterId === currentQuarterId;
+  const isPastQuarter =
+    selectedFyYear < currentFyStartYear ||
+    (selectedFyYear === currentFyStartYear && selectedQuarterId < currentQuarterId);
+  const isFutureQuarter =
+    selectedFyYear > currentFyStartYear ||
+    (selectedFyYear === currentFyStartYear && selectedQuarterId > currentQuarterId);
+
+  const handleStepQuarter = (delta: -1 | 1) => {
+    if (delta === -1) {
+      if (selectedQuarterId > 1) {
+        setSelectedQuarterId(prev => prev - 1);
+      } else {
+        setSelectedFyYear(prev => prev - 1);
+        setSelectedQuarterId(4);
+      }
+    } else {
+      if (selectedQuarterId < 4) {
+        setSelectedQuarterId(prev => prev + 1);
+      } else {
+        setSelectedFyYear(prev => prev + 1);
+        setSelectedQuarterId(1);
+      }
+    }
+  };
+
+  const handleResetToCurrentQuarter = () => {
+    setSelectedFyYear(currentFyStartYear);
+    setSelectedQuarterId(currentQuarterId);
+    setShowQuarterDropdown(false);
+  };
 
   // Generate drop down days based on settings start day (default Monday)
   const displayDaysOrder = useMemo(() => {
@@ -1015,7 +1067,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
     const activeQuarterStreams = rawStreams.filter((s: any) => {
       if (s?.fyYear !== undefined && s?.quarterId !== undefined) {
-        return Number(s.fyYear) === currentFyStartYear && Number(s.quarterId) === currentQuarterId;
+        return Number(s.fyYear) === selectedFyYear && Number(s.quarterId) === selectedQuarterId;
       }
       return true;
     });
@@ -1200,7 +1252,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           ? templateEffectiveStartStr
           : rawShiftStartYmd;
       const effectiveShiftStart =
-        normalizedShiftStartYmd && normalizedShiftStartYmd > templateEffectiveStartStr
+        sType === 'ONGOING'
+          ? normalizedShiftStartYmd &&
+            normalizedShiftStartYmd > templateEffectiveStartStr &&
+            normalizedShiftStartYmd <= templateEffectiveEndStr
+            ? normalizedShiftStartYmd
+            : templateEffectiveStartStr
+          : normalizedShiftStartYmd && normalizedShiftStartYmd > templateEffectiveStartStr
           ? normalizedShiftStartYmd
           : templateEffectiveStartStr;
       const effectiveShiftEnd =
@@ -1214,14 +1272,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         sType === 'ONE_OFF' &&
         (linkedStatusUpper === 'COMPLETED' || linkedStatusUpper === 'IN_PROGRESS' || Boolean(t.is_manual_invoice));
 
-      const remOccurrences = isAlreadyCompletedOneOff
-        ? 0
-        : countShiftOccurrencesInRange(
-            { ...t, start_date: effectiveShiftStart },
-            remainingStartStr,
-            effectiveShiftEnd,
-            shiftFreq
-          );
+      const remOccurrences =
+        isAlreadyCompletedOneOff || (isPastQuarter && actualOnSpentToDate > 0)
+          ? 0
+          : countShiftOccurrencesInRange(
+              { ...t, start_date: effectiveShiftStart },
+              remainingStartStr,
+              effectiveShiftEnd,
+              shiftFreq
+            );
       const { baseTotal, byStream } = getTemplateShiftOccurrenceBreakdown(t);
 
       // Remaining quarter projection (from day after last performed shift forward)
@@ -1374,7 +1433,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     const startObj = new Date(`${actualStartDateStr}T00:00:00`);
     const todayObj = new Date(`${todayStr}T00:00:00`);
     const msPerDay = 1000 * 60 * 60 * 24;
-    const daysElapsed = Math.min(totalDays, Math.max(1, Math.floor((todayObj.getTime() - startObj.getTime()) / msPerDay) + 1));
+    const daysElapsed = isPastQuarter
+      ? totalDays
+      : isFutureQuarter
+      ? 0
+      : Math.min(totalDays, Math.max(1, Math.floor((todayObj.getTime() - startObj.getTime()) / msPerDay) + 1));
     const daysRemaining = Math.max(0, totalDays - daysElapsed);
 
     // Schedule Forecast: Actual Spent to Date + Remaining Planned Roster Shifts from calculatedEffectiveStartStr to Quarter End
@@ -1385,7 +1448,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     );
 
     // Burn-Rate Forecast based on actual spending pace
-    const burnRateProjectedOnSpend = round2((actualOnSpentToDate / daysElapsed) * totalDays);
+    const burnRateProjectedOnSpend = daysElapsed > 0 ? round2((actualOnSpentToDate / daysElapsed) * totalDays) : 0;
 
     // 7. Linked HC (Home Care Account) Reserve:
     //    RULE: HC ALWAYS gets drawn down FIRST for AT and HM products/services BEFORE actual AT and HM funding streams (and AT/HM never draw from ON).
@@ -1617,8 +1680,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     activeQuarter,
     activeClient,
     fundingRates,
-    currentFyStartYear,
-    currentQuarterId,
+    selectedFyYear,
+    selectedQuarterId,
+    isPastQuarter,
+    isFutureQuarter,
     quarterLedgerItems,
     shiftStatusSummary,
     careCoordPercent,
@@ -2663,9 +2728,186 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               {isViewingHistorical ? 'Historical Roster Template' : 'Current Roster Templates'}
             </h3>
             {isClientHomeCare && (
-              <span className="h-8 px-2.5 rounded-lg bg-brand-teal/15 text-brand-teal border border-brand-teal/30 text-xs font-mono font-medium inline-flex items-center">
-                {activeQuarter.shortLabel} ({activeQuarter.displayRange})
-              </span>
+              <div className="relative inline-flex items-center gap-1">
+                <div className="inline-flex items-center rounded-lg bg-brand-teal/15 border border-brand-teal/30 h-8 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleStepQuarter(-1)}
+                    title="Previous Quarter"
+                    className="h-6 w-6 rounded-md hover:bg-brand-teal/25 text-brand-teal flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuarterDropdown(prev => !prev)}
+                    title="Click to select Quarter & Financial Year"
+                    className="h-6 px-2 rounded-md hover:bg-brand-teal/20 text-brand-teal text-xs font-mono font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span>
+                      {activeQuarter.shortLabel} ({activeQuarter.displayRange})
+                    </span>
+                    {!isCurrentRealTimeQuarter && (
+                      <span
+                        className={`text-[9.5px] font-sans font-semibold px-1.5 py-0.2 rounded uppercase tracking-wider ${
+                          isPastQuarter
+                            ? 'bg-zinc-500/25 text-zinc-300 border border-zinc-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}
+                      >
+                        {isPastQuarter ? 'Past' : 'Upcoming'}
+                      </span>
+                    )}
+                    <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStepQuarter(1)}
+                    title="Next Quarter"
+                    className="h-6 w-6 rounded-md hover:bg-brand-teal/25 text-brand-teal flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {!isCurrentRealTimeQuarter && (
+                  <button
+                    type="button"
+                    onClick={handleResetToCurrentQuarter}
+                    title="Return to Current Real-Time Quarter"
+                    className="h-8 px-2 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 border border-white/[0.12] text-[11px] font-medium inline-flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3 text-brand-teal" />
+                    <span>Current</span>
+                  </button>
+                )}
+
+                {showQuarterDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowQuarterDropdown(false)}
+                    />
+                    <div className="absolute left-0 top-full mt-1.5 w-[330px] bg-[#141418] border border-white/[0.14] rounded-xl shadow-2xl z-50 p-2.5 space-y-2.5">
+                      {/* Financial Year Header & Selector */}
+                      <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-white/[0.08]">
+                        <span className="text-[10.5px] uppercase tracking-wider font-semibold text-zinc-400">
+                          Financial Year
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFyYear(prev => prev - 1)}
+                            title="Previous Financial Year"
+                            className="h-6 w-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/[0.08] flex items-center justify-center cursor-pointer"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <select
+                            value={selectedFyYear}
+                            onChange={e => setSelectedFyYear(Number(e.target.value))}
+                            className="h-6 px-2 rounded bg-[#09090b] text-white border border-white/[0.14] text-xs font-mono font-semibold outline-none cursor-pointer"
+                          >
+                            {availableFyYears.some(y => y.year === selectedFyYear) ? null : (
+                              <option value={selectedFyYear}>
+                                FY {selectedFyYear}–{selectedFyYear + 1}
+                              </option>
+                            )}
+                            {availableFyYears.map(fy => (
+                              <option key={fy.year} value={fy.year}>
+                                {fy.label}
+                                {fy.year === currentFyStartYear ? ' (Current)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFyYear(prev => prev + 1)}
+                            title="Next Financial Year"
+                            className="h-6 w-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/[0.08] flex items-center justify-center cursor-pointer"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quarters List (Q1 - Q4) */}
+                      <div className="space-y-1">
+                        {selectedFyQuarters.map(q => {
+                          const isSelected = q.id === selectedQuarterId;
+                          const isRealTimeCurrent =
+                            selectedFyYear === currentFyStartYear && q.id === currentQuarterId;
+                          const isQPast =
+                            selectedFyYear < currentFyStartYear ||
+                            (selectedFyYear === currentFyStartYear && q.id < currentQuarterId);
+
+                          return (
+                            <button
+                              key={q.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedQuarterId(q.id);
+                                setShowQuarterDropdown(false);
+                              }}
+                              className={`w-full px-2.5 py-2 rounded-lg border text-left flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                                isSelected
+                                  ? 'bg-brand-teal/15 border-brand-teal/40 text-white'
+                                  : 'bg-[#09090b]/80 hover:bg-zinc-800/80 border-white/[0.06] text-zinc-300'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-mono font-bold text-brand-teal">
+                                    {q.shortLabel}
+                                  </span>
+                                  <span className="text-xs font-mono font-medium truncate">
+                                    {q.displayRange}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
+                                  {q.totalDays} days •{' '}
+                                  {isRealTimeCurrent
+                                    ? 'Active quarter'
+                                    : isQPast
+                                    ? 'Historical quarter spend'
+                                    : 'Starts with $0.00 spend'}
+                                </div>
+                              </div>
+                              <span
+                                className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${
+                                  isRealTimeCurrent
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : isQPast
+                                    ? 'bg-zinc-700/50 text-zinc-400 border border-zinc-600/40'
+                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {isRealTimeCurrent ? 'Current' : isQPast ? 'Past' : 'Upcoming'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {!isCurrentRealTimeQuarter && (
+                        <div className="pt-1.5 border-t border-white/[0.08]">
+                          <button
+                            type="button"
+                            onClick={handleResetToCurrentQuarter}
+                            className="w-full py-1.5 px-2.5 rounded-lg bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>
+                              Jump Back to Current Quarter (Q{currentQuarterId} FY {currentFyStartYear}–
+                              {String(currentFyStartYear + 1).slice(-2)})
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
             {/* Template Effective Start Date Pill / Quick Selector */}
             {user?.role === 'ADMIN' && (
@@ -2963,8 +3205,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   : rawShiftStart;
                               const effectiveCardStart =
                                 sType === 'ONGOING'
-                                  ? (normalizedCardStart && normalizedCardStart > slideQStart ? normalizedCardStart : slideQStart)
-                                  : (normalizedCardStart || slideQStart);
+                                  ? normalizedCardStart &&
+                                    normalizedCardStart > slideQStart &&
+                                    normalizedCardStart <= slideQEnd
+                                    ? normalizedCardStart
+                                    : slideQStart
+                                  : normalizedCardStart || slideQStart;
                               const shiftForCount =
                                 sType === 'ONGOING' ? { ...t, start_date: effectiveCardStart } : t;
                               const qOccurrences = countShiftOccurrencesInRange(shiftForCount, slideQStart, slideQEnd, shiftFreq);
